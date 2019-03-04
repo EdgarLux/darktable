@@ -62,7 +62,7 @@ DT_MODULE(2)
 #define MSGCOLOR_GREEN "#7fe07f"
 
 #define gphoto_EXTRA_VERBOSE FALSE
-#define GPHOTO_STORAGE "gphoto"
+#define GPHOTO_STORAGE "googlephoto"
 
 /** Authenticate against google gphoto service*/
 typedef struct _buffer_t
@@ -221,7 +221,6 @@ static void gphoto_api_destroy(dt_gphoto_context_t *ctx)
 typedef struct dt_storage_gphoto_param_t
 {
   gint64 hash;
-  dt_gphoto_context_t *gphoto_ctx;
 } dt_storage_gphoto_param_t;
 
 
