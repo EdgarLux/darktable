@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Darktable 2.6.1\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-02-22 12:01-0600\n"
+"POT-Creation-Date: 2019-02-27 13:05-0600\n"
 "PO-Revision-Date: 2019-02-26 12:26-0600\n"
 "Last-Translator: Edgar Lux <edgarlux@disroot.org>\n"
 "Language-Team: Tatica Leandro, Edgar Lux, Salvador Calero, J. Karlos D, "
@@ -1800,7 +1800,7 @@ msgstr "sobre el nivel del mar"
 msgid "below sea level"
 msgstr "bajo el nivel del mar"
 
-#: ../src/common/utility.c:508 ../src/iop/watermark.c:764
+#: ../src/common/utility.c:508 ../src/iop/watermark.c:770
 #: ../src/libs/metadata_view.c:569
 msgid "m"
 msgstr "m"
@@ -2635,7 +2635,7 @@ msgstr "modo de mezcla"
 msgid "choose blending mode"
 msgstr "elegir el modo de mezcla"
 
-#: ../src/develop/blend_gui.c:2338 ../src/iop/watermark.c:1424
+#: ../src/develop/blend_gui.c:2338 ../src/iop/watermark.c:1428
 msgid "opacity"
 msgstr "opacidad"
 
@@ -4117,7 +4117,7 @@ msgstr "tamaño de borde inválido, usando 0"
 #: ../src/imageio/format/pdf.c:256 ../src/imageio/storage/disk.c:294
 #: ../src/imageio/storage/email.c:135 ../src/imageio/storage/facebook.c:1306
 #: ../src/imageio/storage/flickr.c:654 ../src/imageio/storage/gallery.c:345
-#: ../src/imageio/storage/gallery.c:386 ../src/imageio/storage/picasa.c:1302
+#: ../src/imageio/storage/gallery.c:386 ../src/imageio/storage/gphoto.c:1377
 #: ../src/imageio/storage/piwigo.c:974
 #, c-format
 msgid "could not export to file `%s'!"
@@ -4134,9 +4134,10 @@ msgstr "PDF"
 #. DT_COLLECTION_SORT_CUSTOM_ORDER
 #: ../src/imageio/format/pdf.c:580 ../src/imageio/storage/facebook.c:1118
 #: ../src/imageio/storage/flickr.c:538 ../src/imageio/storage/gallery.c:184
-#: ../src/imageio/storage/latex.c:184 ../src/imageio/storage/piwigo.c:864
-#: ../src/libs/collect.h:34 ../src/libs/metadata.c:336
-#: ../src/libs/metadata_view.c:122 ../src/libs/tools/filter.c:147
+#: ../src/imageio/storage/latex.c:184 ../src/imageio/storage/gphoto.c:1232
+#: ../src/imageio/storage/piwigo.c:864 ../src/libs/collect.h:34
+#: ../src/libs/metadata.c:336 ../src/libs/metadata_view.c:122
+#: ../src/libs/tools/filter.c:147
 msgid "title"
 msgstr "título"
 
@@ -4496,26 +4497,26 @@ msgstr ""
 "cuenta de facebook y allí, autorizar a darktable a subir las fotos antes de "
 "continuar."
 
-#: ../src/imageio/storage/facebook.c:849 ../src/imageio/storage/picasa.c:907
+#: ../src/imageio/storage/facebook.c:849 ../src/imageio/storage/gphoto.c:941
 msgid "new account"
 msgstr "nueva cuenta"
 
-#: ../src/imageio/storage/facebook.c:854 ../src/imageio/storage/picasa.c:912
+#: ../src/imageio/storage/facebook.c:854 ../src/imageio/storage/gphoto.c:946
 msgid "other account"
 msgstr "otras cuentas"
 
-#: ../src/imageio/storage/facebook.c:883 ../src/imageio/storage/picasa.c:941
+#: ../src/imageio/storage/facebook.c:883 ../src/imageio/storage/gphoto.c:974
 msgid "unable to retrieve the album list"
 msgstr "no se pudo obtener la lista de albums"
 
 #: ../src/imageio/storage/facebook.c:891 ../src/imageio/storage/flickr.c:392
-#: ../src/imageio/storage/flickr.c:419 ../src/imageio/storage/piwigo.c:523
-#: ../src/imageio/storage/piwigo.c:587
+#: ../src/imageio/storage/flickr.c:419 ../src/imageio/storage/gphoto.c:984
+#: ../src/imageio/storage/piwigo.c:523 ../src/imageio/storage/piwigo.c:587
 msgid "create new album"
 msgstr "crear album nuevo"
 
-#: ../src/imageio/storage/facebook.c:963 ../src/imageio/storage/picasa.c:992
-#: ../src/imageio/storage/picasa.c:1136
+#: ../src/imageio/storage/facebook.c:963 ../src/imageio/storage/gphoto.c:1037
+#: ../src/imageio/storage/gphoto.c:1187
 msgid "logout"
 msgstr "desconectarse"
 
@@ -4525,8 +4526,8 @@ msgstr "desconectarse"
 #: ../src/imageio/storage/facebook.c:1036
 #: ../src/imageio/storage/facebook.c:1062
 #: ../src/imageio/storage/facebook.c:1181 ../src/imageio/storage/flickr.c:480
-#: ../src/imageio/storage/picasa.c:998 ../src/imageio/storage/picasa.c:1140
-#: ../src/imageio/storage/picasa.c:1153 ../src/imageio/storage/picasa.c:1211
+#: ../src/imageio/storage/gphoto.c:1043 ../src/imageio/storage/gphoto.c:1191
+#: ../src/imageio/storage/gphoto.c:1204 ../src/imageio/storage/gphoto.c:1271
 #: ../src/imageio/storage/piwigo.c:809
 msgid "login"
 msgstr "acceder"
@@ -4560,11 +4561,11 @@ msgstr "público"
 msgid "friends of friends"
 msgstr "amigos de amigos"
 
-#: ../src/imageio/storage/facebook.c:1315
+#: ../src/imageio/storage/facebook.c:1315 ../src/imageio/storage/gphoto.c:1386
 msgid "unable to create album, no title provided"
 msgstr "no se pudo crear el álbum, no se asignó un título"
 
-#: ../src/imageio/storage/facebook.c:1324
+#: ../src/imageio/storage/facebook.c:1324 ../src/imageio/storage/gphoto.c:1393
 msgid "unable to create album"
 msgstr "no se pudo crear el álbum"
 
@@ -4707,7 +4708,7 @@ msgid "enter the title of the book"
 msgstr "introduzca el título del libro"
 
 #. //////////// build & show the validation dialog
-#: ../src/imageio/storage/picasa.c:727
+#: ../src/imageio/storage/gphoto.c:760
 msgid ""
 "step 1: a new window or tab of your browser should have been loaded. you "
 "have to login into your google account there and authorize darktable to "
@@ -4717,7 +4718,7 @@ msgstr ""
 "entrar en su cuenta de google y autorizar a darktable a subir las fotos "
 "antes de continuar."
 
-#: ../src/imageio/storage/picasa.c:730
+#: ../src/imageio/storage/gphoto.c:763
 msgid ""
 "step 2: paste the verification code shown to you in the browser and click "
 "the OK button once you are done."
@@ -4725,32 +4726,28 @@ msgstr ""
 "paso 2: copie el código de verificación mostrado en su navegador y haga clic "
 "en el botón OK una vez listo."
 
-#: ../src/imageio/storage/picasa.c:736
+#: ../src/imageio/storage/gphoto.c:769
 msgid "google authentication"
 msgstr "autenticación google fotos"
 
-#: ../src/imageio/storage/picasa.c:744
+#: ../src/imageio/storage/gphoto.c:777
 msgid "verification code:"
 msgstr "código de verificación:"
 
-#: ../src/imageio/storage/picasa.c:767
+#: ../src/imageio/storage/gphoto.c:800
 msgid "please enter the verification code"
 msgstr "por favor, ingrese el código de verificación"
 
-#: ../src/imageio/storage/picasa.c:951
-msgid "drop box"
-msgstr "dropbox"
-
-#: ../src/imageio/storage/picasa.c:1168
+#: ../src/imageio/storage/gphoto.c:1219
 msgid "google photos"
 msgstr "google fotos"
 
-#: ../src/imageio/storage/picasa.c:1310
+#: ../src/imageio/storage/gphoto.c:1403
 msgid "unable to export to google photos album"
 msgstr "no se pudo exportar la foto al álbum google fotos"
 
 #. this makes sense only if the export was successful
-#: ../src/imageio/storage/picasa.c:1323
+#: ../src/imageio/storage/gphoto.c:1416
 #, c-format
 msgid "%d/%d exported to google photos album"
 msgid_plural "%d/%d exported to google photos album"
@@ -4843,7 +4840,7 @@ msgstr[1] "%d/%d exportado a álbum picasa"
 msgid "perspective correction"
 msgstr "corrección de perspectiva"
 
-#: ../src/iop/ashift.c:514 ../src/iop/watermark.c:260
+#: ../src/iop/ashift.c:514 ../src/iop/watermark.c:259
 msgctxt "accel"
 msgid "rotation"
 msgstr "rotación"
@@ -4906,7 +4903,7 @@ msgid "vertical"
 msgstr "vertical"
 
 #: ../src/iop/ashift.c:4751 ../src/iop/graduatednd.c:1214
-#: ../src/iop/watermark.c:1431
+#: ../src/iop/watermark.c:1435
 msgid "rotation"
 msgstr "rotación"
 
@@ -5315,7 +5312,7 @@ msgstr "abcisas: entrada, ordenadas: salida. trabaja en los canales RGB"
 
 #: ../src/iop/basecurve.c:1938 ../src/iop/lens.c:2291
 #: ../src/iop/tonecurve.c:1260 ../src/iop/vignette.c:1148
-#: ../src/iop/watermark.c:1428
+#: ../src/iop/watermark.c:1432
 msgid "scale"
 msgstr "escala"
 
@@ -7970,7 +7967,7 @@ msgstr "seleccionar color de la película desde la imagen"
 msgid "lens correction"
 msgstr "corrección de lente"
 
-#: ../src/iop/lens.c:153 ../src/iop/vignette.c:169 ../src/iop/watermark.c:259
+#: ../src/iop/lens.c:153 ../src/iop/vignette.c:169 ../src/iop/watermark.c:258
 msgctxt "accel"
 msgid "scale"
 msgstr "escala"
@@ -8921,7 +8918,7 @@ msgstr "modo de relleno"
 msgid "erase"
 msgstr "borrar"
 
-#: ../src/iop/retouch.c:2827 ../src/iop/watermark.c:1373
+#: ../src/iop/retouch.c:2827 ../src/iop/watermark.c:1377
 msgid "color"
 msgstr "color"
 
@@ -9695,44 +9692,44 @@ msgstr "proporción ancho/alto"
 msgid "add some level of random noise to prevent banding"
 msgstr "agregar algun nivel de ruido aleatorio para prevenir bandas"
 
-#: ../src/iop/watermark.c:237
+#: ../src/iop/watermark.c:236
 msgid "watermark"
 msgstr "marca de agua"
 
-#: ../src/iop/watermark.c:257
+#: ../src/iop/watermark.c:256
 msgctxt "accel"
 msgid "refresh"
 msgstr "refrescar"
 
-#: ../src/iop/watermark.c:258
+#: ../src/iop/watermark.c:257
 msgctxt "accel"
 msgid "opacity"
 msgstr "opacidad"
 
-#: ../src/iop/watermark.c:261
+#: ../src/iop/watermark.c:260
 msgctxt "accel"
 msgid "x offset"
 msgstr "desplazamiento x"
 
-#: ../src/iop/watermark.c:262
+#: ../src/iop/watermark.c:261
 msgctxt "accel"
 msgid "y offset"
 msgstr "desplazamiento y"
 
-#: ../src/iop/watermark.c:1346
+#: ../src/iop/watermark.c:1350
 msgid "content"
 msgstr "contenido"
 
-#: ../src/iop/watermark.c:1353
+#: ../src/iop/watermark.c:1357
 msgid "marker"
 msgstr "marca"
 
-#: ../src/iop/watermark.c:1356
+#: ../src/iop/watermark.c:1360
 #, c-format
 msgid "SVG watermarks in %s/watermarks or %s/watermarks"
 msgstr "Marcas de agua SVG en %s/watermarks o %s/watermarks"
 
-#: ../src/iop/watermark.c:1375
+#: ../src/iop/watermark.c:1379
 msgid ""
 "watermark color, tag:\n"
 "$(WATERMARK_COLOR)"
@@ -9740,20 +9737,20 @@ msgstr ""
 "color de texto, etiqueta:\n"
 "$(WATERMARK_COLOR)"
 
-#: ../src/iop/watermark.c:1378
+#: ../src/iop/watermark.c:1382
 msgid "select watermark color"
 msgstr "seleccionar color de la marca de agua"
 
-#: ../src/iop/watermark.c:1381
+#: ../src/iop/watermark.c:1385
 msgid "pick color from image"
 msgstr "seleccionar color de la imagen"
 
 #. Simple text
-#: ../src/iop/watermark.c:1392
+#: ../src/iop/watermark.c:1396
 msgid "text"
 msgstr "texto"
 
-#: ../src/iop/watermark.c:1396
+#: ../src/iop/watermark.c:1400
 msgid ""
 "text string, tag:\n"
 "$(WATERMARK_TEXT)"
@@ -9762,11 +9759,11 @@ msgstr ""
 "$(WATERMARK_TEXT)"
 
 #. Text font
-#: ../src/iop/watermark.c:1406
+#: ../src/iop/watermark.c:1410
 msgid "font"
 msgstr "tipografía"
 
-#: ../src/iop/watermark.c:1412
+#: ../src/iop/watermark.c:1416
 msgid ""
 "text font, tags:\n"
 "$(WATERMARK_FONT_FAMILY)\n"
@@ -9779,58 +9776,58 @@ msgstr ""
 "$(WATERMARK_FONT_WEIGHT)"
 
 #. Camera settings
-#: ../src/iop/watermark.c:1419 ../src/libs/camera.c:517
+#: ../src/iop/watermark.c:1423 ../src/libs/camera.c:517
 msgid "properties"
 msgstr "propiedades"
 
-#: ../src/iop/watermark.c:1437
+#: ../src/iop/watermark.c:1441
 msgctxt "size"
 msgid "image"
 msgstr "imagen"
 
-#: ../src/iop/watermark.c:1438
+#: ../src/iop/watermark.c:1442
 msgid "larger border"
 msgstr "borde largo"
 
-#: ../src/iop/watermark.c:1439
+#: ../src/iop/watermark.c:1443
 msgid "smaller border"
 msgstr "borde corto"
 
-#: ../src/iop/watermark.c:1441
+#: ../src/iop/watermark.c:1445
 msgid "scale on"
 msgstr "escala en"
 
-#: ../src/iop/watermark.c:1442
+#: ../src/iop/watermark.c:1446
 msgid "size is relative to"
 msgstr "tamaño es relativo a"
 
-#: ../src/iop/watermark.c:1445
+#: ../src/iop/watermark.c:1449
 msgid "position"
 msgstr "posición"
 
 #. Create the 3x3 gtk table toggle button table...
-#: ../src/iop/watermark.c:1448 ../src/libs/print_settings.c:1393
+#: ../src/iop/watermark.c:1452 ../src/libs/print_settings.c:1393
 msgid "alignment"
 msgstr "alineación"
 
-#: ../src/iop/watermark.c:1465
+#: ../src/iop/watermark.c:1469
 msgid "x offset"
 msgstr "desplazamiento x"
 
-#: ../src/iop/watermark.c:1468
+#: ../src/iop/watermark.c:1472
 msgid "y offset"
 msgstr "desplazamiento y"
 
 #. Let's add some tooltips and hook up some signals...
-#: ../src/iop/watermark.c:1473
+#: ../src/iop/watermark.c:1477
 msgid "the opacity of the watermark"
 msgstr "opacidad de la marca de agua"
 
-#: ../src/iop/watermark.c:1474
+#: ../src/iop/watermark.c:1478
 msgid "the scale of the watermark"
 msgstr "escala de la marca de agua"
 
-#: ../src/iop/watermark.c:1475
+#: ../src/iop/watermark.c:1479
 msgid "the rotation of the watermark"
 msgstr "rotación de la marca de agua"
 
@@ -12867,6 +12864,9 @@ msgstr ""
 "le recomendamos fuertemente que cambie a una versión apropiada de 64-bit.\n"
 "de otra forma, le GARANTIZAMOS que experimentará problemas que no podrán ser "
 "solucionados.\n"
+
+#~ msgid "drop box"
+#~ msgstr "dropbox"
 
 #~ msgid "B/W"
 #~ msgstr "B/N"
