@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: Darktable 2.6.1\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-03-05 11:27-0600\n"
-"PO-Revision-Date: 2019-03-05 19:48-0600\n"
+"PO-Revision-Date: 2019-03-05 22:54-0600\n"
 "Last-Translator: Edgar Lux <edgarlux@disroot.org>\n"
 "Language-Team: Tatica Leandro, Edgar Lux, Salvador Calero, J. Karlos D, "
 "Pablo Carrascón\n"
@@ -3514,31 +3514,31 @@ msgstr "$(SECOND) - segundo"
 
 #: ../src/gui/gtkentry.c:198
 msgid "$(EXIF_YEAR) - EXIF year"
-msgstr "$(EXIF_YEAR) - año exif"
+msgstr "$(EXIF_YEAR) - año Exif"
 
 #: ../src/gui/gtkentry.c:199
 msgid "$(EXIF_MONTH) - EXIF month"
-msgstr "$(EXIF_MONTH) - mes exif"
+msgstr "$(EXIF_MONTH) - mes Exif"
 
 #: ../src/gui/gtkentry.c:200
 msgid "$(EXIF_DAY) - EXIF day"
-msgstr "$(EXIF_DAY) - día exif"
+msgstr "$(EXIF_DAY) - día Exif"
 
 #: ../src/gui/gtkentry.c:201
 msgid "$(EXIF_HOUR) - EXIF hour"
-msgstr "$(EXIF_HOUR) - hora exif"
+msgstr "$(EXIF_HOUR) - hora Exif"
 
 #: ../src/gui/gtkentry.c:202
 msgid "$(EXIF_MINUTE) - EXIF minute"
-msgstr "$(EXIF_MINUTE) - minuto exif"
+msgstr "$(EXIF_MINUTE) - minuto Exif"
 
 #: ../src/gui/gtkentry.c:203
 msgid "$(EXIF_SECOND) - EXIF second"
-msgstr "$(EXIF_SECOND) - segundo exif"
+msgstr "$(EXIF_SECOND) - segundo Exif"
 
 #: ../src/gui/gtkentry.c:204
 msgid "$(EXIF_ISO) - ISO value"
-msgstr "$(EXIF_ISO) - valor iso"
+msgstr "$(EXIF_ISO) - valor ISO"
 
 #: ../src/gui/gtkentry.c:205
 msgid "$(MAKER) - camera maker"
@@ -3887,11 +3887,11 @@ msgstr "cadena para coincidencia de lente (use % as wildcard)"
 
 #: ../src/gui/preferences.c:1402 ../src/gui/presets.c:458
 msgid "minimum ISO value"
-msgstr "valor iso mínimo"
+msgstr "valor Exif mínimo"
 
 #: ../src/gui/preferences.c:1405 ../src/gui/presets.c:461
 msgid "maximum ISO value"
-msgstr "valor iso máximo"
+msgstr "valor ISO máximo"
 
 #: ../src/gui/preferences.c:1416 ../src/gui/presets.c:472
 msgid "minimum exposure time"
@@ -7837,7 +7837,7 @@ msgstr "aspereza"
 
 #: ../src/iop/grain.c:624
 msgid "the grain size (~ISO of the film)"
-msgstr "tamaño de grano (~iso de la pelicula)"
+msgstr "tamaño de grano (~ISO de la pelicula)"
 
 #: ../src/iop/grain.c:632
 msgid "the strength of applied grain"
@@ -11506,7 +11506,7 @@ msgstr "espacio de trabajo: retrato y belleza"
 #. denoising
 #: ../src/libs/modulelist.c:420
 msgid "workspace: lowlight & high ISO"
-msgstr "espacio de trabajo: baja luminosidad e  ISO alta"
+msgstr "espacio de trabajo: baja luminosidad e ISO alto"
 
 #: ../src/libs/modulelist.c:427
 msgid "subset: creative modules only"
