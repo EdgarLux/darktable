@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    copyright (c) 2016 pascal obry
+    copyright (c) 2016-2019 pascal obry
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -116,6 +116,8 @@ static void _undo_record(dt_undo_t *self, gpointer user_data, dt_undo_type_t typ
 
 void dt_undo_start_group(dt_undo_t *self, dt_undo_type_t type)
 {
+  if(!self) return;
+
   if(self->group == 0)
   {
     self->group = type;
@@ -128,6 +130,8 @@ void dt_undo_start_group(dt_undo_t *self, dt_undo_type_t type)
 
 void dt_undo_end_group(dt_undo_t *self)
 {
+  if(!self) return;
+
   assert(self->group_indent>0);
   self->group_indent--;
   if(self->group_indent == 0)
@@ -191,6 +195,7 @@ void dt_undo_do_redo(dt_undo_t *self, uint32_t filter)
       else
       {
         const double first_item_ts = item->ts;
+        gboolean in_group = FALSE;
 
         //  when found, redo all items of the same type and in the same time period
 
@@ -201,15 +206,18 @@ void dt_undo_do_redo(dt_undo_t *self, uint32_t filter)
           //  first remove element from _redo_list
           self->redo_list = g_list_remove(self->redo_list, item);
 
-          //  callback with redo data
-          item->undo(item->user_data, item->type, item->data, DT_ACTION_REDO);
+          if(item->is_group)
+            in_group = !in_group;
+          else
+            //  callback with redo data
+            item->undo(item->user_data, item->type, item->data, DT_ACTION_REDO);
 
           //  add old position back into the undo list
           self->undo_list = g_list_prepend(self->undo_list, item);
 
           l = next;
           if (l) item = (dt_undo_item_t *)l->data;
-        } while (l && (item->type & filter) && (item->ts - first_item_ts < MAX_TIME_PERIOD));
+        } while (l && (item->type & filter) && (in_group || (item->ts - first_item_ts < MAX_TIME_PERIOD)));
       }
 
       break;
@@ -263,6 +271,7 @@ void dt_undo_do_undo(dt_undo_t *self, uint32_t filter)
       else
       {
         const double first_item_ts = item->ts;
+        gboolean in_group = FALSE;
 
         //  now record in the redo list also all items that are on the same time period
 
@@ -272,14 +281,14 @@ void dt_undo_do_undo(dt_undo_t *self, uint32_t filter)
           next = g_list_next(l);
           item = (dt_undo_item_t *)l->data;
 
-          //  if we have reached a group, stop
-          if(item->is_group) break;
-
-          //  undo item
-          item->undo(item->user_data, item->type, item->data, DT_ACTION_UNDO);
+          //  if we have reached a group
+          if(item->is_group)
+            in_group = !in_group;
+          else
+            item->undo(item->user_data, item->type, item->data, DT_ACTION_UNDO);
 
           //  if we are on the same time frame, just continue
-          if ((item->type & filter) && (first_item_ts - item->ts < MAX_TIME_PERIOD))
+          if ((item->type & filter) && (in_group || (first_item_ts - item->ts < MAX_TIME_PERIOD)))
           {
             self->undo_list = g_list_remove(self->undo_list, item);
             self->redo_list = g_list_prepend(self->redo_list, item);
@@ -287,7 +296,7 @@ void dt_undo_do_undo(dt_undo_t *self, uint32_t filter)
           }
           else
             break;
-        };
+        }
       }
       break;
     }

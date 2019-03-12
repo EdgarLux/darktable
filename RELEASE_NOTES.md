@@ -17,9 +17,9 @@ when updating from the currently stable 2.4.x series, please bear in mind that y
 
 #### Important note: to make sure that darktable can keep on supporting the raw file format for your camera, *please* read [this post](https://discuss.pixls.us/t/raw-samples-wanted/5420?u=lebedevri) on how/what raw samples you can contribute to ensure that we have the *full* raw sample set for your camera under CC0 license!
 
-- Over 1600 commits to darktable+rawspeed since 2.6
-- 260+ pull requests handled
-- 250+ issues closed
+- Over ??? commits to darktable+rawspeed since 2.6
+- ???+ pull requests handled
+- ???+ issues closed
 - Updated user manual is coming soon™
 
 ## The Big Ones
@@ -27,8 +27,9 @@ when updating from the currently stable 2.4.x series, please bear in mind that y
 - The color picker on the blend, tone curve, color zones and fill
   light modules now allows to select an area by ctrl+click on it.
 
-- Add undo support in lighttable for tags, color labels, rating and
-  metadata.
+- Add undo/redo support in lighttable for tags, color labels, rating,
+  metadata, deleted history stack, pasted history stack and applied
+  style.
 
 - A new timeline view has been introduced in the lighttable.
 
@@ -42,6 +43,8 @@ when updating from the currently stable 2.4.x series, please bear in mind that y
 - Add new raster mask supports. This is a copy of a parametric mask
   which is stable during the whole pixel-pipe.
 
+- Modules can now be re-ordered with shift+drag.
+
 ## New Features And Changes
 
 - A new profile ‘histogram profile’ has been added on the same pop-up
@@ -50,6 +53,10 @@ when updating from the currently stable 2.4.x series, please bear in mind that y
   softproof checks are active the histogram and color picker use the
   softproof profile, otherwise they use the histogram profile. The
   overexposed check always use the histogram profile.
+
+- A new profile 'work profile' has been added to the input color profile
+  module. Now RGB modules between the input and output color profile modules
+  will work with this profile.
 
 - A new color picker has been added to the blend module next to the
   existing one that adjusts the range sliders based on the selected
@@ -63,6 +70,11 @@ when updating from the currently stable 2.4.x series, please bear in mind that y
 - The picasa module has been renamed to googlephoto and completely
   rewrited to support the new Google Photo API. It is now again
   possible to create albums directly from the export module.
+
+- New module image information which can be positioned at the bottom
+  or the top of the darkroom. The information displayed can be changed
+  via the preferences. This module can replace the image information
+  displayed on the histogram.
 
 - Many code optimizations for CPU and SSE paths.
 
@@ -104,6 +116,16 @@ when updating from the currently stable 2.4.x series, please bear in mind that y
 - The slideshow supports changing the delay between each images.
 
 - Add soft boundaries for denoise profile controls.
+
+- The color zones module curve acts now like the tone curve (but horizontal),
+  it has two edit modes: edit by area is the former one, if not checked nodes
+  can be edited like in the tone curve.
+  A new process mode has been added: smooth is the former one, strong is new.
+  An interpolation method has been added that allows to select different types
+  of curves.
+  The color picker allows to select by area with cntrl+click.
+  A new color picker has benn added that creates a curve based on the area
+  selected from the image.
 
 ## Bug fixes
 
