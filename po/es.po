@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: darktable 2.6.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-03-12 11:00-0600\n"
+"POT-Creation-Date: 2019-03-12 20:42-0600\n"
 "PO-Revision-Date: 2019-03-12 15:11-0600\n"
 "Last-Translator: Edgar Lux <edgarlux@disroot.org>\n"
 "Language-Team: Edgar Lux\n"
@@ -1506,14 +1506,14 @@ msgstr ""
 #: ../src/common/darktable.c:788 ../src/imageio/format/pdf.c:666
 #: ../src/imageio/format/pdf.c:691 ../src/imageio/storage/flickr.c:497
 #: ../src/imageio/storage/piwigo.c:822 ../src/iop/clipping.c:1988
-#: ../src/libs/export.c:595 ../src/libs/metadata_view.c:270
+#: ../src/libs/export.c:597 ../src/libs/metadata_view.c:270
 msgid "no"
 msgstr "no"
 
 #: ../src/common/darktable.c:788 ../src/imageio/format/pdf.c:667
 #: ../src/imageio/format/pdf.c:692 ../src/imageio/storage/flickr.c:496
 #: ../src/imageio/storage/piwigo.c:821 ../src/iop/clipping.c:1989
-#: ../src/libs/export.c:596 ../src/libs/metadata_view.c:270
+#: ../src/libs/export.c:598 ../src/libs/metadata_view.c:270
 msgid "yes"
 msgstr "sí"
 
@@ -2423,7 +2423,8 @@ msgstr ""
 "* rango entre marcadores superiores/inferiores adyacentes: mezclar "
 "gradualmente"
 
-#: ../src/develop/blend_gui.c:1507 ../src/iop/tonecurve.c:1238
+#: ../src/develop/blend_gui.c:1507 ../src/iop/colorzones.c:1987
+#: ../src/iop/tonecurve.c:1238
 msgid ""
 "pick GUI color from image\n"
 "ctrl+click to select an area"
@@ -3868,7 +3869,7 @@ msgstr "combinación"
 
 #. Export button
 #. export button
-#: ../src/gui/preferences.c:637 ../src/libs/export.c:673
+#: ../src/gui/preferences.c:637 ../src/libs/export.c:675
 #: ../src/libs/styles.c:472
 msgid "export"
 msgstr "exportar"
@@ -5451,7 +5452,7 @@ msgstr "fusión"
 #: ../src/iop/clipping.c:1960 ../src/iop/clipping.c:1978
 #: ../src/iop/clipping.c:2118 ../src/iop/clipping.c:2145
 #: ../src/iop/colorreconstruction.c:1372 ../src/iop/lens.c:2154
-#: ../src/iop/retouch.c:582 ../src/libs/export.c:492
+#: ../src/iop/retouch.c:582 ../src/libs/export.c:494
 #: ../src/libs/live_view.c:350 ../src/libs/live_view.c:375
 #: ../src/libs/live_view.c:384 ../src/libs/print_settings.c:1473
 msgid "none"
@@ -5507,7 +5508,7 @@ msgstr "laplaciano local: salida inconsistente"
 #: ../src/iop/denoiseprofile.c:3096 ../src/iop/exposure.c:853
 #: ../src/iop/lens.c:2303 ../src/iop/levels.c:669
 #: ../src/iop/profile_gamma.c:840 ../src/libs/copy_history.c:322
-#: ../src/libs/export.c:648 ../src/libs/print_settings.c:1514
+#: ../src/libs/export.c:650 ../src/libs/print_settings.c:1514
 #: ../src/views/darkroom.c:1552
 msgid "mode"
 msgstr "modo"
@@ -6787,26 +6788,26 @@ msgstr "perfil de salida no soportado reemplazado por sRGB!"
 msgid "output intent"
 msgstr "salida"
 
-#: ../src/iop/colorout.c:809 ../src/libs/export.c:631
+#: ../src/iop/colorout.c:809 ../src/libs/export.c:633
 #: ../src/libs/print_settings.c:1243 ../src/libs/print_settings.c:1458
 #: ../src/views/darkroom.c:1705 ../src/views/lighttable.c:3209
 msgid "perceptual"
 msgstr "perceptual"
 
-#: ../src/iop/colorout.c:810 ../src/libs/export.c:632
+#: ../src/iop/colorout.c:810 ../src/libs/export.c:634
 #: ../src/libs/print_settings.c:1244 ../src/libs/print_settings.c:1459
 #: ../src/views/darkroom.c:1706 ../src/views/lighttable.c:3210
 msgid "relative colorimetric"
 msgstr "relativo colorimétrico"
 
-#: ../src/iop/colorout.c:811 ../src/libs/export.c:633
+#: ../src/iop/colorout.c:811 ../src/libs/export.c:635
 #: ../src/libs/print_settings.c:1245 ../src/libs/print_settings.c:1460
 #: ../src/views/darkroom.c:1707 ../src/views/lighttable.c:3211
 msgctxt "rendering intent"
 msgid "saturation"
 msgstr "saturación"
 
-#: ../src/iop/colorout.c:812 ../src/libs/export.c:634
+#: ../src/iop/colorout.c:812 ../src/libs/export.c:636
 #: ../src/libs/print_settings.c:1246 ../src/libs/print_settings.c:1461
 #: ../src/views/darkroom.c:1708 ../src/views/lighttable.c:3212
 msgid "absolute colorimetric"
@@ -6960,14 +6961,6 @@ msgid ""
 msgstr ""
 "Crea una curva basada en un área de la imagen\n"
 "Use Ctrl+clic+arrastrar para crear una curva negativa"
-
-#: ../src/iop/colorzones.c:1987
-msgid ""
-"pick GUI color from image\n"
-"cntrl + click to select an area"
-msgstr ""
-"Elige el color de la interfaz gráfica de usuario desde la imagen\n"
-"Use Ctrl+clic para seleccionar un área"
 
 #: ../src/iop/colorzones.c:2002
 msgid "edit by area"
@@ -7295,7 +7288,7 @@ msgstr ""
 "Habilitar esta opción cambiará la eliminación de ruido que se tiene.\n"
 "Una vez habilitado, no podrá volver al algoritmo anterior."
 
-#: ../src/iop/denoiseprofile.c:3095 ../src/libs/export.c:607
+#: ../src/iop/denoiseprofile.c:3095 ../src/libs/export.c:609
 #: ../src/libs/print_settings.c:1187 ../src/libs/print_settings.c:1407
 msgid "profile"
 msgstr "perfil"
@@ -7774,7 +7767,7 @@ msgstr ""
 "específicamente a luminancias extremas. \\ n\n"
 "disminuya si las sombras y / o las luces altas están sobresaturadas."
 
-#: ../src/iop/filmic.c:1789 ../src/libs/export.c:629
+#: ../src/iop/filmic.c:1789 ../src/libs/export.c:631
 #: ../src/libs/print_settings.c:1242 ../src/libs/print_settings.c:1455
 msgid "intent"
 msgstr "propósito"
@@ -10612,27 +10605,27 @@ msgstr "crear un duplicado de la imagen con la misma  historia"
 msgid "export selected"
 msgstr "exportar selección"
 
-#: ../src/libs/export.c:515
+#: ../src/libs/export.c:517
 msgid "storage options"
 msgstr "opciones de almacenamiento"
 
-#: ../src/libs/export.c:520
+#: ../src/libs/export.c:522
 msgid "target storage"
 msgstr "guardar en"
 
-#: ../src/libs/export.c:543
+#: ../src/libs/export.c:545
 msgid "format options"
 msgstr "opciones de formato"
 
-#: ../src/libs/export.c:549
+#: ../src/libs/export.c:551
 msgid "file format"
 msgstr "formato de archivo"
 
-#: ../src/libs/export.c:567
+#: ../src/libs/export.c:569
 msgid "global options"
 msgstr "opciones globales"
 
-#: ../src/libs/export.c:573
+#: ../src/libs/export.c:575
 msgid ""
 "maximum output width\n"
 "set to 0 for no scaling"
@@ -10640,7 +10633,7 @@ msgstr ""
 "ancho máximo\n"
 "use 0 para no escalar"
 
-#: ../src/libs/export.c:575
+#: ../src/libs/export.c:577
 msgid ""
 "maximum output height\n"
 "set to 0 for no scaling"
@@ -10648,55 +10641,55 @@ msgstr ""
 "alto máximo\n"
 "use 0 para no escalar"
 
-#: ../src/libs/export.c:582
+#: ../src/libs/export.c:584
 msgid "max size"
 msgstr "tamaño máx"
 
-#: ../src/libs/export.c:588
+#: ../src/libs/export.c:590
 msgid "x"
 msgstr "x"
 
-#: ../src/libs/export.c:594
+#: ../src/libs/export.c:596
 msgid "allow upscaling"
 msgstr "permitir redimensionado"
 
-#: ../src/libs/export.c:609 ../src/libs/export.c:630
+#: ../src/libs/export.c:611 ../src/libs/export.c:632
 #: ../src/libs/print_settings.c:1410 ../src/libs/print_settings.c:1457
 msgid "image settings"
 msgstr "configuración de la imagen"
 
-#: ../src/libs/export.c:620 ../src/libs/print_settings.c:1446
+#: ../src/libs/export.c:622 ../src/libs/print_settings.c:1446
 #, c-format
 msgid "output ICC profiles in %s or %s"
 msgstr "perfiles de salida ICC en %s o %s"
 
-#: ../src/libs/export.c:640 ../src/libs/print_settings.c:1471
+#: ../src/libs/export.c:642 ../src/libs/print_settings.c:1471
 msgid "style"
 msgstr "estilo"
 
-#: ../src/libs/export.c:643
+#: ../src/libs/export.c:645
 msgid "temporary style to use while exporting"
 msgstr "estilo temporal para ser aplicado al exportar"
 
-#: ../src/libs/export.c:652 ../src/libs/print_settings.c:1516
+#: ../src/libs/export.c:654 ../src/libs/print_settings.c:1516
 msgid "replace history"
 msgstr "reemplazar al historial"
 
-#: ../src/libs/export.c:653 ../src/libs/print_settings.c:1517
+#: ../src/libs/export.c:655 ../src/libs/print_settings.c:1517
 msgid "append history"
 msgstr "incorporar al historial"
 
-#: ../src/libs/export.c:658 ../src/libs/print_settings.c:1524
+#: ../src/libs/export.c:660 ../src/libs/print_settings.c:1524
 msgid ""
 "whether the style items are appended to the history or replacing the history"
 msgstr "los elementos del estilo se anexan al historial o los reemplazan"
 
-#: ../src/libs/export.c:675
+#: ../src/libs/export.c:677
 msgid "export with current settings"
 msgstr "exportar con la configuración actual"
 
 #. enable shortcut to export with current export settings:
-#: ../src/libs/export.c:1195 ../src/libs/styles.c:71
+#: ../src/libs/export.c:1197 ../src/libs/styles.c:71
 #: ../src/views/darkroom.c:2798
 msgctxt "accel"
 msgid "export"
@@ -13109,6 +13102,13 @@ msgstr ""
 "le recomendamos fuertemente que cambie a una versión apropiada de 64-bit.\n"
 "de otra forma, le GARANTIZAMOS que experimentará problemas que no podrán ser "
 "solucionados.\n"
+
+#~ msgid ""
+#~ "pick GUI color from image\n"
+#~ "cntrl + click to select an area"
+#~ msgstr ""
+#~ "Elige el color de la interfaz gráfica de usuario desde la imagen\n"
+#~ "Use Ctrl+clic para seleccionar un área"
 
 #~ msgid "pick GUI color from image"
 #~ msgstr "seleccionar color de la imagen"
