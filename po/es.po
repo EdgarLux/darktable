@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: darktable 2.6.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-03-12 20:42-0600\n"
+"POT-Creation-Date: 2019-03-13 03:22-0600\n"
 "PO-Revision-Date: 2019-03-12 15:11-0600\n"
 "Last-Translator: Edgar Lux <edgarlux@disroot.org>\n"
 "Language-Team: Edgar Lux\n"
@@ -12897,10 +12897,6 @@ msgctxt "accel"
 msgid "allow to pan & zoom while editing masks"
 msgstr "permitir paneo y zoom mientras se editan máscaras"
 
-#: ../src/views/knight.c:334
-msgid "good knight"
-msgstr "buenas noche"
-
 #: ../src/views/lighttable.c:665 ../src/views/slideshow.c:332
 msgid "there are no images in this collection"
 msgstr "no hay imágenes en esta colección"
@@ -13102,6 +13098,9 @@ msgstr ""
 "le recomendamos fuertemente que cambie a una versión apropiada de 64-bit.\n"
 "de otra forma, le GARANTIZAMOS que experimentará problemas que no podrán ser "
 "solucionados.\n"
+
+#~ msgid "good knight"
+#~ msgstr "buenas noche"
 
 #~ msgid ""
 #~ "pick GUI color from image\n"
