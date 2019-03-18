@@ -129,6 +129,19 @@ when updating from the currently stable 2.4.x series, please bear in mind that y
   When pressing the shortcut 'pan&zoom while editing masks' the draw area
   can now be zoomed. Double-click on the bottom bar resets the zoom.
 
+- A new module 'basic adjustments' has been added. It allows to adjust
+  the exposure, highlight compression, contrast, brightness and saturation.
+  It also has an auto feature based on Rawtherapee's auto levels that can
+  work on the entire image or a user selected area.
+  Both the contrast and the auto feature use the middle grey point, the
+  default for this setting is based on the work profile.
+
+- A search text has been added to the module groups in the darkroom. It has a
+  config option to show only the modules groups, only the search text or both.
+  Modules are searched by name (localized).
+  If displaying only the search text, the active pipe modules are displayed when the search text is empty.
+  A darkroom shortcut ctrl+a set the focus on the search box.
+
 ## Bug fixes
 
 - The color picker support has been fixed by a complete rewrite. It
@@ -137,6 +150,10 @@ when updating from the currently stable 2.4.x series, please bear in mind that y
 - Fix overexposed display.
 
 - Do not disable SSL for storage modules.
+
+- A long standing bug on mask distort in Liquify module has been
+  fixed. This was visible when a liquify mask was used together with
+  the perspective correction module activated.
 
 ## Lua
 
