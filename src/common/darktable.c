@@ -991,6 +991,21 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
   if(init_gui)
   {
     const char *mode = "lighttable";
+    // april 1st: you have to earn using dt first! or know that you can switch views with keyboard shortcuts
+    time_t now;
+    time(&now);
+    struct tm lt;
+    localtime_r(&now, &lt);
+    if(lt.tm_mon == 3 && lt.tm_mday == 1)
+    {
+      int current_year = lt.tm_year + 1900;
+      int last_year = dt_conf_get_int("ui_last/april1st");
+      if(last_year < current_year)
+      {
+        dt_conf_set_int("ui_last/april1st", current_year);
+        mode = "knight";
+      }
+    }
     // we have to call dt_ctl_switch_mode_to() here already to not run into a lua deadlock.
     // having another call later is ok
     dt_ctl_switch_mode_to(mode);
@@ -1163,24 +1178,35 @@ void dt_free_align(void *mem)
 }
 #endif
 
-void dt_show_times(const dt_times_t *start, const char *prefix, const char *suffix, ...)
+void dt_show_times(const dt_times_t *start, const char *prefix)
 {
-  dt_times_t end;
-  char buf[160]; /* Arbitrary size, should be lots big enough for everything used in DT */
-  int i;
-
   /* Skip all the calculations an everything if -d perf isn't on */
   if(darktable.unmuted & DT_DEBUG_PERF)
   {
+    dt_times_t end;
     dt_get_times(&end);
-    i = snprintf(buf, sizeof(buf), "%s took %.3f secs (%.3f CPU)", prefix, end.clock - start->clock,
-                 end.user - start->user);
-    if(suffix != NULL)
+    char buf[64]; /* Arbitrary size, should be lots big enough for everything used in DT */
+    snprintf(buf, sizeof(buf), "%s took %.3f secs (%.3f CPU)", prefix, end.clock - start->clock,
+             end.user - start->user);
+    dt_print(DT_DEBUG_PERF, "%s\n", buf);
+  }
+}
+
+void dt_show_times_f(const dt_times_t *start, const char *prefix, const char *suffix, ...)
+{
+  /* Skip all the calculations an everything if -d perf isn't on */
+  if(darktable.unmuted & DT_DEBUG_PERF)
+  {
+    dt_times_t end;
+    dt_get_times(&end);
+    char buf[160]; /* Arbitrary size, should be lots big enough for everything used in DT */
+    const int n = snprintf(buf, sizeof(buf), "%s took %.3f secs (%.3f CPU) ", prefix, end.clock - start->clock,
+                           end.user - start->user);
+    if(n < sizeof(buf) - 1)
     {
       va_list ap;
       va_start(ap, suffix);
-      buf[i++] = ' ';
-      vsnprintf(buf + i, sizeof buf - i, suffix, ap);
+      vsnprintf(buf + n, sizeof(buf) - n, suffix, ap);
       va_end(ap);
     }
     dt_print(DT_DEBUG_PERF, "%s\n", buf);
