@@ -471,7 +471,11 @@ static void _view_lighttable_selection_listener_internal_culling(dt_view_t *self
       GList *collected = dt_collection_get_all(darktable.collection, -1);
       if(collected)
       {
-        GList *l = g_list_nth(collected, lib->last_first_selected);
+        GList *l = NULL;
+        if(g_list_length(collected) > lib->last_first_selected)
+          l = g_list_nth(collected, lib->last_first_selected);
+        else
+          l = g_list_last(collected);
         const int imgid = (l) ? GPOINTER_TO_INT(l->data) : -1;
         if(imgid >= 0) filmstrip_set_active_image(lib, imgid);
         g_list_free(collected);
@@ -544,7 +548,8 @@ static void _view_lighttable_collection_listener_callback(gpointer instance, gpo
   dt_view_t *self = (dt_view_t *)user_data;
   dt_library_t *lib = (dt_library_t *)self->data;
 
-  _view_lighttable_collection_listener_internal(self, lib);
+  if(lib->current_layout != DT_LIGHTTABLE_LAYOUT_CULLING)
+    _view_lighttable_collection_listener_internal(self, lib);
   _view_lighttable_selection_listener_internal_culling(self, lib);
 }
 
@@ -559,7 +564,8 @@ static void _view_lighttable_selection_listener_callback(gpointer instance, gpoi
   // we handle change of selection only in expose mode. it is needed
   // here as the selection from the filmstrip is actually what must be
   // displayed in the expose view.
-  if(lib->current_layout == DT_LIGHTTABLE_LAYOUT_EXPOSE) _view_lighttable_collection_listener_internal(self, lib);
+  if(lib->current_layout == DT_LIGHTTABLE_LAYOUT_EXPOSE)
+    _view_lighttable_collection_listener_internal(self, lib);
   else if(lib->current_layout == DT_LIGHTTABLE_LAYOUT_CULLING)
   {
     _view_lighttable_selection_listener_internal_culling(self, lib);
@@ -1741,7 +1747,7 @@ static int expose_expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t he
       if(imgids)
         imgids = dt_util_dstrcat(imgids, ", %d", imgid);
       else
-        imgids = dt_util_dstrcat(imgids, "(%d", imgid);
+        imgids = dt_util_dstrcat(imgids, "%d", imgid);
       l = g_list_next(l);
     }
   }
@@ -1782,7 +1788,7 @@ static int expose_expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t he
       if(imgids)
         imgids = dt_util_dstrcat(imgids, ", %d", imgid);
       else
-        imgids = dt_util_dstrcat(imgids, "(%d", imgid);
+        imgids = dt_util_dstrcat(imgids, "%d", imgid);
       l = g_list_next(l);
       i++;
     }
@@ -1791,11 +1797,10 @@ static int expose_expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t he
     if(first_selected) g_list_free(first_selected);
   }
 
-  imgids = dt_util_dstrcat(imgids, ")");
-
   g_list_free(selected);
 
-  gchar *query =  g_strdup_printf("SELECT id, aspect_ratio, width, height FROM images WHERE id IN %s", imgids);
+  gchar *query =  g_strdup_printf("SELECT id, aspect_ratio, width, height FROM images WHERE id IN (%s) ORDER BY INSTR('%s', id)",
+                                  imgids, imgids);
 
   g_free(imgids);
 
@@ -1814,7 +1819,12 @@ static int expose_expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t he
   {
     const int32_t id = sqlite3_column_int(stmt, 0);
     double aspect_ratio = sqlite3_column_double(stmt, 1);
-    if (!aspect_ratio) aspect_ratio = (double)sqlite3_column_int(stmt, 2) / (double)sqlite3_column_int(stmt, 3);
+    if(!aspect_ratio)
+    {
+      aspect_ratio = (double)sqlite3_column_int(stmt, 2) / (double)sqlite3_column_int(stmt, 3);
+      // record aspect ratio now
+      dt_image_set_aspect_ratio_to(id, aspect_ratio);
+    }
 
     images[i].imgid = id;
     images[i].width = (gint) (sqrt(aspect_ratio) * 100);
@@ -3110,9 +3120,7 @@ void mouse_moved(dt_view_t *self, double x, double y, double pressure, int which
       }
       for(int i = 0; i < sel_img_count; i++)
       {
-        dx = fminf(dx, -lib->fp_surf[i].max_dx);
         dx = fmaxf(dx, lib->fp_surf[i].max_dx);
-        dy = fminf(dy, -lib->fp_surf[i].max_dy);
         dy = fmaxf(dy, lib->fp_surf[i].max_dy);
       }
       lib->full_x = fminf(lib->full_x, dx);
