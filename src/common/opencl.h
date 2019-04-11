@@ -60,6 +60,13 @@ typedef enum dt_opencl_scheduling_profile_t
   OPENCL_PROFILE_VERYFAST_GPU
 } dt_opencl_scheduling_profile_t;
 
+typedef enum dt_opencl_sync_cache_t
+{
+  OPENCL_SYNC_TRUE,
+  OPENCL_SYNC_ACTIVE_MODULE,
+  OPENCL_SYNC_FALSE
+} dt_opencl_sync_cache_t;
+
 /**
  * Accounting information used for OpenCL events.
  */
@@ -115,6 +122,7 @@ struct dt_local_laplacian_cl_global_t;
 struct dt_dwt_cl_global_t; // wavelet decompose
 struct dt_heal_cl_global_t; // healing
 struct dt_colorspaces_cl_global_t; // colorspaces transform
+struct dt_guided_filter_cl_global_t;
 
 /**
  * main struct, stored in darktable.opencl.
@@ -129,7 +137,7 @@ typedef struct dt_opencl_t
   int async_pixelpipe;
   int number_event_handles;
   int print_statistics;
-  int synch_cache;
+  dt_opencl_sync_cache_t sync_cache;
   int micro_nap;
   int enabled;
   int stopped;
@@ -169,6 +177,9 @@ typedef struct dt_opencl_t
   
   // global kernels for colorspaces filter.
   struct dt_colorspaces_cl_global_t *colorspaces;
+
+  // global kernels for guided filter.
+  struct dt_guided_filter_cl_global_t *guided_filter;
 } dt_opencl_t;
 
 /** description of memory requirements of local buffer
