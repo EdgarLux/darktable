@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: darktable 2.8\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-04-22 13:02-0500\n"
+"POT-Creation-Date: 2019-04-25 12:03-0500\n"
 "PO-Revision-Date: 2019-04-19 00:37-0500\n"
 "Last-Translator: Edgar Lux <edgarlux@disroot.org>\n"
 "Language-Team: Edgar Lux\n"
@@ -1765,7 +1765,7 @@ msgid_plural "%d local copies have been synchronized"
 msgstr[0] "%d copia local ha sido sincronizada"
 msgstr[1] "%d copias locales han sido sincronizadas"
 
-#: ../src/common/imageio.c:615 ../src/common/mipmap_cache.c:1097
+#: ../src/common/imageio.c:615 ../src/common/mipmap_cache.c:1082
 #, c-format
 msgid "image `%s' is not available!"
 msgstr "la imagen `%s' no está disponible"
@@ -3178,7 +3178,7 @@ msgstr "usar la misma figura como"
 msgid "masks can not contain themselves"
 msgstr "las mascaras no pueden contenerse a si mismas"
 
-#: ../src/develop/pixelpipe_hb.c:2669
+#: ../src/develop/pixelpipe_hb.c:2671
 msgid ""
 "darktable discovered problems with your OpenCL setup; disabling OpenCL for "
 "this session!"
@@ -5367,7 +5367,7 @@ msgstr "deblur: difuminado suave, fuerza 1"
 #: ../src/iop/atrous.c:1580 ../src/iop/denoiseprofile.c:3022
 #: ../src/iop/rawdenoise.c:785
 msgid "coarse"
-msgstr "aspereza"
+msgstr "grueso"
 
 #: ../src/iop/atrous.c:1587 ../src/iop/denoiseprofile.c:3030
 #: ../src/iop/rawdenoise.c:793
@@ -5382,7 +5382,7 @@ msgstr "contrastado"
 #: ../src/iop/colorzones.c:2203 ../src/iop/denoiseprofile.c:3039
 #: ../src/iop/rawdenoise.c:802
 msgid "smooth"
-msgstr "suave"
+msgstr "suavizado"
 
 #: ../src/iop/atrous.c:1605 ../src/iop/denoiseprofile.c:3044
 #: ../src/iop/rawdenoise.c:807
@@ -5506,7 +5506,7 @@ msgstr "similar a nokia"
 #. clang-format off
 #. smoother cubic spline curve
 #: ../src/iop/basecurve.c:223 ../src/iop/colorzones.c:2243
-#: ../src/iop/rgbcurve.c:1566 ../src/iop/tonecurve.c:1278
+#: ../src/iop/rgbcurve.c:1568 ../src/iop/tonecurve.c:1278
 msgid "cubic spline"
 msgstr "curva segmentaria cúbica"
 
@@ -5550,7 +5550,7 @@ msgstr "fusión"
 #: ../src/iop/clipping.c:1677 ../src/iop/clipping.c:1963
 #: ../src/iop/clipping.c:1981 ../src/iop/clipping.c:2121
 #: ../src/iop/clipping.c:2148 ../src/iop/colorreconstruction.c:1372
-#: ../src/iop/lens.c:2154 ../src/iop/retouch.c:582 ../src/iop/rgbcurve.c:1587
+#: ../src/iop/lens.c:2154 ../src/iop/retouch.c:582 ../src/iop/rgbcurve.c:1589
 #: ../src/libs/export.c:509 ../src/libs/live_view.c:350
 #: ../src/libs/live_view.c:375 ../src/libs/live_view.c:384
 #: ../src/libs/print_settings.c:1471
@@ -5636,15 +5636,15 @@ msgstr "contraste"
 msgid "contrast adjustment"
 msgstr "ajuste de contraste"
 
-#: ../src/iop/basicadj.c:705 ../src/iop/rgbcurve.c:1586
+#: ../src/iop/basicadj.c:705 ../src/iop/rgbcurve.c:1588
 msgid "preserve colors"
 msgstr "preservar los colores"
 
-#: ../src/iop/basicadj.c:707 ../src/iop/rgbcurve.c:1588
+#: ../src/iop/basicadj.c:707 ../src/iop/rgbcurve.c:1590
 msgid "luminance"
 msgstr "luminancia"
 
-#: ../src/iop/basicadj.c:709 ../src/iop/rgbcurve.c:1590
+#: ../src/iop/basicadj.c:709 ../src/iop/rgbcurve.c:1592
 msgid "method to preserve colors when applying contrast"
 msgstr "Método para preservar los colores al aplicar contraste"
 
@@ -5716,7 +5716,7 @@ msgstr "laplaciano local: salida inconsistente"
 #: ../src/iop/bilat.c:525 ../src/iop/colorbalance.c:2319
 #: ../src/iop/denoiseprofile.c:3337 ../src/iop/exposure.c:853
 #: ../src/iop/lens.c:2303 ../src/iop/levels.c:669
-#: ../src/iop/profile_gamma.c:840 ../src/iop/rgbcurve.c:1480
+#: ../src/iop/profile_gamma.c:840 ../src/iop/rgbcurve.c:1482
 #: ../src/libs/copy_history.c:425 ../src/libs/export.c:670
 #: ../src/libs/print_settings.c:1512 ../src/views/darkroom.c:1808
 msgid "mode"
@@ -5748,7 +5748,7 @@ msgstr "cambios al contraste local"
 
 #: ../src/iop/bilat.c:540 ../src/iop/grain.c:625
 msgid "coarseness"
-msgstr "aspereza"
+msgstr "grosor"
 
 #: ../src/iop/bilat.c:542
 msgid "feature size of local details (spatial sigma of bilateral filter)"
@@ -6466,7 +6466,7 @@ msgstr "neutraliza los colores desde los parches"
 
 #: ../src/iop/colorbalance.c:940 ../src/iop/colorbalance.c:2614
 msgid "neutralize colors"
-msgstr "neutraliza los colores"
+msgstr "neutralizar los colores"
 
 #: ../src/iop/colorbalance.c:2320
 msgid "lift, gamma, gain (ProPhotoRGB)"
@@ -7137,7 +7137,7 @@ msgstr "tonos de piel naturales"
 msgid "black & white film"
 msgstr "película blanco y negro"
 
-#: ../src/iop/colorzones.c:2157 ../src/iop/rgbcurve.c:1512
+#: ../src/iop/colorzones.c:2157 ../src/iop/rgbcurve.c:1514
 msgid ""
 "create a curve based on an area from the image\n"
 "click to create a flat curve\n"
@@ -7177,22 +7177,22 @@ msgstr "fuerza"
 msgid "choose between a smoother or stronger effect"
 msgstr "Elija entre un efecto más suave o más marcado."
 
-#: ../src/iop/colorzones.c:2242 ../src/iop/rgbcurve.c:1565
+#: ../src/iop/colorzones.c:2242 ../src/iop/rgbcurve.c:1567
 #: ../src/iop/tonecurve.c:1277
 msgid "interpolation method"
 msgstr "método de interpolación"
 
-#: ../src/iop/colorzones.c:2244 ../src/iop/rgbcurve.c:1567
+#: ../src/iop/colorzones.c:2244 ../src/iop/rgbcurve.c:1569
 #: ../src/iop/tonecurve.c:1279
 msgid "centripetal spline"
 msgstr "curva segmentaria centrípeta"
 
-#: ../src/iop/colorzones.c:2245 ../src/iop/rgbcurve.c:1568
+#: ../src/iop/colorzones.c:2245 ../src/iop/rgbcurve.c:1570
 #: ../src/iop/tonecurve.c:1280
 msgid "monotonic spline"
 msgstr "curva segmentaria monótona"
 
-#: ../src/iop/colorzones.c:2249 ../src/iop/rgbcurve.c:1572
+#: ../src/iop/colorzones.c:2249 ../src/iop/rgbcurve.c:1574
 #: ../src/iop/tonecurve.c:1282
 msgid ""
 "change this method if you see oscillations or cusps in the curve\n"
@@ -9556,47 +9556,47 @@ msgstr "logarítmico (base 2)"
 msgid "exponential (base 2)"
 msgstr "exponencial (base 2)"
 
-#: ../src/iop/rgbcurve.c:1481 ../src/iop/tonecurve.c:1209
+#: ../src/iop/rgbcurve.c:1483 ../src/iop/tonecurve.c:1209
 msgid "RGB, linked channels"
 msgstr "RGB  canales enlazados"
 
-#: ../src/iop/rgbcurve.c:1482
+#: ../src/iop/rgbcurve.c:1484
 msgid "RGB, independent channels"
 msgstr "canales independientes RGB"
 
-#: ../src/iop/rgbcurve.c:1484
+#: ../src/iop/rgbcurve.c:1486
 msgid "choose between linked and independent channels."
 msgstr "Elegir entre canales enlazados o independientes."
 
-#: ../src/iop/rgbcurve.c:1491
+#: ../src/iop/rgbcurve.c:1493
 msgid "  R  "
 msgstr "  R  "
 
-#: ../src/iop/rgbcurve.c:1494
+#: ../src/iop/rgbcurve.c:1496
 msgid "curve_nodes for r channel"
 msgstr "nodos de la curva para el canal R"
 
-#: ../src/iop/rgbcurve.c:1496
+#: ../src/iop/rgbcurve.c:1498
 msgid "  G  "
 msgstr "  G  "
 
-#: ../src/iop/rgbcurve.c:1499
+#: ../src/iop/rgbcurve.c:1501
 msgid "curve_nodes for g channel"
 msgstr "nodos de la curva para el canal G"
 
-#: ../src/iop/rgbcurve.c:1501
+#: ../src/iop/rgbcurve.c:1503
 msgid "  B  "
 msgstr "  B  "
 
-#: ../src/iop/rgbcurve.c:1504
+#: ../src/iop/rgbcurve.c:1506
 msgid "curve_nodes for b channel"
 msgstr "nodos de la curva para el canal B"
 
-#: ../src/iop/rgbcurve.c:1524
+#: ../src/iop/rgbcurve.c:1526
 msgid "pick GUI color from image"
 msgstr "seleccionar color de la imagen"
 
-#: ../src/iop/rgbcurve.c:1578 ../src/iop/rgbcurve.c:1580
+#: ../src/iop/rgbcurve.c:1580 ../src/iop/rgbcurve.c:1582
 msgid "compensate middle grey"
 msgstr "compensar gris medio"
 
