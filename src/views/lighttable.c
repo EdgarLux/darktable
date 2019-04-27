@@ -362,7 +362,7 @@ static inline void _destroy_preview_surface(dt_preview_surface_t *fp_surf)
   fp_surf->imgid = -1;
   fp_surf->w_lock = 0;
 
-  fp_surf->zoom_100 = 40.0f;
+  fp_surf->zoom_100 = 1001.0f; // dummy value to say it need recompute
   fp_surf->w_fit = 0.0f;
   fp_surf->h_fit = 0.0f;
 
@@ -1798,6 +1798,18 @@ failure:
   return missing;
 }
 
+static float _preview_get_zoom100(int32_t width, int32_t height, uint32_t imgid)
+{
+  int w, h;
+  w = h = 0;
+  dt_image_get_final_size(imgid, &w, &h);
+  // 0.97f value come from dt_view_image_expose
+  float zoom_100 = fmaxf((float)w / ((float)width * 0.97f), (float)h / ((float)height * 0.97f));
+  if(zoom_100 < 1.0f) zoom_100 = 1.0f;
+
+  return zoom_100;
+}
+
 static int expose_expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t height, int32_t pointerx,
                          int32_t pointery, const dt_lighttable_layout_t layout)
 {
@@ -1897,8 +1909,8 @@ static int expose_expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t he
 
   g_list_free(selected);
 
-  gchar *query =  g_strdup_printf("SELECT id, aspect_ratio, width, height FROM images WHERE id IN (%s) ORDER BY INSTR('%s', id)",
-                                  imgids, imgids);
+  gchar *query = g_strdup_printf("SELECT id, aspect_ratio FROM images WHERE id IN (%s) ORDER BY INSTR('%s', id)",
+                                 imgids, imgids);
 
   g_free(imgids);
 
@@ -1917,11 +1929,11 @@ static int expose_expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t he
   {
     const int32_t id = sqlite3_column_int(stmt, 0);
     double aspect_ratio = sqlite3_column_double(stmt, 1);
-    if(!aspect_ratio)
+    if(!aspect_ratio || aspect_ratio < 0.0001)
     {
-      aspect_ratio = (double)sqlite3_column_int(stmt, 2) / (double)sqlite3_column_int(stmt, 3);
-      // record aspect ratio now
-      dt_image_set_aspect_ratio_to(id, aspect_ratio);
+      aspect_ratio = dt_image_set_aspect_ratio(id);
+      // if an error occurs, let's use 1:1 value
+      if(aspect_ratio < 0.0001) aspect_ratio = 1.0;
     }
 
     images[i].imgid = id;
@@ -2056,15 +2068,17 @@ static int expose_expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t he
   total_width -= distance;
   total_height -= distance;
 
-  for (GList *iter = rows; iter != NULL; iter = iter->next)
+  for(GList *iter = g_list_first(rows); iter != NULL; iter = iter->next)
   {
     GList *row = (GList *) iter->data;
     int row_w = 0, xoff;
+    int max_rh = 0;
 
     for (GList *slot_cw_iter = row; slot_cw_iter != NULL; slot_cw_iter = slot_cw_iter->next)
     {
       dt_layout_image_t *cw = (dt_layout_image_t *) slot_cw_iter->data;
       row_w = MAX(row_w, cw->x + cw->width);
+      max_rh = MAX(max_rh, cw->height);
     }
 
     xoff = (total_width - row_w) / 2;
@@ -2073,6 +2087,7 @@ static int expose_expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t he
     {
       dt_layout_image_t *cw = (dt_layout_image_t *) cw_iter->data;
       cw->x += xoff;
+      cw->height = max_rh;
     }
     g_list_free(row);
   }
@@ -2139,7 +2154,9 @@ static int expose_expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t he
       params.full_surface_wd = &lib->fp_surf[i].width;
       params.full_surface_ht = &lib->fp_surf[i].height;
       params.full_surface_w_lock = &lib->fp_surf[i].w_lock;
-      params.full_zoom100 = &lib->fp_surf[i].zoom_100;
+      if(lib->fp_surf[i].zoom_100 >= 1000.0f || lib->fp_surf[i].imgid != images[i].imgid)
+        lib->fp_surf[i].zoom_100 = _preview_get_zoom100(images[i].width, images[i].height, images[i].imgid);
+      params.full_zoom100 = lib->fp_surf[i].zoom_100;
       params.full_w1 = &lib->fp_surf[i].w_fit;
       params.full_h1 = &lib->fp_surf[i].h_fit;
       params.full_maxdx = &lib->fp_surf[i].max_dx;
@@ -2314,7 +2331,9 @@ static int expose_full_preview(dt_view_t *self, cairo_t *cr, int32_t width, int3
   params.zoom = 1;
   params.full_preview = TRUE;
   params.full_zoom = lib->full_zoom;
-  params.full_zoom100 = &lib->fp_surf[0].zoom_100;
+  if(lib->fp_surf[0].zoom_100 >= 1000.0f || lib->fp_surf[0].imgid != lib->full_preview_id)
+    lib->fp_surf[0].zoom_100 = _preview_get_zoom100(width, height, lib->full_preview_id);
+  params.full_zoom100 = lib->fp_surf[0].zoom_100;
   params.full_maxdx = &lib->fp_surf[0].max_dx;
   params.full_maxdy = &lib->fp_surf[0].max_dy;
   params.full_w1 = &lib->fp_surf[0].w_fit;
@@ -3791,7 +3810,7 @@ static gboolean _lighttable_preview_zoom_100(GtkAccelGroup *accel_group, GObject
 
   if(lib->full_preview_id > -1)
   {
-    lib->full_zoom = 100.0f; // this is ugly, but I don't find a way to know image output size at this stage
+    lib->full_zoom = 100.0f;
     dt_control_queue_redraw_center();
     return TRUE;
   }
