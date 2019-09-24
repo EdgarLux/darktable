@@ -703,6 +703,10 @@ static void _lib_history_compress_clicked_callback(GtkWidget *widget, gpointer u
   const int32_t imgid = darktable.develop->image_storage.id;
   if(!imgid) return;
 
+  // As dt_history_compress_on_image does *not* use the history stack data at all
+  // make sure the current stack is in the database
+  dt_dev_write_history(darktable.develop);
+
   dt_history_compress_on_image(imgid);
 
   sqlite3_stmt *stmt;
@@ -710,6 +714,7 @@ static void _lib_history_compress_clicked_callback(GtkWidget *widget, gpointer u
   // load new history and write it back to ensure that all history are properly numbered without a gap
   dt_dev_reload_history_items(darktable.develop);
   dt_dev_write_history(darktable.develop);
+  dt_image_synch_xmp(imgid);
 
   // then we can get the item to select in the new clean-up history retrieve the position of the module
   // corresponding to the history end.
@@ -730,6 +735,7 @@ static void _lib_history_compress_clicked_callback(GtkWidget *widget, gpointer u
   sqlite3_finalize(stmt);
 
   dt_dev_reload_history_items(darktable.develop);
+  dt_control_signal_raise(darktable.signals, DT_SIGNAL_DEVELOP_HISTORY_CHANGE);
   dt_dev_modulegroups_set(darktable.develop, dt_dev_modulegroups_get(darktable.develop));
 }
 
