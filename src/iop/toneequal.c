@@ -31,8 +31,8 @@
  * Because it works before camera RGB -> XYZ conversion, the exposure cannot be computed from
  * any human-based perceptual colour model (Y channel), hence why several RGB norms are provided as estimators of
  * the pixel energy to compute a luminance map. None of them is perfect, and I'm still
- * looking forward to a real spectral energy estimator. The best physically-accurate norm should be the euclidian
- * norm, but the best looking is often the power norm, which has no theoritical background.
+ * looking forward to a real spectral energy estimator. The best physically-accurate norm should be the euclidean
+ * norm, but the best looking is often the power norm, which has no theoretical background.
  * The geometric mean also display interesting properties as it interprets saturated colours
  * as low-lights, allowing to lighten and desaturate them in a realistic way.
  *
@@ -260,8 +260,8 @@ typedef struct dt_iop_toneequalizer_gui_data_t
   GtkStyleContext *context;
 
   // Event for equalizer drawing
-  float nodes_x[CHANNELS] DT_ALIGNED_ARRAY;
-  float nodes_y[CHANNELS] DT_ALIGNED_ARRAY;
+  float nodes_x[CHANNELS];
+  float nodes_y[CHANNELS];
   float area_x; // x coordinate of cursor over graph/drawing area
   float area_y; // y coordinate
   int area_active_node;
@@ -843,8 +843,8 @@ void toneeq_process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
   if(in == NULL || out == NULL)
   {
     // Pointers are not 64-bits aligned, and SSE code will segfault
-    dt_control_log(_("tone equalizer in/out buffer are ill-aligned, please report the bug to the developpers"));
-    fprintf(stdout, "tone equalizer in/out buffer are ill-aligned, please report the bug to the developpers\n");
+    dt_control_log(_("tone equalizer in/out buffer are ill-aligned, please report the bug to the developers"));
+    fprintf(stdout, "tone equalizer in/out buffer are ill-aligned, please report the bug to the developers\n");
     return;
   }
 
@@ -1066,7 +1066,7 @@ void modify_roi_in(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *
  * and y are the desired exposure compensation for each channel.
  *
  * This (x, y) set is interpolated by radial-basis function using a series of 8 gaussians.
- * Loosing 1 degree of freedom makes it an approximation rather than an interpolation but
+ * Losing 1 degree of freedom makes it an approximation rather than an interpolation but
  * helps reducing a bit the oscillations and fills a full AVX vector.
  *
  * The coefficients/factors used in the interpolation/approximation are linear, but keep in
@@ -1074,7 +1074,7 @@ void modify_roi_in(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *
  * flip/flop between both.
  *
  * User params of exposure compensation are expected between [-2 ; +2] EV for practical UI reasons
- * and probably numerical stability reasons, but there is no theoritical obstacle to enlarge
+ * and probably numerical stability reasons, but there is no theoretical obstacle to enlarge
  * this range. The main reason for not allowing it is tone equalizer is mostly intended
  * to do local changes, and these don't look so well if you are too harsh on the changes.
  * For heavier tonemapping, it should be used in combination with a tone curve or filmic.
@@ -2264,7 +2264,7 @@ void cairo_draw_hatches(cairo_t *cr, double center[2], double span[2], int insta
   }
 }
 
-static void dt_get_shade_from_luminance(cairo_t *cr, float luminance, float alpha)
+static void get_shade_from_luminance(cairo_t *cr, const float luminance, const float alpha)
 {
   // TODO: fetch screen gamma from ICC display profile
   const float gamma = 1.0f / 2.2f;
@@ -2273,14 +2273,14 @@ static void dt_get_shade_from_luminance(cairo_t *cr, float luminance, float alph
 }
 
 
-static void dt_draw_exposure_cursor(cairo_t *cr, double pointerx, double pointery, double radius, float luminance, float zoom_scale, int instances)
+static void draw_exposure_cursor(cairo_t *cr, const double pointerx, const double pointery, const double radius, const float luminance, const float zoom_scale, const int instances, const float alpha)
 {
   // Draw a circle cursor filled with a grey shade corresponding to a luminance value
   // or hatches if the value is above the overexposed threshold
 
   const double radius_z = radius / zoom_scale;
 
-  dt_get_shade_from_luminance(cr, luminance, 1.0);
+  get_shade_from_luminance(cr, luminance, alpha);
   cairo_arc(cr, pointerx, pointery, radius_z, 0, 2 * M_PI);
   cairo_fill_preserve(cr);
   cairo_save(cr);
@@ -2297,7 +2297,7 @@ static void dt_draw_exposure_cursor(cairo_t *cr, double pointerx, double pointer
 }
 
 
-static void dt_match_color_to_background(cairo_t *cr, float exposure, float alpha)
+static void match_color_to_background(cairo_t *cr, const float exposure, const float alpha)
 {
   float shade = 0.0f;
   // TODO: put that as a preference in darktablerc
@@ -2308,7 +2308,7 @@ static void dt_match_color_to_background(cairo_t *cr, float exposure, float alph
   else
     shade = (fmaxf(exposure / contrast, -5.0f) + 2.5f);
 
-  dt_get_shade_from_luminance(cr, exp2f(shade), alpha);
+  get_shade_from_luminance(cr, exp2f(shade), alpha);
 }
 
 
@@ -2355,13 +2355,13 @@ void gui_post_expose(struct dt_iop_module_t *self, cairo_t *cr, int32_t width, i
   dt_pthread_mutex_unlock(&g->lock);
 
   // Rescale and shift Cairo drawing coordinates
-  float wd = dev->preview_pipe->backbuf_width;
-  float ht = dev->preview_pipe->backbuf_height;
-  float zoom_y = dt_control_get_dev_zoom_y();
-  float zoom_x = dt_control_get_dev_zoom_x();
-  dt_dev_zoom_t zoom = dt_control_get_dev_zoom();
-  int closeup = dt_control_get_dev_closeup();
-  float zoom_scale = dt_dev_get_zoom_scale(dev, zoom, 1<<closeup, 1);
+  const float wd = dev->preview_pipe->backbuf_width;
+  const float ht = dev->preview_pipe->backbuf_height;
+  const float zoom_y = dt_control_get_dev_zoom_y();
+  const float zoom_x = dt_control_get_dev_zoom_x();
+  const dt_dev_zoom_t zoom = dt_control_get_dev_zoom();
+  const int closeup = dt_control_get_dev_closeup();
+  const float zoom_scale = dt_dev_get_zoom_scale(dev, zoom, 1<<closeup, 1);
   cairo_translate(cr, width / 2.0, height / 2.0);
   cairo_scale(cr, zoom_scale, zoom_scale);
   cairo_translate(cr, -.5f * wd - zoom_x * wd, -.5f * ht - zoom_y * ht);
@@ -2370,12 +2370,12 @@ void gui_post_expose(struct dt_iop_module_t *self, cairo_t *cr, int32_t width, i
 
   // set custom cursor dimensions
   const double outer_radius = 16.;
-  const double inner_radius = outer_radius / 2.0;
+  const double inner_radius = outer_radius / 1.5;
   const double setting_scale = 2. * outer_radius / zoom_scale;
   const double setting_offset_x = (outer_radius + 4. * g->inner_padding) / zoom_scale;
 
   // setting fill bars
-  dt_match_color_to_background(cr, exposure_out, 1.0);
+  match_color_to_background(cr, exposure_out, 1.0);
   cairo_set_line_width(cr, DT_PIXEL_APPLY_DPI(6. / zoom_scale));
   cairo_move_to(cr, x_pointer - setting_offset_x, y_pointer);
   cairo_line_to(cr, x_pointer - setting_offset_x, y_pointer - correction * setting_scale);
@@ -2394,8 +2394,8 @@ void gui_post_expose(struct dt_iop_module_t *self, cairo_t *cr, int32_t width, i
   cairo_fill(cr);
 
   // draw exposure cursor
-  dt_draw_exposure_cursor(cr, x_pointer, y_pointer, outer_radius, luminance_in, zoom_scale, 6);
-  dt_draw_exposure_cursor(cr, x_pointer, y_pointer, inner_radius, luminance_out, zoom_scale, 3);
+  draw_exposure_cursor(cr, x_pointer, y_pointer, outer_radius, luminance_in, zoom_scale, 6, .9);
+  draw_exposure_cursor(cr, x_pointer, y_pointer, inner_radius, luminance_out, zoom_scale, 3, .9);
 
   // Create Pango objects : texts
   char text[256];
@@ -2415,7 +2415,7 @@ void gui_post_expose(struct dt_iop_module_t *self, cairo_t *cr, int32_t width, i
   pango_layout_get_pixel_extents(layout, &ink, NULL);
 
   // Draw the text plain blackground
-  dt_get_shade_from_luminance(cr, luminance_out, 0.75);
+  get_shade_from_luminance(cr, luminance_out, 0.75);
   cairo_rectangle(cr, x_pointer + (outer_radius + 2. * g->inner_padding) / zoom_scale,
                       y_pointer - ink.y - ink.height / 2.0 - g->inner_padding / zoom_scale,
                       ink.width + 2.0 * ink.x + 4. * g->inner_padding / zoom_scale,
@@ -2423,7 +2423,7 @@ void gui_post_expose(struct dt_iop_module_t *self, cairo_t *cr, int32_t width, i
   cairo_fill(cr);
 
   // Display the EV reading
-  dt_match_color_to_background(cr, exposure_out, 1.0);
+  match_color_to_background(cr, exposure_out, 1.0);
   cairo_move_to(cr, x_pointer + (outer_radius + 4. * g->inner_padding) / zoom_scale,
                     y_pointer - ink.y - ink.height / 2.);
   pango_cairo_show_layout(cr, layout);
@@ -2550,7 +2550,7 @@ static inline void init_nodes_x(dt_iop_toneequalizer_gui_data_t *g)
   if(g == NULL) return;
 
   dt_pthread_mutex_lock(&g->lock);
-  if(!g->valid_nodes_x && g->graph_height)
+  if(!g->valid_nodes_x && g->graph_width > 0)
   {
     for(int i = 0; i < CHANNELS; ++i)
       g->nodes_x[i] = (((float)i) / ((float)(CHANNELS - 1))) * g->graph_width;
@@ -2565,7 +2565,7 @@ static inline void init_nodes_y(dt_iop_toneequalizer_gui_data_t *g)
   if(g == NULL) return;
 
   dt_pthread_mutex_lock(&g->lock);
-  if(g->user_param_valid && g->graph_height)
+  if(g->user_param_valid && g->graph_height > 0)
   {
     for(int i = 0; i < CHANNELS; ++i)
       g->nodes_y[i] =  (0.5 - log2f(g->temp_user_params[i]) / 4.0) * g->graph_height; // assumes factors in [-2 ; 2] EV
@@ -2896,7 +2896,7 @@ static gboolean area_motion_notify(GtkWidget *widget, GdkEventMotion *event, gpo
   else if(g->area_dragging && !height_valid)
   {
     // cursor left area : force commit to avoid glitches
-    int reset = self->dt->gui->reset;
+    const int reset = self->dt->gui->reset;
     self->dt->gui->reset = 1;
     update_exposure_sliders(g, p);
     self->dt->gui->reset = reset;
@@ -2949,7 +2949,7 @@ static gboolean area_button_release(GtkWidget *widget, GdkEventButton *event, gp
     if(g->area_dragging)
     {
       // Update GUI with new params
-      int reset = self->dt->gui->reset;
+      const int reset = self->dt->gui->reset;
       self->dt->gui->reset = 1;
       update_exposure_sliders(g, p);
       self->dt->gui->reset = reset;
@@ -3136,7 +3136,7 @@ void gui_init(struct dt_iop_module_t *self)
   dt_bauhaus_combobox_add(g->method, "HSL lightness");
   dt_bauhaus_combobox_add(g->method, "HSV value / RGB max");
   dt_bauhaus_combobox_add(g->method, "RGB sum");
-  dt_bauhaus_combobox_add(g->method, "RGB euclidian norm");
+  dt_bauhaus_combobox_add(g->method, "RGB euclidean norm");
   dt_bauhaus_combobox_add(g->method, "RGB power norm");
   dt_bauhaus_combobox_add(g->method, "RGB geometric mean");
   g_signal_connect(G_OBJECT(g->method), "value-changed", G_CALLBACK(method_changed), self);

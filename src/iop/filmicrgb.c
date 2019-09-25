@@ -1031,7 +1031,7 @@ inline static void dt_iop_filmic_rgb_compute_spline(const dt_iop_filmicrgb_param
   // factors of x⁴
   spline->M5[0] = a;
   spline->M5[1] = h;
-  spline->M5[3] = 0.f;
+  spline->M5[2] = 0.f;
 }
 
 void commit_params(dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pixelpipe_t *pipe,
@@ -1434,9 +1434,9 @@ void gui_init(dt_iop_module_t *self)
   g->preserve_color = dt_bauhaus_combobox_new(self);
   dt_bauhaus_widget_set_label(g->preserve_color, NULL, _("preserve chroma"));
   dt_bauhaus_combobox_add(g->preserve_color, _("no"));
-  dt_bauhaus_combobox_add(g->preserve_color, _("with max RGB"));
-  dt_bauhaus_combobox_add(g->preserve_color, _("with luminance Y"));
-  dt_bauhaus_combobox_add(g->preserve_color, _("with RGB power norm"));
+  dt_bauhaus_combobox_add(g->preserve_color, _("max RGB"));
+  dt_bauhaus_combobox_add(g->preserve_color, _("luminance Y"));
+  dt_bauhaus_combobox_add(g->preserve_color, _("RGB power norm"));
   gtk_widget_set_tooltip_text(g->preserve_color, _("ensure the original color are preserved.\n"
                                                    "may reinforce chromatic aberrations.\n"
                                                    "you need to manually tune the saturation when using this mode."));

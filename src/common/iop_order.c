@@ -130,7 +130,6 @@ static int _ioppr_legacy_iop_order_step(GList **_iop_order_list, GList *history_
     // !!! WALL OF THE NON-LINEARITY !!! There is no coming back for colour ratios
     _ioppr_move_iop_after(_iop_order_list, "basecurve", "bloom", dont_move);
     _ioppr_move_iop_after(_iop_order_list, "filmic", "basecurve", dont_move);
-    _ioppr_insert_iop_after(_iop_order_list, history_list, "filmicrgb", "filmic", dont_move);
     _ioppr_move_iop_after(_iop_order_list, "colisa", "filmic", dont_move);
     _ioppr_move_iop_after(_iop_order_list, "tonecurve", "colisa", dont_move);
     _ioppr_move_iop_after(_iop_order_list, "levels", "tonecurve", dont_move);
@@ -153,6 +152,9 @@ static int _ioppr_legacy_iop_order_step(GList **_iop_order_list, GList *history_
     _ioppr_move_iop_before(_iop_order_list, "vignette", "colorreconstruct", dont_move);
 
     _ioppr_move_iop_before(_iop_order_list, "dither", "borders", dont_move);
+
+    // new modules here
+    _ioppr_insert_iop_after(_iop_order_list, history_list, "filmicrgb", "filmic", dont_move);
 
     new_version = 3;
   }
@@ -798,7 +800,7 @@ gint dt_sort_iop_by_order(gconstpointer a, gconstpointer b)
 // if module can be placed before than module_next on the pipe
 // it returns the new iop_order
 // if it cannot be placed it returns -1.0
-// this assums that the order is always positive
+// this assumes that the order is always positive
 double dt_ioppr_get_iop_order_before_iop(GList *iop_list, dt_iop_module_t *module, dt_iop_module_t *module_next,
                                   const int validate_order, const int log_error)
 {
@@ -838,7 +840,7 @@ double dt_ioppr_get_iop_order_before_iop(GList *iop_list, dt_iop_module_t *modul
       {
         dt_iop_module_t *mod = (dt_iop_module_t *)modules->data;
 
-        // if we reach module_next everithing is OK
+        // if we reach module_next everything is OK
         if(mod == module_next)
         {
           mod2 = mod;
@@ -935,7 +937,7 @@ double dt_ioppr_get_iop_order_before_iop(GList *iop_list, dt_iop_module_t *modul
       {
         dt_iop_module_t *mod = (dt_iop_module_t *)modules->data;
 
-        // we reach the module next to module_next, everithing is OK
+        // we reach the module next to module_next, everything is OK
         if(mod2 != NULL)
         {
           mod1 = mod;
@@ -1018,7 +1020,7 @@ double dt_ioppr_get_iop_order_before_iop(GList *iop_list, dt_iop_module_t *modul
 // if module can be placed after than module_prev on the pipe
 // it returns the new iop_order
 // if it cannot be placed it returns -1.0
-// this assums that the order is always positive
+// this assumes that the order is always positive
 double dt_ioppr_get_iop_order_after_iop(GList *iop_list, dt_iop_module_t *module, dt_iop_module_t *module_prev,
                                  const int validate_order, const int log_error)
 {
