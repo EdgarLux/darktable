@@ -140,6 +140,8 @@
 @define-color thumbnail_hover_bg_color @grey_80;
 @define-color thumbnail_hover_outline_color @grey_50;
 @define-color filmstrip_bg_color @darkroom_bg_color;
+@define-color culling_selected_border_color @grey_10;
+@define-color culling_filmstrip_selected_border_color @grey_10;
 
 /* Graphs : histogram, navigation thumbnail and some items on tone curve */
 @define-color graph_bg @grey_10;
@@ -198,7 +200,7 @@ entry *,
 dialog,
 dialog *,
 colorswatch,
-colorswatch *
+colorswatch *,
 stack,
 stack *,
 scrollbar,
@@ -464,7 +466,7 @@ entry selection
   font-weight: normal;
   font-stretch: condensed;
   font-family: sans-serif;
-  font-size: 0.9em;
+  font-size: larger;
 }
 
 /* Labels of controls sections in modules */
