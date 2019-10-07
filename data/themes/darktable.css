@@ -632,6 +632,10 @@ dialog combobox window
   color: @section_label;
 }
 
+#view_label {
+  margin: 0.5em 0;
+}
+
 menuitem button,
 popover button,
 tooltip button
@@ -686,6 +690,13 @@ filechooserdialog scrolledwindow
 {
   padding: 0 1px 0 8px;
   margin: 0;
+}
+
+.dialog-vbox treeview check
+{
+  border-radius: 2px;
+  border: 1px solid @border_color;
+  background-color: shade(@bg_color, 0.7);
 }
 
 /* Tree view (lists and tables) */
