@@ -328,7 +328,9 @@ button
 }
 
 #recent-collection-button,
-#history-button
+#history-button,
+#history-button-always-enabled,
+#history-button-default-enabled
 {
   /* Exception because history and recent collections modules make use of a
    * list of GTK buttons but we don't want them to look like action buttons */
@@ -336,6 +338,12 @@ button
   border-color: transparent;
   border: 0;
   font-weight: normal;
+}
+
+#history-button-always-enabled *,
+#history-button-default-enabled *
+{
+  color: shade(@plugin_label_color, 0.9);
 }
 
 #dt-button button,
@@ -1073,10 +1081,16 @@ menuitem:focus,
 combobox window *:focus,
 #recent-collection-button:selected,
 #history-button:selected,
+#history-button-always-enabled:selected,
+#history-button-default-enabled:selected,
 #recent-collection-button:active,
 #history-button:active,
+#history-button-always-enabled:active,
+#history-button-default-enabled:active,
 #recent-collection-button:checked,
 #history-button:checked,
+#history-button-always-enabled:checked,
+#history-button-default-enabled:checked,
 #iop-plugin-ui button:active,
 #lib-plugin-ui button:active,
 #iop-plugin-ui #control-button:active,
@@ -1118,6 +1132,8 @@ notebook tab:hover label,
 #preferences_notebook menuitem:hover *,
 #recent-collection-button:hover,
 #history-button:hover,
+#history-button-always-enabled:hover *,
+#history-button-default-enabled:hover *,
 #iop-plugin-ui button:hover,
 #lib-plugin-ui button:hover,
 #iop-plugin-ui #control-button:hover,
@@ -1157,6 +1173,8 @@ notebook tab:focus label,
 #preferences_notebook menuitem:focus *,
 #recent-collection-button:focus,
 #history-button:focus,
+#history-button-always-enabled:focus *,
+#history-button-default-enabled:focus *,
 #iop-plugin-ui button:focus,
 #lib-plugin-ui button:focus,
 #iop-plugin-ui #control-button:focus,
