@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: darktable 3.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-12-18 14:47-0600\n"
+"POT-Creation-Date: 2019-12-19 04:29-0600\n"
 "PO-Revision-Date: 2019-12-19 03:33-0600\n"
 "Last-Translator: Edgar Lux <edgarlux@disroot.org>\n"
 "Language-Team: Edgar Lux\n"
@@ -8921,9 +8921,8 @@ msgstr ""
 "0% = tenue, 100% = intenso"
 
 #: ../src/iop/graduatednd.c:1235
-#, fuzzy
 msgid "rotation of filter -180 to 180 degrees"
-msgstr "Rotación del filtro: de 180 a 180 grados"
+msgstr "Rotación del filtro de -180 a 180 grados"
 
 #: ../src/iop/graduatednd.c:1254
 msgid "select the hue tone of filter"
