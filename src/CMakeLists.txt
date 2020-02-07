@@ -878,9 +878,9 @@ endif(BUILD_CMSTEST)
 add_subdirectory(chart)
 
 # have some test programs for unit testing, ...
-if(BUILD_TESTS)
+if(BUILD_TESTING)
   add_subdirectory(tests)
-endif(BUILD_TESTS)
+endif(BUILD_TESTING)
 
 #
 # build darktable executable
@@ -897,16 +897,9 @@ if (WIN32)
   _detach_debuginfo (darktable bin)
   _detach_debuginfo (lib_darktable bin)
 else()
-    # Note that $ORIGIN is not a variable but has a special meaning at runtime.
-    # The string "$ORIGIN" should end up in the executable as-is.
-    set(RPATH_DT "$ORIGIN")
-    if (APPLE)
-        # The string "@loader_path" should end up in the executable as-is.
-        set(RPATH_DT "@loader_path")
-    endif()
     set_target_properties(darktable
                           PROPERTIES
-                          INSTALL_RPATH ${RPATH_DT}/../${CMAKE_INSTALL_LIBDIR}/darktable)
+                          INSTALL_RPATH ${CMAKE_INSTALL_LIBDIR_RPATH})
 endif(WIN32)
 
 install(TARGETS darktable DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT DTApplication)
