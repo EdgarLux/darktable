@@ -1214,7 +1214,7 @@ static int _upgrade_library_schema_step(dt_database_t *db, int version)
     {
       const int32_t imgid = sqlite3_column_int(mig_stmt, 0);
       char operation[20] = { 0 };
-      memcpy(operation, (const char *)sqlite3_column_text(mig_stmt, 1), sizeof(operation));
+      g_strlcpy(operation, (const char *)sqlite3_column_text(mig_stmt, 1), sizeof(operation));
       const int multi_priority = sqlite3_column_int(mig_stmt, 2);
       const double iop_order = sqlite3_column_double(mig_stmt, 3);
       const int iop_order_version = sqlite3_column_int(mig_stmt, 4);
@@ -1596,7 +1596,7 @@ static gboolean _upgrade_library_schema(dt_database_t *db, int version)
 {
   while(version < CURRENT_DATABASE_VERSION_LIBRARY)
   {
-    int new_version = _upgrade_library_schema_step(db, version);
+    const int new_version = _upgrade_library_schema_step(db, version);
     if(new_version == version)
       return FALSE; // we don't know how to upgrade this db. probably a bug in _upgrade_library_schema_step
     else
@@ -1611,7 +1611,7 @@ static gboolean _upgrade_data_schema(dt_database_t *db, int version)
 {
   while(version < CURRENT_DATABASE_VERSION_DATA)
   {
-    int new_version = _upgrade_data_schema_step(db, version);
+    const int new_version = _upgrade_data_schema_step(db, version);
     if(new_version == version)
       return FALSE; // we don't know how to upgrade this db. probably a bug in _upgrade_data_schema_step
     else
