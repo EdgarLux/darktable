@@ -146,7 +146,7 @@ static void _lib_collect_update_params(dt_lib_collect_t *d)
     gchar *string = dt_conf_get_string(confname);
     if(string != NULL)
     {
-      snprintf(p->rule[i].string, PARAM_STRING_SIZE, "%s", string);
+      g_strlcpy(p->rule[i].string, string, PARAM_STRING_SIZE);
       g_free(string);
     }
 
@@ -283,12 +283,12 @@ static void view_popup_menu_onSearchFilmroll(GtkWidget *menuitem, gpointer userd
 
         if(g_strcmp0(old, tree_path))
         {
-          g_snprintf(trailing, sizeof(trailing), "%s", old + strlen(tree_path) + 1);
+          g_strlcpy(trailing, old + strlen(tree_path) + 1, sizeof(trailing));
           g_snprintf(final, sizeof(final), "%s/%s", new_path, trailing);
         }
         else
         {
-          g_snprintf(final, sizeof(final), "%s", new_path);
+          g_strlcpy(final, new_path, sizeof(final));
         }
 
         sqlite3_stmt *stmt2;
@@ -1512,7 +1512,7 @@ static void list_view(dt_lib_collect_rule_t *dr)
         snprintf(query, sizeof(query),
                  "SELECT m.name AS module_name, 1, COUNT(*) AS count"
                  " FROM main.images AS mi"
-                 " JOIN (SELECT DISTINCT imgid, operation FROM main.history) AS h"
+                 " JOIN (SELECT DISTINCT imgid, operation FROM main.history WHERE enabled = 1) AS h"
                  "  ON h.imgid = mi.id"
                  " JOIN memory.darktable_iop_names AS m"
                  "  ON m.operation = h.operation"
