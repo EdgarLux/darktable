@@ -726,7 +726,7 @@ uint16_t calculate_clut_cube(const char *const filepath, float **clut)
   }
   while ((read = getline(&line, &len, cube_file)) != -1)
   {
-    uint8_t nb_token = parse_cube_line(line, &token[0][0]);
+    const uint8_t nb_token = parse_cube_line(line, &token[0][0]);
     if (nb_token)
     {
       if (token[0][0] == 'T') continue;
@@ -837,7 +837,7 @@ uint16_t calculate_clut_3dl(const char *const filepath, float **clut)
   }
   while ((read = getline(&line, &len, cube_file)) != -1)
   {
-    uint8_t nb_token = parse_cube_line(line, &token[0][0]);
+    const uint8_t nb_token = parse_cube_line(line, &token[0][0]);
     if (nb_token)
     {
       if (!level)
@@ -1704,7 +1704,6 @@ void gui_init(dt_iop_module_t *self)
 #else
   gtk_widget_set_tooltip_text(button, _("select a png (haldclut)"
       ", a cube or a 3dl file "
-      " or a cube file "
       "CAUTION: 3D lut folder must be set in preferences/core options/miscellaneous before choosing the lut file"));
 #endif // HAVE_GMIC
   gtk_box_pack_start(GTK_BOX(g->hbox), button, FALSE, FALSE, 0);
