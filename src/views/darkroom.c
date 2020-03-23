@@ -69,9 +69,6 @@
 
 DT_MODULE(1)
 
-static gboolean film_strip_key_accel(GtkAccelGroup *accel_group, GObject *acceleratable, guint keyval,
-                                     GdkModifierType modifier, gpointer data);
-
 static gboolean zoom_key_accel(GtkAccelGroup *accel_group, GObject *acceleratable, guint keyval,
                                GdkModifierType modifier, gpointer data);
 
@@ -279,6 +276,22 @@ void expose(
   {
     float zx = zoom_x, zy = zoom_y, boxw = 1., boxh = 1.;
     dt_dev_check_zoom_bounds(dev, &zx, &zy, zoom, closeup, &boxw, &boxh);
+
+    /* If boxw and boxh very closely match the zoomed size in the darktable window we might have resizing with
+       every expose because adding a slider will change the image area and might force a resizing in next expose.
+       So we disable in cases close to full.
+    */
+    if(boxw > 0.95f)
+    {
+      zx = .0f;
+      boxw = 1.01f;
+    }
+    if(boxh > 0.95f)
+    {
+      zy = .0f;
+      boxh = 1.01f;
+    }
+
     dt_view_set_scrollbar(self, zx, -0.5 + boxw/2, 0.5, boxw/2, zy, -0.5+ boxh/2, 0.5, boxh/2);
   }
 
@@ -464,8 +477,8 @@ void expose(
 
     cairo_save(cri);
     // The colorpicker samples bounding rectangle should only be displayed inside the visible image
-    const int pwidth = dev->pipe->output_backbuf_width<<closeup;
-    const int pheight = dev->pipe->output_backbuf_height<<closeup;
+    const int pwidth = (dev->pipe->output_backbuf_width<<closeup) / darktable.gui->ppd;
+    const int pheight = (dev->pipe->output_backbuf_height<<closeup) / darktable.gui->ppd;
 
     const float hbar = (self->width - pwidth) * .5f;
     const float tbar = (self->height - pheight) * .5f;
@@ -535,8 +548,8 @@ void expose(
   if(dev->gui_module && dev->gui_module->request_color_pick != DT_REQUEST_COLORPICK_OFF && dev->gui_module->enabled)
   {
     // The colorpicker bounding rectangle should only be displayed inside the visible image
-    const int pwidth = dev->pipe->output_backbuf_width<<closeup;
-    const int pheight = dev->pipe->output_backbuf_height<<closeup;
+    const int pwidth = (dev->pipe->output_backbuf_width<<closeup) / darktable.gui->ppd;
+    const int pheight = (dev->pipe->output_backbuf_height<<closeup) / darktable.gui->ppd;
 
     const float hbar = (self->width - pwidth) * .5f;
     const float tbar = (self->height - pheight) * .5f;
@@ -596,8 +609,8 @@ void expose(
     if(dev->form_visible && dev->gui_module->enabled)
     {
       // The masks paths should only be displayed inside the visible image
-      const int pwidth = dev->pipe->output_backbuf_width<<closeup;
-      const int pheight = dev->pipe->output_backbuf_height<<closeup;
+      const int pwidth = (dev->pipe->output_backbuf_width<<closeup) / darktable.gui->ppd;
+      const int pheight = (dev->pipe->output_backbuf_height<<closeup) / darktable.gui->ppd;
 
       const float hbar = (self->width - pwidth) * .5f;
       const float tbar = (self->height - pheight) * .5f;
@@ -1048,17 +1061,6 @@ static gboolean zoom_key_accel(GtkAccelGroup *accel_group, GObject *acceleratabl
   dt_dev_invalidate(dev);
   dt_control_queue_redraw_center();
   dt_control_navigation_redraw();
-  return TRUE;
-}
-
-static gboolean film_strip_key_accel(GtkAccelGroup *accel_group, GObject *acceleratable, guint keyval,
-                                     GdkModifierType modifier, gpointer data)
-{
-  // there's only filmstrip in bottom panel, so better hide/show it instead of filmstrip lib
-  const gboolean pb = dt_ui_panel_visible(darktable.gui->ui, DT_UI_PANEL_BOTTOM);
-  dt_ui_panel_show(darktable.gui->ui, DT_UI_PANEL_BOTTOM, !pb, TRUE);
-  // if we show the panel, ensure that filmstrip is visible
-  if(!pb) dt_lib_set_visible(darktable.view_manager->proxy.filmstrip.module, TRUE);
   return TRUE;
 }
 
@@ -1942,7 +1944,7 @@ void gui_init(dt_view_t *self)
   dev->iso_12646.button
       = dtgtk_togglebutton_new(dtgtk_cairo_paint_bulb, CPF_STYLE_FLAT, NULL);
   gtk_widget_set_tooltip_text(dev->iso_12646.button,
-                              _("toggle ISO 12646 colour assessment conditions"));
+                              _("toggle ISO 12646 color assessment conditions"));
   g_signal_connect(G_OBJECT(dev->iso_12646.button), "clicked", G_CALLBACK(_iso_12646_quickbutton_clicked), dev);
   dt_view_manager_module_toolbox_add(darktable.view_manager, dev->iso_12646.button, DT_VIEW_DARKROOM);
 
@@ -2577,7 +2579,6 @@ void enter(dt_view_t *self)
         dt_iop_gui_set_expanded(module, TRUE, dt_conf_get_bool("darkroom/ui/single_module"));
       else
         dt_iop_gui_set_expanded(module, FALSE, FALSE);
-        
     }
 
     /* setup key accelerators (only if not hidden) */
@@ -2825,8 +2826,8 @@ static int mouse_in_imagearea(dt_view_t *self, double x, double y)
   dt_develop_t *dev = (dt_develop_t *)self->data;
 
   const int closeup = dt_control_get_dev_closeup();
-  const int pwidth = dev->pipe->output_backbuf_width<<closeup;
-  const int pheight = dev->pipe->output_backbuf_height<<closeup;
+  const int pwidth = (dev->pipe->output_backbuf_width<<closeup) / darktable.gui->ppd;
+  const int pheight = (dev->pipe->output_backbuf_height<<closeup) / darktable.gui->ppd;
 
   x -= (self->width - pwidth) / 2;
   y -= (self->height - pheight) / 2;
@@ -2871,7 +2872,7 @@ void mouse_moved(dt_view_t *self, double x, double y, double pressure, int which
     // module requested a color box
     if(mouse_in_imagearea(self, x, y))
     {
-      // Make sure a minimal width/height 
+      // Make sure a minimal width/height
       float delta_x = 1 / (float) dev->pipe->processed_width;
       float delta_y = 1 / (float) dev->pipe->processed_height;
 
@@ -3372,9 +3373,6 @@ void configure(dt_view_t *self, int wd, int ht)
 
 void init_key_accels(dt_view_t *self)
 {
-  // Film strip shortcuts
-  dt_accel_register_view(self, NC_("accel", "toggle film strip"), GDK_KEY_f, GDK_CONTROL_MASK);
-
   // Zoom shortcuts
   dt_accel_register_view(self, NC_("accel", "zoom close-up"), GDK_KEY_1, GDK_MOD1_MASK);
   dt_accel_register_view(self, NC_("accel", "zoom fill"), GDK_KEY_2, GDK_MOD1_MASK);
@@ -3446,10 +3444,6 @@ void connect_key_accels(dt_view_t *self)
 {
   GClosure *closure;
   dt_develop_t *data = (dt_develop_t *)self->data;
-
-  // Film strip shortcuts
-  closure = g_cclosure_new(G_CALLBACK(film_strip_key_accel), (gpointer)self, NULL);
-  dt_accel_connect_view(self, "toggle film strip", closure);
 
   // Zoom shortcuts
   closure = g_cclosure_new(G_CALLBACK(zoom_key_accel), GINT_TO_POINTER(1), NULL);
