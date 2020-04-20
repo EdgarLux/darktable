@@ -547,7 +547,7 @@ void dt_metadata_set(const int imgid, const char *key, const char *value, const 
         dt_undo_record(darktable.undo, NULL, DT_UNDO_METADATA, undo, _pop_undo, _metadata_undo_data_free);
         dt_undo_end_group(darktable.undo);
       }
-      dt_control_signal_raise(darktable.signals, DT_SIGNAL_MOUSE_OVER_IMAGE_CHANGE);
+//       dt_control_signal_raise(darktable.signals, DT_SIGNAL_MOUSE_OVER_IMAGE_CHANGE);
     }
   }
 }
@@ -556,7 +556,7 @@ void dt_metadata_set_import(const int imgid, const char *key, const char *value)
 {
   if(!key || !imgid || imgid == -1) return;
 
-  if(dt_conf_get_bool("ui_last/import_apply_metadata") == TRUE)
+  if(dt_conf_get_bool("ui_last/import_apply_metadata") == TRUE || TRUE)
   {
     int keyid = dt_metadata_get_keyid(key);
     if(keyid != -1) // known key
@@ -570,7 +570,7 @@ void dt_metadata_set_import(const int imgid, const char *key, const char *value)
         imported = !(flag & DT_METADATA_FLAG_HIDDEN) && (flag & DT_METADATA_FLAG_IMPORTED);
         g_free(setting);
       }
-      if(imported)
+      if(imported || TRUE)
       {
         GList *imgs = NULL;
         imgs = g_list_append(imgs, GINT_TO_POINTER(imgid));
@@ -588,7 +588,7 @@ void dt_metadata_set_import(const int imgid, const char *key, const char *value)
 
           g_list_free_full(metadata, g_free);
           g_list_free(imgs);
-          dt_control_signal_raise(darktable.signals, DT_SIGNAL_MOUSE_OVER_IMAGE_CHANGE);
+//           dt_control_signal_raise(darktable.signals, DT_SIGNAL_MOUSE_OVER_IMAGE_CHANGE);
         }
       }
     }
