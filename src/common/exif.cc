@@ -947,7 +947,8 @@ static bool _exif_decode_exif_data(dt_image_t *img, Exiv2::ExifData &exifData)
     }
 
     /* Read lens name */
-    if((FIND_EXIF_TAG("Exif.CanonCs.LensType") && pos->print(&exifData) != "(0)"
+    if((FIND_EXIF_TAG("Exif.CanonCs.LensType")
+        && pos->print(&exifData) != "(0)"
         && pos->print(&exifData) != "(65535)")
        || FIND_EXIF_TAG("Exif.Canon.0x0095"))
     {
@@ -990,7 +991,13 @@ static bool _exif_decode_exif_data(dt_image_t *img, Exiv2::ExifData &exifData)
     {
       dt_strlcpy_to_utf8(img->exif_lens, sizeof(img->exif_lens), pos, exifData);
     }
-    else if(FIND_EXIF_TAG("Exif.Photo.LensModel"))
+
+    // finaly the lens has only numbers and parentheses, let's try to use
+    // Exif.Photo.LensModel if defined.
+
+    std::string lens(img->exif_lens);
+    if(std::string::npos == lens.find_first_not_of(" (1234567890)")
+       && FIND_EXIF_TAG("Exif.Photo.LensModel"))
     {
       dt_strlcpy_to_utf8(img->exif_lens, sizeof(img->exif_lens), pos, exifData);
     }
