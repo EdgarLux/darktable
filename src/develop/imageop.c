@@ -561,8 +561,7 @@ static void dt_iop_gui_delete_callback(GtkButton *button, dt_iop_module_t *modul
   dt_iop_gui_set_expanded(next, TRUE, FALSE);
   gtk_widget_grab_focus(next->expander);
 
-  const int reset = darktable.gui->reset;
-  darktable.gui->reset = 1;
+  ++darktable.gui->reset;
 
   // we remove the plugin effectively
   if(!dt_iop_is_hidden(module))
@@ -646,7 +645,7 @@ static void dt_iop_gui_delete_callback(GtkButton *button, dt_iop_module_t *modul
   /* redraw */
   dt_control_queue_redraw_center();
 
-  darktable.gui->reset = reset;
+  --darktable.gui->reset;
 }
 
 dt_iop_module_t *dt_iop_gui_get_previous_visible_module(dt_iop_module_t *module)
@@ -815,8 +814,7 @@ dt_iop_module_t *dt_iop_gui_duplicate(dt_iop_module_t *base, gboolean copy_param
   /* initialize gui if iop have one defined */
   if(!dt_iop_is_hidden(module))
   {
-    const int reset = darktable.gui->reset;
-    darktable.gui->reset = 1;
+    ++darktable.gui->reset;
     module->gui_init(module);
     dt_iop_reload_defaults(module); // some modules like profiled denoise update the gui in reload_defaults
     if(copy_params)
@@ -848,7 +846,7 @@ dt_iop_module_t *dt_iop_gui_duplicate(dt_iop_module_t *base, gboolean copy_param
                           expander, g_value_get_int(&gv) + pos_base - pos_module + 1);
     dt_iop_gui_set_expanded(module, TRUE, FALSE);
     dt_iop_gui_update_blending(module);
-    darktable.gui->reset = reset;
+    --darktable.gui->reset;
   }
 
   if(dt_conf_get_bool("darkroom/ui/single_module"))
@@ -1172,16 +1170,11 @@ void dt_iop_gui_set_enable_button(dt_iop_module_t *module)
 {
   if(module->off)
   {
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(module->off), module->enabled);
     if(module->hide_enable_button)
-    {
-      gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(module->off), FALSE);
       gtk_widget_set_sensitive(GTK_WIDGET(module->off), FALSE);
-    }
     else
-    {
-      gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(module->off), module->enabled);
       gtk_widget_set_sensitive(GTK_WIDGET(module->off), TRUE);
-    }
   }
 }
 
@@ -1650,8 +1643,7 @@ void dt_iop_gui_update(dt_iop_module_t *module)
 {
   if(module->gui_data)
   {
-    int reset = darktable.gui->reset;
-    darktable.gui->reset = 1;
+    ++darktable.gui->reset;
     if(!dt_iop_is_hidden(module))
     {
       if(module->params) module->gui_update(module);
@@ -1660,16 +1652,15 @@ void dt_iop_gui_update(dt_iop_module_t *module)
       _iop_gui_update_label(module);
       dt_iop_gui_set_enable_button(module);
     }
-    darktable.gui->reset = reset;
+    --darktable.gui->reset;
   }
 }
 
 void dt_iop_gui_reset(dt_iop_module_t *module)
 {
-  int reset = darktable.gui->reset;
-  darktable.gui->reset = 1;
+  ++darktable.gui->reset;
   if(module->gui_reset && !dt_iop_is_hidden(module)) module->gui_reset(module);
-  darktable.gui->reset = reset;
+  --darktable.gui->reset;
 }
 
 static void dt_iop_gui_reset_callback(GtkButton *button, dt_iop_module_t *module)
@@ -2017,10 +2008,15 @@ GtkWidget *dt_iop_gui_get_expander(dt_iop_module_t *module)
   gtk_widget_set_name(GTK_WIDGET(hw[IOP_MODULE_PRESETS]), "module-preset-button");
 
   /* add enabled button */
-  if(module->enabled && module->default_enabled && module->hide_enable_button)
+  if(module->default_enabled && module->hide_enable_button)
   {
     hw[IOP_MODULE_SWITCH] = dtgtk_togglebutton_new(dtgtk_cairo_paint_switch_on, CPF_STYLE_FLAT | CPF_BG_TRANSPARENT | CPF_DO_NOT_USE_BORDER, module);
     gtk_widget_set_name(GTK_WIDGET(hw[IOP_MODULE_SWITCH]), "module-always-enabled-button");
+  }
+  else if(!module->default_enabled && module->hide_enable_button)
+  {
+    hw[IOP_MODULE_SWITCH] = dtgtk_togglebutton_new(dtgtk_cairo_paint_switch_off, CPF_STYLE_FLAT | CPF_BG_TRANSPARENT | CPF_DO_NOT_USE_BORDER, module);
+    gtk_widget_set_name(GTK_WIDGET(hw[IOP_MODULE_SWITCH]), "module-always-disabled-button");
   }
   else
   {
