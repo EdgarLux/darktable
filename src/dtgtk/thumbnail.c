@@ -560,6 +560,19 @@ static void _thumb_update_icons(dt_thumbnail_t *thumb)
     g_free(msg);
   }
   g_free(pattern);
+
+  // we recompte the history tooltip if needed
+  thumb->is_altered = dt_image_altered(thumb->imgid);
+  gtk_widget_set_visible(thumb->w_altered, thumb->is_altered);
+  if(thumb->is_altered)
+  {
+    char *tooltip = dt_history_get_items_as_string(thumb->imgid);
+    if(tooltip)
+    {
+      gtk_widget_set_tooltip_text(thumb->w_altered, tooltip);
+      g_free(tooltip);
+    }
+  }
 }
 
 static gboolean _thumbs_hide_overlays(gpointer user_data)
@@ -1350,7 +1363,7 @@ static void _thumb_resize_overlays(dt_thumbnail_t *thumb)
     int w = 0;
     int h = 0;
     pango_layout_get_pixel_size(gtk_label_get_layout(GTK_LABEL(thumb->w_bottom)), &w, &h);
-    gtk_widget_set_size_request(thumb->w_bottom, CLAMP(w, 25 * r1, width), 6.75 * r1 + h);
+    gtk_widget_set_size_request(thumb->w_bottom_eb, CLAMP(w, 25 * r1, width), 6.75 * r1 + h);
 
     gtk_label_set_xalign(GTK_LABEL(thumb->w_bottom), 0);
     gtk_label_set_yalign(GTK_LABEL(thumb->w_bottom), 0);
@@ -1559,6 +1572,9 @@ void dt_thumbnail_set_overlay(dt_thumbnail_t *thumb, dt_thumbnail_overlay_t over
   // we read and cache all the infos from dt_image_t that we need, depending on the overlay level
   // note that when "downgrading" overlay level, we don't bother to remove the infos
   dt_thumbnail_reload_infos(thumb);
+
+  // and we resize the overlays
+  _thumb_resize_overlays(thumb);
 }
 
 // force the image to be redraw at the right position
