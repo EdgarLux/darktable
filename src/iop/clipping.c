@@ -1621,7 +1621,7 @@ static void aspect_presets_changed(GtkWidget *combo, dt_iop_module_t *self)
 {
   dt_iop_clipping_gui_data_t *g = (dt_iop_clipping_gui_data_t *)self->gui_data;
   dt_iop_clipping_params_t *p = (dt_iop_clipping_params_t *)self->params;
-  int which = dt_bauhaus_combobox_get(combo);
+  const int which = dt_bauhaus_combobox_get(combo);
   int d = abs(p->ratio_d), n = p->ratio_n;
   const char *text = dt_bauhaus_combobox_get_text(combo);
   if(which < 0)
@@ -1720,8 +1720,8 @@ static void aspect_presets_changed(GtkWidget *combo, dt_iop_module_t *self)
       // simplify the fraction with binary GCD - https://en.wikipedia.org/wiki/Greatest_common_divisor
       // search g and d such that g is odd and gcd(nn, dd) = g × 2^d
       int e = 0;
-      int nn = n;
-      int dd = d;
+      int nn = abs(n);
+      int dd = abs(d);
       while((nn % 2 == 0) && (dd % 2 == 0))
       {
         nn /= 2;
@@ -1798,7 +1798,8 @@ static void aspect_presets_changed(GtkWidget *combo, dt_iop_module_t *self)
   {
     // we got a custom ratio
     char str[128];
-    snprintf(str, sizeof(str), "%d:%d %2.2f", p->ratio_d, p->ratio_n, (float)p->ratio_d / (float)p->ratio_n);
+    snprintf(str, sizeof(str), "%d:%d %2.2f",
+             abs(p->ratio_d), abs(p->ratio_n), (float)abs(p->ratio_d) / (float)abs(p->ratio_n));
     dt_bauhaus_combobox_set_text(g->aspect_presets, str);
   }
   else if(dt_bauhaus_combobox_get(g->aspect_presets) != act)
@@ -1858,7 +1859,7 @@ static void keystone_type_changed(GtkWidget *combo, dt_iop_module_t *self)
 {
   dt_iop_clipping_gui_data_t *g = (dt_iop_clipping_gui_data_t *)self->gui_data;
   dt_iop_clipping_params_t *p = (dt_iop_clipping_params_t *)self->params;
-  int which = dt_bauhaus_combobox_get(combo);
+  const int which = dt_bauhaus_combobox_get(combo);
   if((which == 5) || (which == 4 && p->k_h == 0 && p->k_v == 0))
   {
     // if the keystone is applied,autocrop must be disabled !
@@ -1993,7 +1994,8 @@ void gui_update(struct dt_iop_module_t *self)
   if(act == -1)
   {
     char str[128];
-    snprintf(str, sizeof(str), "%d:%d %2.2f", p->ratio_d, p->ratio_n, (float)p->ratio_d / (float)p->ratio_n);
+    snprintf(str, sizeof(str), "%d:%d %2.2f",
+             abs(p->ratio_d), abs(p->ratio_n), (float)abs(p->ratio_d) / (float)abs(p->ratio_n));
     dt_bauhaus_combobox_set_text(g->aspect_presets, str);
   }
   if(dt_bauhaus_combobox_get(g->aspect_presets) == act)
