@@ -1,8 +1,8 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: darktable 3.0\n"
+"Project-Id-Version: darktable 3.2\n"
 "POT-Creation-Date: 2020-06-30 12:21-0500\n"
-"PO-Revision-Date: 2020-06-30 16:14-0500\n"
+"PO-Revision-Date: 2020-07-31 13:12-0500\n"
 "Last-Translator: Edgar Lux <edgarlux@disroot.org>\n"
 "Language-Team: Edgar Lux\n"
 "Language: es\n"
@@ -4747,36 +4747,37 @@ msgstr ""
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3605(title)
 msgid "Lua Scripts Installer"
-msgstr ""
+msgstr "Instalador de guiones Lua (sólo en inglés)"
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3609(secondary)
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3613(primary)
 msgid "lua scripts installer"
-msgstr ""
+msgstr "lua scripts installer"
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3622(entry)
 msgid ""
 "This panel provides an interface for installing the darktable lua scripts. "
 "The first time it is run, instructions are displayed."
 msgstr ""
+"Este panel proporciona la interfaz (sólo en inglés) para poder instalar "
+"guiones (scripts) para darktable. Se muestran las instrucciones al "
+"ejecutarse por primera vez."
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3631(entry)
 msgid "Panel appearance after the first run."
-msgstr ""
+msgstr "Apariencia del panel después de la primera ejecución."
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3648(title)
-#, fuzzy
 msgid "select action"
-msgstr "selection"
+msgstr "select action (elegir acción)"
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3650(para)
 msgid "Select an action from the list of actions."
-msgstr ""
+msgstr "Elija una opción desde la lista de acciones."
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3656(title)
-#, fuzzy
 msgid "install scripts"
-msgstr "Compartiendo scripts"
+msgstr "install scripts (instalar guiones)"
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3658(para)
 msgid ""
@@ -4785,25 +4786,31 @@ msgid ""
 "After the scripts are installed, the script manager module starts, providing "
 "a point and click interface for managing the lua scripts."
 msgstr ""
+"Instale los guiones de Lua de darktable clonando el repositorio de guiones "
+"de lua mediante git. El ejecutable de git deberá estar instalado y con la "
+"ruta de usuario. Después de que los guiones se instalan, se inicia el módulo "
+"de gestión de guiones, que proporciona una interfaz de señalar y pulsar para "
+"gestionar los guiones de Lua."
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3664(para)
 msgid ""
 "The next time darktable starts, this module wont be active since the scripts "
 "are installed."
 msgstr ""
+"La próxima vez que se inicie darktable, el módulo estará inactivo ya que los "
+"guiones estarán instalados."
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3672(title)
 msgid "remind me later"
-msgstr ""
+msgstr "remind me later (recordarme más tarde)"
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3674(para)
 msgid "This module will reappear every 5th time darktable is restarted."
-msgstr ""
+msgstr "Este módulo reaparecerá cada 5ª vez que se reinicie darktable."
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3682(title)
-#, fuzzy
 msgid "don't show again"
-msgstr "Deshabilitar el juego del 1° de abril"
+msgstr "don't show again (no mostrar de nuevo)"
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3684(para)
 msgid ""
@@ -4811,14 +4818,18 @@ msgid ""
 "user changes their mind and wants to use the module they can go to settings-"
 "&gt;lua options and uncheck the \"install scripts dont show again\" checkbox."
 msgstr ""
+"Cuando se reinicie darktable, este módulo ya no estará activo. Si el usuario "
+"cambia de opinión y desea utilizar el módulo, puede ir a Preferencias de "
+"darktable&gt;opciones de Lua y desmarcar la casilla de verificación en "
+"\"install scripts don't show again\"."
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3696(title)
 msgid "execute"
-msgstr ""
+msgstr "execute (ejecutar)"
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3698(para)
 msgid "Perform the selected action."
-msgstr ""
+msgstr "Realiza la acción elegida."
 
 #: ../build/doc/usermanual/po/darktable-usermanual_profiled.xml:3712(title)
 msgid "Select"
