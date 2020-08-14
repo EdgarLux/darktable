@@ -2492,11 +2492,11 @@ static void _on_drag_begin(GtkWidget *widget, GdkDragContext *context, gpointer 
   dt_iop_module_t *module_src = _get_dnd_source_module(container);
   if(module_src && module_src->expander)
   {
-    GdkWindow *window = gtk_widget_get_parent_window(module_src->expander);
+    GdkWindow *window = gtk_widget_get_parent_window(module_src->header);
     if(window)
     {
       GtkAllocation allocation_w = {0};
-      gtk_widget_get_allocation(module_src->expander, &allocation_w);
+      gtk_widget_get_allocation(module_src->header, &allocation_w);
 
       GdkPixbuf *pixbuf = gdk_pixbuf_get_from_window(window, allocation_w.x, allocation_w.y,
                                                      allocation_w.width, allocation_w.height);
@@ -2813,6 +2813,7 @@ void enter(dt_view_t *self)
 
     modules = g_list_previous(modules);
   }
+
   // make signals work again:
   --darktable.gui->reset;
 
@@ -3351,7 +3352,7 @@ void scrolled(dt_view_t *self, double x, double y, int up, int state)
       float multiplier = dt_accel_get_slider_scale_multiplier();
 
       const float min_visible = powf(10.0f, -dt_bauhaus_slider_get_digits(widget));
-      if(fabsf(step*multiplier) < min_visible) 
+      if(fabsf(step*multiplier) < min_visible)
         multiplier = min_visible / fabsf(step);
 
       if(up)
