@@ -929,11 +929,13 @@ void dt_gui_gtk_set_source_rgba(cairo_t *cr, dt_gui_color_t color, float opacity
 
 void dt_gui_gtk_quit()
 {
-  GtkWindow *win = GTK_WINDOW(dt_ui_main_window(darktable.gui->ui));
+  GtkWidget *win = dt_ui_main_window(darktable.gui->ui);
+  GtkStyleContext *context = gtk_widget_get_style_context(win);
+  gtk_style_context_add_class(context, "dt_gui_quit");
+  gtk_window_set_title(GTK_WINDOW(win), _("closing darktable..."));
 
-  // Write out windows dimension before miminizing
+  // Write out windows dimension
   dt_gui_gtk_write_config();
-  gtk_window_iconify(win);
 
   GtkWidget *widget;
   widget = darktable.gui->widgets.left_border;
@@ -944,6 +946,9 @@ void dt_gui_gtk_quit()
   g_signal_handlers_block_by_func(widget, draw_borders, GINT_TO_POINTER(2));
   widget = darktable.gui->widgets.bottom_border;
   g_signal_handlers_block_by_func(widget, draw_borders, GINT_TO_POINTER(3));
+
+  // hide main window
+  gtk_widget_hide(dt_ui_main_window(darktable.gui->ui));
 }
 
 gboolean dt_gui_quit_callback(GtkWidget *widget, GdkEvent *event, gpointer user_data)
@@ -2681,7 +2686,23 @@ gboolean dt_gui_show_standalone_yes_no_dialog(const char *title, const char *mar
   gtk_window_set_title(GTK_WINDOW(window), title);
   g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
-  gtk_window_set_position (GTK_WINDOW(window), GTK_WIN_POS_MOUSE);
+  if(darktable.gui)
+  {
+    GtkWindow *win = GTK_WINDOW(dt_ui_main_window(darktable.gui->ui));
+    gtk_window_set_transient_for(GTK_WINDOW(window), win);
+    if(gtk_widget_get_visible(GTK_WIDGET(win)))
+    {
+      gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER_ON_PARENT);
+    }
+    else
+    {
+      gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_MOUSE);
+    }
+  }
+  else
+  {
+    gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_MOUSE);
+  }
 
   GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_container_add(GTK_CONTAINER(window), vbox);
@@ -2731,7 +2752,23 @@ char *dt_gui_show_standalone_string_dialog(const char *title, const char *markup
   gtk_window_set_title(GTK_WINDOW(window), title);
   g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
-  gtk_window_set_position (GTK_WINDOW(window), GTK_WIN_POS_MOUSE);
+  if(darktable.gui)
+  {
+    GtkWindow *win = GTK_WINDOW(dt_ui_main_window(darktable.gui->ui));
+    gtk_window_set_transient_for(GTK_WINDOW(window), win);
+    if(gtk_widget_get_visible(GTK_WIDGET(win)))
+    {
+      gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER_ON_PARENT);
+    }
+    else
+    {
+      gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_MOUSE);
+    }
+  }
+  else
+  {
+    gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_MOUSE);
+  }
 
   GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
   gtk_widget_set_margin_start(vbox, 10);
@@ -2941,6 +2978,19 @@ GdkModifierType dt_key_modifier_state()
   GdkWindow *window = gtk_widget_get_window(dt_ui_main_window(darktable.gui->ui));
   gdk_device_get_state(gdk_seat_get_pointer(gdk_display_get_default_seat(gdk_window_get_display(window))), window, NULL, &state);
   return state & gtk_accelerator_get_default_mod_mask();
+}
+
+GtkWidget *dt_ui_notebook_page(GtkNotebook *notebook, const char *text, const char *tooltip)
+{
+  GtkWidget *label = gtk_label_new(text);
+  GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END);
+  if(strlen(text) > 9) gtk_label_set_width_chars(GTK_LABEL(label), strlen(text) / 3);
+  gtk_widget_set_tooltip_text(label, tooltip ? tooltip : text);
+  gtk_notebook_append_page(notebook, page, label);
+  gtk_container_child_set(GTK_CONTAINER(notebook), page, "tab-expand", TRUE, "tab-fill", TRUE, NULL);
+
+  return page;
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
