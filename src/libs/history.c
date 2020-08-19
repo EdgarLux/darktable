@@ -31,6 +31,10 @@
 #include "libs/lib_api.h"
 #include "common/history.h"
 
+#ifdef GDK_WINDOWING_QUARTZ
+#include "osx/osx.h"
+#endif
+
 DT_MODULE(1)
 
 
@@ -48,6 +52,9 @@ typedef struct dt_lib_history_t
   GtkWidget *create_button;
   GtkWidget *compress_button;
   gboolean record_undo;
+  int record_history_level; // set to +1 in signal DT_SIGNAL_DEVELOP_HISTORY_WILL_CHANGE
+                            // and back to -1 in DT_SIGNAL_DEVELOP_HISTORY_CHANGE. We want
+                            // to avoid multiple will-change before a change cb.
   // previous_* below store values sent by signal DT_SIGNAL_DEVELOP_HISTORY_WILL_CHANGE
   GList *previous_snapshot;
   int previous_history_end;
@@ -114,6 +121,7 @@ void gui_init(dt_lib_module_t *self)
   self->data = (void *)d;
 
   d->record_undo = TRUE;
+  d->record_history_level = 0;
   d->previous_snapshot = NULL;
   d->previous_history_end = 0;
   d->previous_iop_order_list = NULL;
@@ -653,7 +661,7 @@ static void _lib_history_will_change_callback(gpointer instance, GList *history,
   dt_lib_module_t *self = (dt_lib_module_t *)user_data;
   dt_lib_history_t *lib = (dt_lib_history_t *)self->data;
 
-  if(lib->record_undo)
+  if(lib->record_undo && (lib->record_history_level == 0))
   {
     // history is about to change, we want here ot record a snapshot of the history for the undo
     // record previous history
@@ -663,6 +671,8 @@ static void _lib_history_will_change_callback(gpointer instance, GList *history,
     lib->previous_history_end = history_end;
     lib->previous_iop_order_list = iop_order_list;
   }
+
+  lib->record_history_level += 1;
 }
 
 static void _lib_history_change_callback(gpointer instance, gpointer user_data)
@@ -680,7 +690,9 @@ static void _lib_history_change_callback(gpointer instance, gpointer user_data)
   gtk_box_pack_start(GTK_BOX(d->history_box), widget, TRUE, TRUE, 0);
   num++;
 
-  if (d->record_undo == TRUE)
+  d->record_history_level -= 1;
+
+  if (d->record_undo == TRUE && (d->record_history_level == 0))
   {
     /* record undo/redo history snapshot */
     dt_undo_history_t *hist = malloc(sizeof(dt_undo_history_t));
@@ -813,7 +825,7 @@ static void _lib_history_button_clicked_callback(GtkWidget *widget, gpointer use
   /* signal history changed */
   dt_control_signal_raise(darktable.signals, DT_SIGNAL_DEVELOP_HISTORY_CHANGE);
   dt_dev_modulegroups_set(darktable.develop, dt_dev_modulegroups_get(darktable.develop));
-  dt_iop_connect_accels_all() ;
+  dt_iop_connect_accels_all();
 }
 
 static void _lib_history_create_style_button_clicked_callback(GtkWidget *widget, gpointer user_data)
@@ -822,6 +834,45 @@ static void _lib_history_create_style_button_clicked_callback(GtkWidget *widget,
   {
     dt_dev_write_history(darktable.develop);
     dt_gui_styles_dialog_new(darktable.develop->image_storage.id);
+  }
+}
+
+void gui_reset(dt_lib_module_t *self)
+{
+  const int32_t imgid = darktable.develop->image_storage.id;
+  if(!imgid) return;
+
+  gint res = GTK_RESPONSE_YES;
+
+  if(dt_conf_get_bool("ask_before_discard"))
+  {
+    const GtkWidget *win = dt_ui_main_window(darktable.gui->ui);
+
+    GtkWidget *dialog = gtk_message_dialog_new(
+        GTK_WINDOW(win), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
+        _("do you really want to clear history of current image?"));
+#ifdef GDK_WINDOWING_QUARTZ
+    dt_osx_disallow_fullscreen(dialog);
+#endif
+
+    gtk_window_set_title(GTK_WINDOW(dialog), _("delete image's history?"));
+    res = gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+  }
+
+  if(res == GTK_RESPONSE_YES)
+  {
+    dt_control_signal_raise(darktable.signals, DT_SIGNAL_DEVELOP_HISTORY_WILL_CHANGE,
+                          dt_history_duplicate(darktable.develop->history), darktable.develop->history_end,
+                          dt_ioppr_iop_order_copy_deep(darktable.develop->iop_order_list));
+
+
+    dt_history_delete_on_image_ext(imgid, FALSE);
+
+    dt_control_signal_raise(darktable.signals, DT_SIGNAL_DEVELOP_HISTORY_CHANGE);
+    dt_dev_modulegroups_set(darktable.develop, dt_dev_modulegroups_get(darktable.develop));
+
+    dt_control_queue_redraw_center();
   }
 }
 
