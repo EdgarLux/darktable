@@ -595,7 +595,7 @@ static int _history_copy_and_paste_on_image_merge(int32_t imgid, int32_t dest_im
   return 0;
 }
 
-static int _history_copy_and_paste_on_image_overwrite(int32_t imgid, int32_t dest_imgid, GList *ops)
+static int _history_copy_and_paste_on_image_overwrite(const int32_t imgid, const int32_t dest_imgid, GList *ops)
 {
   int ret_val = 0;
   sqlite3_stmt *stmt;
@@ -719,7 +719,8 @@ static int _history_copy_and_paste_on_image_overwrite(int32_t imgid, int32_t des
   return ret_val;
 }
 
-int dt_history_copy_and_paste_on_image(int32_t imgid, int32_t dest_imgid, gboolean merge, GList *ops, gboolean copy_iop_order)
+int dt_history_copy_and_paste_on_image(const int32_t imgid, const int32_t dest_imgid,
+                                       const gboolean merge, GList *ops, const gboolean copy_iop_order)
 {
   if(imgid == dest_imgid) return 1;
 
@@ -792,7 +793,7 @@ int dt_history_copy_and_paste_on_image(int32_t imgid, int32_t dest_imgid, gboole
   return ret_val;
 }
 
-GList *dt_history_get_items(int32_t imgid, gboolean enabled)
+GList *dt_history_get_items(const int32_t imgid, gboolean enabled)
 {
   GList *result = NULL;
   sqlite3_stmt *stmt;
@@ -852,7 +853,7 @@ GList *dt_history_get_items(int32_t imgid, gboolean enabled)
   return result;
 }
 
-char *dt_history_get_items_as_string(int32_t imgid)
+char *dt_history_get_items_as_string(const int32_t imgid)
 {
   GList *items = NULL;
   const char *onoff[2] = { _("off"), _("on") };
@@ -881,7 +882,7 @@ char *dt_history_get_items_as_string(int32_t imgid)
   return result;
 }
 
-void dt_history_set_compress_problem(int32_t imgid, gboolean set)
+void dt_history_set_compress_problem(const int32_t imgid, const gboolean set)
 {
   guint tagid = 0;
   char tagname[64];
@@ -893,7 +894,7 @@ void dt_history_set_compress_problem(int32_t imgid, gboolean set)
     dt_tag_detach(tagid, imgid, FALSE, FALSE);
 }
 
-static int dt_history_end_attop(int32_t imgid)
+static int dt_history_end_attop(const int32_t imgid)
 {
   int size=0;
   int end=0;
@@ -934,7 +935,7 @@ static int dt_history_end_attop(int32_t imgid)
   - is used in lighttable and darkroom mode
   - It compresses history *exclusively* in the database and does *not* touch anything on the history stack
 */
-void dt_history_compress_on_image(int32_t imgid)
+void dt_history_compress_on_image(const int32_t imgid)
 {
   dt_lock_image(imgid);
   sqlite3_stmt *stmt;
@@ -1051,6 +1052,62 @@ void dt_history_compress_on_image(int32_t imgid)
   }
   dt_unlock_image(imgid);
   dt_history_hash_write_from_history(imgid, DT_HISTORY_HASH_CURRENT);
+
+  GList *imgs = g_list_append(NULL, GINT_TO_POINTER(imgid));
+  dt_control_signal_raise(darktable.signals, DT_SIGNAL_DEVELOP_MIPMAP_UPDATED, imgs);
+}
+
+/* Please note: dt_history_truncate_on_image
+  - can be used in lighttable and darkroom mode
+  - It truncates history *exclusively* in the database and does *not* touch anything on the history stack
+*/
+void dt_history_truncate_on_image(const int32_t imgid, const int32_t history_end)
+{
+  dt_lock_image(imgid);
+  sqlite3_stmt *stmt;
+
+  if (history_end == 0)
+  {
+    dt_history_delete_on_image(imgid);
+    dt_unlock_image(imgid);
+    return;
+  }
+
+  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "BEGIN", NULL, NULL, NULL);
+
+  // delete end of history
+  DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
+                              "DELETE FROM main.history"
+                              " WHERE imgid = ?1 "
+                              "   AND num >= ?2", -1, &stmt, NULL);
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, history_end);
+  sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+
+  // delete end of masks history
+  DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
+                              "DELETE FROM main.masks_history"
+                              " WHERE imgid = ?1 "
+                              "   AND num >= ?2", -1, &stmt, NULL);
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, history_end);
+  sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+
+  // update history end
+  DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
+                              "UPDATE main.images"
+                              " SET history_end = ?1"
+                              " WHERE id = ?2 ", -1, &stmt, NULL);
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, history_end);
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, imgid);
+  sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  dt_unlock_image(imgid);
+  dt_history_hash_write_from_history(imgid, DT_HISTORY_HASH_CURRENT);
+
+  DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "COMMIT", NULL, NULL, NULL);
 
   GList *imgs = g_list_append(NULL, GINT_TO_POINTER(imgid));
   dt_control_signal_raise(darktable.signals, DT_SIGNAL_DEVELOP_MIPMAP_UPDATED, imgs);
