@@ -540,6 +540,7 @@ gboolean dt_camctl_camera_start_live_view(const dt_camctl_t *c)
   }
   cam->is_live_viewing = TRUE;
   dt_camctl_camera_set_property_int(camctl, NULL, "eosviewfinder", 1);
+  dt_camctl_camera_set_property_int(camctl, NULL, "viewfinder", 1);
 
   dt_pthread_create(&cam->live_view_thread, &dt_camctl_camera_get_live_view, (void *)camctl);
 
@@ -561,6 +562,7 @@ void dt_camctl_camera_stop_live_view(const dt_camctl_t *c)
   pthread_join(cam->live_view_thread, NULL);
   // tell camera to get back to normal state (close mirror)
   dt_camctl_camera_set_property_int(camctl, NULL, "eosviewfinder", 0);
+  dt_camctl_camera_set_property_int(camctl, NULL, "viewfinder", 0);
 }
 
 static void _camctl_lock(const dt_camctl_t *c, const dt_camera_t *cam)
@@ -633,7 +635,7 @@ static void dt_camctl_camera_destroy(dt_camera_t *cam)
   {
     gp_file_free((CameraFile *)it->data);
   }
-  
+
   if(cam->live_view_buffer != NULL)
   {
     dt_free_align(cam->live_view_buffer);
@@ -808,7 +810,7 @@ static void dt_camctl_detect_cameras(const dt_camctl_t *c)
         if((g_strcmp0(mymodel, cam->model) == 0) && (g_strcmp0(myport, cam->port) == 0))
           remove_cam = FALSE;
       }
-      
+
       if(remove_cam)
       {
         dt_print(DT_DEBUG_CAMCTL, "[camera_control] remove device %s on port %s from camera list as it's not available\n",
@@ -910,7 +912,7 @@ static gboolean _camera_initialize(const dt_camctl_t *c, dt_camera_t *cam)
     cam->gpcontext = camctl->gpcontext;
     gp_camera_set_timeout_funcs(cam->gpcam, (CameraTimeoutStartFunc)_camera_start_timeout_func,
                                 (CameraTimeoutStopFunc)_camera_stop_timeout_func, cam);
-    // initialize the list of open gphoto files 
+    // initialize the list of open gphoto files
     cam->open_gpfiles = NULL;
 
     dt_pthread_mutex_init(&cam->jobqueue_lock, NULL);
@@ -1093,7 +1095,7 @@ static int _camctl_recursive_get_previews(const dt_camctl_t *c, dt_camera_t *cam
           {
             gp_file_free(preview);
             preview = NULL;
-            dt_print(DT_DEBUG_CAMCTL, "[camera_control] failed preview of %s in folder %s\n", filename, path); 
+            dt_print(DT_DEBUG_CAMCTL, "[camera_control] failed preview of %s in folder %s\n", filename, path);
           }
         }
 
@@ -1121,7 +1123,7 @@ static int _camctl_recursive_get_previews(const dt_camctl_t *c, dt_camera_t *cam
           if(gotpreview == -1)
             gp_file_free(preview);
           else
-            cam->open_gpfiles = g_list_append(cam->open_gpfiles, preview);  
+            cam->open_gpfiles = g_list_append(cam->open_gpfiles, preview);
         }
         if(!res) return 0;
       }
