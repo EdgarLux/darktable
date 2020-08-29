@@ -781,6 +781,15 @@ static void _zoomable_zoom(dt_thumbtable_t *table, int oldzoom, int newzoom)
   changed += _thumbs_remove_unneeded(table);
   if(changed > 0) _pos_compute_area(table);
 
+  // we update all the values
+  dt_thumbnail_t *first = (dt_thumbnail_t *)g_list_first(table->list)->data;
+  table->offset = first->rowid;
+  table->offset_imgid = first->imgid;
+  dt_conf_set_int("plugins/lighttable/recentcollect/pos0", table->offset);
+  dt_conf_set_int("lighttable/zoomable/last_offset", table->offset);
+  dt_conf_set_int("lighttable/zoomable/last_pos_x", table->thumbs_area.x);
+  dt_conf_set_int("lighttable/zoomable/last_pos_y", table->thumbs_area.y);
+
   dt_view_lighttable_set_zoom(darktable.view_manager, newzoom);
   gtk_widget_queue_draw(table->widget);
 }
@@ -1670,6 +1679,9 @@ void dt_thumbtable_full_redraw(dt_thumbtable_t *table, gboolean force)
       posx = dt_conf_get_int("lighttable/zoomable/last_pos_x");
       posy = dt_conf_get_int("lighttable/zoomable/last_pos_y");
       offset = dt_conf_get_int("lighttable/zoomable/last_offset");
+      // ensure that the overall layout doesn't change
+      // (i.e. we don't get empty spaces in the very first row)
+      offset = (offset - 1) / table->thumbs_per_row * table->thumbs_per_row + 1;
       table->thumbs_area.x = posx;
       table->thumbs_area.y = posy;
     }
@@ -1751,6 +1763,9 @@ void dt_thumbtable_full_redraw(dt_thumbtable_t *table, gboolean force)
 
     _pos_compute_area(table);
 
+    // we need to ensure there's no need to load other image on top/bottom
+    if(table->mode == DT_THUMBTABLE_MODE_ZOOM) _thumbs_load_needed(table);
+
     if(g_slist_length(darktable.view_manager->active_images) > 0
        && (table->mode == DT_THUMBTABLE_MODE_ZOOM || table->mode == DT_THUMBTABLE_MODE_FILEMANAGER))
     {
@@ -1774,6 +1789,9 @@ void dt_thumbtable_full_redraw(dt_thumbtable_t *table, gboolean force)
       darktable.view_manager->active_images = NULL;
       dt_control_signal_raise(darktable.signals, DT_SIGNAL_ACTIVE_IMAGES_CHANGE);
     }
+
+    // if we force the redraw, we ensure selection is updated
+    if(force) dt_control_signal_raise(darktable.signals, DT_SIGNAL_SELECTION_CHANGED);
 
     // be sure the focus is in the right widget (needed for accels)
     gtk_widget_grab_focus(dt_ui_center(darktable.gui->ui));
