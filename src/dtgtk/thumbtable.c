@@ -483,8 +483,12 @@ static int _thumbs_load_needed(dt_thumbtable_t *table)
   sqlite3_stmt *stmt;
   int changed = 0;
 
-  // we load image at the beginning
+  // we rememeber image margins for new thumbs (this limit flickering)
   dt_thumbnail_t *first = (dt_thumbnail_t *)g_list_first(table->list)->data;
+  const int old_margin_start = gtk_widget_get_margin_start(first->w_image_box);
+  const int old_margin_top = gtk_widget_get_margin_top(first->w_image_box);
+
+  // we load image at the beginning
   if(first->rowid > 1
      && (((table->mode == DT_THUMBTABLE_MODE_FILEMANAGER || table->mode == DT_THUMBTABLE_MODE_ZOOM) && first->y > 0)
          || (table->mode == DT_THUMBTABLE_MODE_FILMSTRIP && first->x > 0)))
@@ -515,6 +519,8 @@ static int _thumbs_load_needed(dt_thumbtable_t *table)
         thumb->x = posx;
         thumb->y = posy;
         table->list = g_list_prepend(table->list, thumb);
+        gtk_widget_set_margin_start(thumb->w_image_box, old_margin_start);
+        gtk_widget_set_margin_top(thumb->w_image_box, old_margin_top);
         gtk_layout_put(GTK_LAYOUT(table->widget), thumb->w_main, posx, posy);
         changed++;
       }
@@ -558,6 +564,8 @@ static int _thumbs_load_needed(dt_thumbtable_t *table)
         thumb->x = posx;
         thumb->y = posy;
         table->list = g_list_append(table->list, thumb);
+        gtk_widget_set_margin_start(thumb->w_image_box, old_margin_start);
+        gtk_widget_set_margin_top(thumb->w_image_box, old_margin_top);
         gtk_layout_put(GTK_LAYOUT(table->widget), thumb->w_main, posx, posy);
         changed++;
       }
@@ -892,6 +900,10 @@ static gboolean _event_scroll(GtkWidget *widget, GdkEvent *event, gpointer user_
         _move(table, 0, -table->thumb_size, TRUE);
       else if(delta >= 0 && table->mode == DT_THUMBTABLE_MODE_FILMSTRIP)
         _move(table, -table->thumb_size, 0, TRUE);
+
+      // ensure the hovered image is the right one
+      dt_thumbnail_t *th = _thumb_get_under_mouse(table);
+      if(th) dt_control_set_mouse_over_id(th->imgid);
     }
     else if(table->mode == DT_THUMBTABLE_MODE_ZOOM)
     {
@@ -969,7 +981,7 @@ static gboolean _event_button_press(GtkWidget *widget, GdkEventButton *event, gp
           && event->type == GDK_BUTTON_PRESS
           && (event->state & (GDK_SHIFT_MASK | GDK_CONTROL_MASK | GDK_MOD1_MASK)) == 0)
   {
-    dt_control_signal_raise(darktable.signals, DT_SIGNAL_VIEWMANAGER_THUMBTABLE_ACTIVATE, id);
+    DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_VIEWMANAGER_THUMBTABLE_ACTIVATE, id);
   }
 
   if(event->button == 1 && event->type == GDK_BUTTON_PRESS)
@@ -1604,15 +1616,15 @@ dt_thumbtable_t *dt_thumbtable_new()
   g_signal_connect(G_OBJECT(table->widget), "button-release-event", G_CALLBACK(_event_button_release), table);
 
   // we register globals signals
-  dt_control_signal_connect(darktable.signals, DT_SIGNAL_COLLECTION_CHANGED,
+  DT_DEBUG_CONTROL_SIGNAL_CONNECT(darktable.signals, DT_SIGNAL_COLLECTION_CHANGED,
                             G_CALLBACK(_dt_collection_changed_callback), table);
-  dt_control_signal_connect(darktable.signals, DT_SIGNAL_MOUSE_OVER_IMAGE_CHANGE,
+  DT_DEBUG_CONTROL_SIGNAL_CONNECT(darktable.signals, DT_SIGNAL_MOUSE_OVER_IMAGE_CHANGE,
                             G_CALLBACK(_dt_mouse_over_image_callback), table);
-  dt_control_signal_connect(darktable.signals, DT_SIGNAL_ACTIVE_IMAGES_CHANGE,
+  DT_DEBUG_CONTROL_SIGNAL_CONNECT(darktable.signals, DT_SIGNAL_ACTIVE_IMAGES_CHANGE,
                             G_CALLBACK(_dt_active_images_callback), table);
-  dt_control_signal_connect(darktable.signals, DT_SIGNAL_CONTROL_PROFILE_USER_CHANGED,
+  DT_DEBUG_CONTROL_SIGNAL_CONNECT(darktable.signals, DT_SIGNAL_CONTROL_PROFILE_USER_CHANGED,
                             G_CALLBACK(_dt_profile_change_callback), table);
-  dt_control_signal_connect(darktable.signals, DT_SIGNAL_PREFERENCES_CHANGE,
+  DT_DEBUG_CONTROL_SIGNAL_CONNECT(darktable.signals, DT_SIGNAL_PREFERENCES_CHANGE,
                             G_CALLBACK(_dt_pref_change_callback), table);
   gtk_widget_show(table->widget);
 
@@ -1720,6 +1732,16 @@ void dt_thumbtable_full_redraw(dt_thumbtable_t *table, gboolean force)
       posx += empty_start * table->thumb_size;
     }
 
+    // we store image margin from frist thumb to apply to new ones and limit flickering
+    int old_margin_start = 0;
+    int old_margin_top = 0;
+    if(g_list_length(table->list) > 0)
+    {
+      dt_thumbnail_t *first = (dt_thumbnail_t *)g_list_first(table->list)->data;
+      old_margin_start = gtk_widget_get_margin_start(first->w_image_box);
+      old_margin_top = gtk_widget_get_margin_top(first->w_image_box);
+    }
+
     // we add the thumbs
     GList *newlist = NULL;
     int nbnew = 0;
@@ -1765,6 +1787,8 @@ void dt_thumbtable_full_redraw(dt_thumbtable_t *table, gboolean force)
         thumb->x = posx;
         thumb->y = posy;
         newlist = g_list_append(newlist, thumb);
+        gtk_widget_set_margin_start(thumb->w_image_box, old_margin_start);
+        gtk_widget_set_margin_top(thumb->w_image_box, old_margin_top);
         gtk_layout_put(GTK_LAYOUT(table->widget), thumb->w_main, posx, posy);
         nbnew++;
       }
@@ -1803,11 +1827,11 @@ void dt_thumbtable_full_redraw(dt_thumbtable_t *table, gboolean force)
       }
       g_slist_free(darktable.view_manager->active_images);
       darktable.view_manager->active_images = NULL;
-      dt_control_signal_raise(darktable.signals, DT_SIGNAL_ACTIVE_IMAGES_CHANGE);
+      DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_ACTIVE_IMAGES_CHANGE);
     }
 
     // if we force the redraw, we ensure selection is updated
-    if(force) dt_control_signal_raise(darktable.signals, DT_SIGNAL_SELECTION_CHANGED);
+    if(force) DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_SELECTION_CHANGED);
 
     // be sure the focus is in the right widget (needed for accels)
     gtk_widget_grab_focus(dt_ui_center(darktable.gui->ui));
@@ -2005,7 +2029,7 @@ static gboolean _accel_duplicate(GtkAccelGroup *accel_group, GObject *accelerata
     dt_history_copy_and_paste_on_image(sourceid, newimgid, FALSE, NULL, TRUE);
 
   dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, NULL);
-  dt_control_signal_raise(darktable.signals, DT_SIGNAL_TAG_CHANGED);
+  DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_TAG_CHANGED);
   return TRUE;
 }
 static gboolean _accel_select_all(GtkAccelGroup *accel_group, GObject *acceleratable, const guint keyval,
