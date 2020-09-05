@@ -24,6 +24,7 @@
 #include <strings.h>
 #include <unistd.h>
 
+#include "common/atomic.h"
 #include "common/debug.h"
 #include "common/history.h"
 #include "common/image_cache.h"
@@ -1376,6 +1377,25 @@ static gboolean _dev_auto_apply_presets(dt_develop_t *dev)
   const gboolean is_scene_referred = strcmp(workflow, "scene-referred") == 0;
   const gboolean is_display_referred = strcmp(workflow, "display-referred") == 0;
   g_free(workflow);
+
+  //  Add scene-referred workflow
+  //  Note that we cannot use the a preset for FilmicRGB as the default values are
+  //  dynamically computed depending on the actual exposure compensation
+  //  (see reload_default routine in filmicrgb.c)
+  if(dt_image_is_matrix_correction_supported(image) && is_scene_referred)
+  {
+    for(GList *modules = dev->iop; modules; modules = g_list_next(modules))
+    {
+      dt_iop_module_t *module = (dt_iop_module_t *)modules->data;
+
+      if(strcmp(module->op, "filmicrgb") == 0
+         && !dt_history_check_module_exists(imgid, module->op)
+         && !(module->flags() & IOP_FLAGS_NO_HISTORY_STACK))
+      {
+        _dev_insert_module(dev, module, imgid);
+      }
+    }
+  }
 
   // select all presets from one of the following table and add them into memory.history. Note that
   // this is appended to possibly already present default modules.
