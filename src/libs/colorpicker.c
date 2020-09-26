@@ -97,9 +97,9 @@ static gboolean _sample_draw_callback(GtkWidget *widget, cairo_t *cr, dt_colorpi
   // if the sample is locked we want to add a lock
   if(sample->locked)
   {
-    int border = DT_PIXEL_APPLY_DPI(2);
-    int icon_width = width - 2 * border;
-    int icon_height = height - 2 * border;
+    const int border = DT_PIXEL_APPLY_DPI(2);
+    const int icon_width = width - 2 * border;
+    const int icon_height = height - 2 * border;
     if(icon_width > 0 && icon_height > 0)
     {
       GdkRGBA fg_color;
@@ -145,12 +145,13 @@ static void _update_sample_label(dt_colorpicker_sample_t *sample)
 
   // Setting the output label
   char text[128] = { 0 };
+  float alt[3] = { 0 };
 
   switch(model)
   {
     case 0:
       // RGB
-      snprintf(text, sizeof(text), "%3d %3d %3d",
+      snprintf(text, sizeof(text), "%6d %6d %6d",
                 (int)round(sample->rgb.red   * 255.f),
                 (int)round(sample->rgb.green * 255.f),
                 (int)round(sample->rgb.blue  * 255.f));
@@ -159,6 +160,23 @@ static void _update_sample_label(dt_colorpicker_sample_t *sample)
     case 1:
       // Lab
       snprintf(text, sizeof(text), "%6.02f %6.02f %6.02f", CLAMP(lab[0], .0f, 100.0f), lab[1], lab[2]);
+      break;
+
+    case 2:
+      // LCh
+      dt_Lab_2_LCH(lab, alt);
+      snprintf(text, sizeof(text), "%6.02f %6.02f %6.02f", CLAMP(alt[0], .0f, 100.0f), alt[1], alt[2] * 360);
+      break;
+
+    case 3:
+      // HSL
+      dt_RGB_2_HSL(rgb, alt);
+      snprintf(text, sizeof(text), "%6.02f %6.02f %6.02f", alt[0] * 360, alt[1] * 100, alt[2] * 100);
+      break;
+
+    case 4:
+      // None
+      snprintf(text, sizeof(text), "◎");
       break;
   }
 
@@ -187,7 +205,7 @@ static void _update_picker_output(dt_lib_module_t *self)
 
 static gboolean _large_patch_toggle(GtkWidget *widget, GdkEvent *event, dt_lib_colorpicker_t *data)
 {
-  gboolean show_large_patch = !dt_conf_get_bool("ui_last/colorpicker_large");
+  const gboolean show_large_patch = !dt_conf_get_bool("ui_last/colorpicker_large");
   dt_conf_set_bool("ui_last/colorpicker_large", show_large_patch);
 
   gtk_widget_set_visible(gtk_widget_get_parent(data->large_color_patch), show_large_patch);
@@ -224,11 +242,11 @@ static gboolean _sample_tooltip_callback(GtkWidget *widget, gint x, gint y, gboo
 
   gchar **sample_parts = g_malloc0_n(12, sizeof(char*));
 
-  sample_parts[3] = g_strdup_printf("%22s(0x%02X%02X%02X)\n<b>%14s</b>", " ",
+  sample_parts[3] = g_strdup_printf("%22s(0x%02X%02X%02X)\n<big><b>%14s</b></big>", " ",
                                     (int)round(sample->rgb.red   * 255.f),
                                     (int)round(sample->rgb.green * 255.f),
                                     (int)round(sample->rgb.blue  * 255.f), _("RGB"));
-  sample_parts[7] = g_strdup_printf("\n<b>%14s</b>", _("Lab"));
+  sample_parts[7] = g_strdup_printf("\n<big><b>%14s</b></big>", _("Lab"));
 
   for(int i = 0; i < 3; i++)
   {
@@ -241,9 +259,9 @@ static gboolean _sample_tooltip_callback(GtkWidget *widget, gint x, gint y, gboo
                                       (int)round(CLAMP(rgb[1], 0.f, 1.f) * 255.f),
                                       (int)round(CLAMP(rgb[2], 0.f, 1.f) * 255.f), " ");
 
-    sample_parts[i + 4] = g_strdup_printf("<span foreground='red'>%6d</span>  "
-                                          "<span foreground='green'>%6d</span>  "
-                                          "<span foreground='blue'>%6d</span>  %s",
+    sample_parts[i + 4] = g_strdup_printf("<span foreground='#FF7F7F'>%6d</span>  "
+                                          "<span foreground='#7FFF7F'>%6d</span>  "
+                                          "<span foreground='#7F7FFF'>%6d</span>  %s",
                                           (int)round(rgb[0] * 255.f),
                                           (int)round(rgb[1] * 255.f),
                                           (int)round(rgb[2] * 255.f), _(name[i]));
@@ -319,15 +337,17 @@ static void _label_size_allocate_callback(GtkWidget *widget, GdkRectangle *alloc
 static gboolean _sample_enter_callback(GtkWidget *widget, GdkEvent *event, gpointer sample)
 {
   darktable.lib->proxy.colorpicker.selected_sample = (dt_colorpicker_sample_t *)sample;
-  if(darktable.lib->proxy.colorpicker.display_samples) dt_dev_invalidate_from_gui(darktable.develop);
+  dt_dev_invalidate_from_gui(darktable.develop);
 
   return FALSE;
 }
 
 static gboolean _sample_leave_callback(GtkWidget *widget, GdkEvent *event, gpointer data)
 {
+  if(event->crossing.detail == GDK_NOTIFY_INFERIOR) return FALSE;
+
   darktable.lib->proxy.colorpicker.selected_sample = NULL;
-  if(darktable.lib->proxy.colorpicker.display_samples) dt_dev_invalidate_from_gui(darktable.develop);
+  dt_dev_invalidate_from_gui(darktable.develop);
 
   return FALSE;
 }
@@ -367,21 +387,25 @@ static void _add_sample(GtkButton *widget, dt_lib_module_t *self)
   sample->rgb.blue = 0.7;
   sample->rgb.alpha = 1.0;
 
-  sample->container = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  sample->container = gtk_event_box_new();
+  gtk_widget_add_events (sample->container, GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
+  g_signal_connect(G_OBJECT(sample->container), "enter-notify-event", G_CALLBACK(_sample_enter_callback), sample);
+  g_signal_connect(G_OBJECT(sample->container), "leave-notify-event", G_CALLBACK(_sample_leave_callback), sample);
+
+  GtkWidget *container = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  gtk_container_add(GTK_CONTAINER(sample->container), container);
 
   sample->color_patch = gtk_drawing_area_new();
-  gtk_widget_set_events(sample->color_patch, GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK | GDK_BUTTON_PRESS_MASK);
+  gtk_widget_add_events(sample->color_patch, GDK_BUTTON_PRESS_MASK);
   gtk_widget_set_tooltip_text(sample->color_patch, _("hover to highlight sample on canvas, "
                                                      "click to lock sample"));
-  g_signal_connect(G_OBJECT(sample->color_patch), "enter-notify-event", G_CALLBACK(_sample_enter_callback), sample);
-  g_signal_connect(G_OBJECT(sample->color_patch), "leave-notify-event", G_CALLBACK(_sample_leave_callback), sample);
   g_signal_connect(G_OBJECT(sample->color_patch), "button-press-event", G_CALLBACK(_sample_lock_toggle), sample);
   g_signal_connect(G_OBJECT(sample->color_patch), "draw", G_CALLBACK(_sample_draw_callback), sample);
 
   GtkWidget *color_patch_wrapper = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   gtk_widget_set_name(color_patch_wrapper, "live-sample");
   gtk_box_pack_start(GTK_BOX(color_patch_wrapper), sample->color_patch, TRUE, TRUE, 0);
-  gtk_box_pack_start(GTK_BOX(sample->container), color_patch_wrapper, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(container), color_patch_wrapper, TRUE, TRUE, 0);
 
   sample->output_label = gtk_label_new("");
   gtk_widget_set_name(sample->output_label, "live-sample-data");
@@ -389,11 +413,11 @@ static void _add_sample(GtkButton *widget, dt_lib_module_t *self)
   gtk_widget_set_has_tooltip(sample->output_label, TRUE);
   g_signal_connect(G_OBJECT(sample->output_label), "query-tooltip", G_CALLBACK(_sample_tooltip_callback), sample);
   g_signal_connect(G_OBJECT(sample->output_label), "size-allocate", G_CALLBACK(_label_size_allocate_callback), sample);
-  gtk_box_pack_start(GTK_BOX(sample->container), sample->output_label, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(container), sample->output_label, TRUE, TRUE, 0);
 
   GtkWidget *delete_button = dtgtk_togglebutton_new(dtgtk_cairo_paint_cancel, CPF_STYLE_FLAT, NULL);
   g_signal_connect(G_OBJECT(delete_button), "clicked", G_CALLBACK(_remove_sample_cb), sample);
-  gtk_box_pack_start(GTK_BOX(sample->container), delete_button, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(container), delete_button, FALSE, FALSE, 0);
 
   gtk_box_pack_start(GTK_BOX(data->samples_container), sample->container, TRUE, TRUE, 0);
   gtk_widget_show_all(sample->container);
@@ -539,6 +563,9 @@ void gui_init(dt_lib_module_t *self)
   data->color_mode_selector = dt_bauhaus_combobox_new(NULL);
   dt_bauhaus_combobox_add(data->color_mode_selector, _("RGB"));
   dt_bauhaus_combobox_add(data->color_mode_selector, _("Lab"));
+  dt_bauhaus_combobox_add(data->color_mode_selector, _("LCh"));
+  dt_bauhaus_combobox_add(data->color_mode_selector, _("HSL"));
+  dt_bauhaus_combobox_add(data->color_mode_selector, _("none"));
   dt_bauhaus_combobox_set(data->color_mode_selector, dt_conf_get_int("ui_last/colorpicker_model"));
   dt_bauhaus_combobox_set_entries_ellipsis(data->color_mode_selector, PANGO_ELLIPSIZE_NONE);
   g_signal_connect(G_OBJECT(data->color_mode_selector), "value-changed", G_CALLBACK(_color_mode_changed), self);
