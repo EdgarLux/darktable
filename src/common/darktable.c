@@ -681,10 +681,14 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
           darktable.unmuted_signal_dbg_acts |= DT_DEBUG_SIGNAL_ACT_CONNECT; // enable debugging for signal connection
         else if(!strcmp(argv[k + 1], "disconnect"))
           darktable.unmuted_signal_dbg_acts |= DT_DEBUG_SIGNAL_ACT_DISCONNECT; // enable debugging for signal disconnection
-#ifdef DT_HAVE_SIGNAL_TRACE
         else if(!strcmp(argv[k + 1], "print-trace"))
+        {
+#ifdef DT_HAVE_SIGNAL_TRACE
           darktable.unmuted_signal_dbg_acts |= DT_DEBUG_SIGNAL_ACT_PRINT_TRACE; // enable printing of signal tracing
+#else
+          fprintf(stderr, "[signal] print-trace not available, skipping\n");
 #endif
+        }
         else
           return usage(argv[0]);
         k++;
@@ -741,7 +745,7 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
         CHKSIGDBG(DT_SIGNAL_METADATA_UPDATE);
         else
         {
-          fprintf(stderr, _("unknown signal name: '%s'. use 'ALL' to enable debug for all or use full signal name\n"), str);
+          fprintf(stderr, "unknown signal name: '%s'. use 'ALL' to enable debug for all or use full signal name\n", str);
           return usage(argv[0]);
         }
         g_free(str);
@@ -1213,6 +1217,12 @@ void dt_cleanup()
   // last chance to ask user for any input...
 
   const gboolean perform_maintenance = dt_database_maybe_maintenance(darktable.db, init_gui, TRUE);
+  const gboolean perform_snapshot = dt_database_maybe_snapshot(darktable.db);
+  gchar **snaps_to_remove = NULL;
+  if(perform_snapshot)
+  {
+    snaps_to_remove = dt_database_snaps_to_remove(darktable.db);
+  }
 
 #ifdef HAVE_PRINT
   dt_printers_abort_discovery();
@@ -1291,6 +1301,22 @@ void dt_cleanup()
   }
 
   dt_database_optimize(darktable.db);
+  if(perform_snapshot)
+  {
+    if(dt_database_snapshot(darktable.db) && snaps_to_remove)
+    {
+      int i = 0;
+      while(snaps_to_remove[i])
+      {
+        dt_print(DT_DEBUG_SQL, "[db backup] removing old snap: %s.\n", snaps_to_remove[i]);
+        g_unlink(snaps_to_remove[i++]);
+      }
+    }
+  }
+  if(snaps_to_remove)
+  {
+    g_strfreev(snaps_to_remove);
+  }
   dt_database_destroy(darktable.db);
 
   if(init_gui)

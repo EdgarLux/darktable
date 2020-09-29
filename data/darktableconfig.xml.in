@@ -84,6 +84,28 @@
     <shortdescription>database fragmentation ratio threshold</shortdescription>
     <longdescription>fragmentation ratio above which to ask or carry out automatically database maintenance</longdescription>
   </dtconfig>
+  <dtconfig prefs="storage" section="database">
+    <name>database/create_snapshot</name>
+    <type>
+      <enum>
+        <option>never</option>
+        <option>once a month</option>
+        <option>once a week</option>
+        <option>once a day</option>
+        <option>on close</option>
+      </enum>
+    </type>
+    <default>once a week</default>
+    <shortdescription>create database snapshot</shortdescription>
+    <longdescription>database snapshots are created right before closing darktable. options allow you to choose how often to make snapshots:\nnever - simply don't do snapshots. that way the only snapshots done are mandatory version-upgrade snapshots\nonce a month - create snapshot if a month has passed since last snapshot\nonce a week - create snapshot if 7 days had passed since last snapshot\nonce a day - create snapshot if over 24h passed since last snapshot\non close - create snapshot every time darktable is closed</longdescription>
+  </dtconfig>
+  <dtconfig prefs="storage" section="database">
+    <name>database/keep_snapshots</name>
+    <type>int</type>
+    <default>10</default>
+    <shortdescription>how many snapshots to keep</shortdescription>
+    <longdescription>after successfully creating snapshot, how many older snapshots to keep (excluding mandatory version update ones). enter -1 to keep all snapshots\nkeep in mind that snapshots do take some space and you only need the most recent one for successful restore</longdescription>
+  </dtconfig>
   <dtconfig>
     <name>min_panel_width</name>
     <type>int</type>
@@ -121,9 +143,9 @@
 	<option>best</option>
       </enum>
     </type>
-    <default>fast</default>
+    <default>good</default>
     <shortdescription>speed/quality trade-off for drawing images</shortdescription>
-    <longdescription>fast (default) - high-performance, similar to nearest neighbor filter; good - reasonable-performance, similar to bilinear (linear interpolation in two dimensions); best - highest-quality available, performance may not be suitable for interactive use. sets Cairo image scaling filter. (needs a restart)</longdescription>
+    <longdescription>fast - high-performance, similar to nearest neighbor filter; good (default) - reasonable-performance, similar to bilinear (linear interpolation in two dimensions); best - highest-quality available, performance may not be suitable for interactive use. sets Cairo image scaling filter. (needs a restart)</longdescription>
   </dtconfig>
   <dtconfig prefs="otherviews" section="slideshow">
     <name>slideshow_delay</name>
@@ -2211,6 +2233,13 @@
     <type>float</type>
     <default>0.66</default>
     <shortdescription/>
+    <longdescription/>
+  </dtconfig>
+  <dtconfig>
+    <name>plugins/darkroom/masks/heightview</name>
+    <type min="100" max="1000">int</type>
+    <default>300</default>
+    <shortdescription>height of mask manager view window</shortdescription>
     <longdescription/>
   </dtconfig>
   <dtconfig>
