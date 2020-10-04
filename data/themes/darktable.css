@@ -877,6 +877,13 @@ menuitem check
   margin: 0 0.5em;
 }
 
+menu separator
+{
+  margin: 0.6em 2em;
+  padding-bottom: 1px;
+  background-color: @selected_bg_color;
+}
+
 /*----------------------
   - GTK Notebooks tabs -
   ----------------------*/
@@ -1140,6 +1147,12 @@ dialog scrollbar
 {
   padding: 2px;
   margin: 1px 0;
+}
+
+#preferences_notebook label.preference_non_default
+{
+  font-weight: bolder;
+  font-style: italic;
 }
 
 #preferences_notebook combobox,

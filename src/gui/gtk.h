@@ -26,6 +26,8 @@
 
 #define DT_GUI_IOP_MODULE_CONTROL_SPACING 0
 
+#define DT_GUI_THUMBSIZE_REDUCE 0.7f
+
 /* helper macro that applies the DPI transformation to fixed pixel values. input should be defaulting to 96
  * DPI */
 #define DT_PIXEL_APPLY_DPI(value) ((value) * darktable.gui->dpi_factor)
@@ -116,7 +118,7 @@ typedef struct dt_gui_gtk_t
   gboolean show_focus_peaking;
   GtkWidget *focus_peaking_button;
 
-  double dpi, dpi_factor, ppd;
+  double dpi, dpi_factor, ppd, ppd_thb;
 
   int icon_size; // size of top panel icons
 
@@ -133,7 +135,6 @@ typedef struct dt_gui_gtk_t
   dt_pthread_mutex_t mutex;
 } dt_gui_gtk_t;
 
-#if (CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 13, 1))
 static inline cairo_surface_t *dt_cairo_image_surface_create(cairo_format_t format, int width, int height) {
   cairo_surface_t *cst = cairo_image_surface_create(format, width * darktable.gui->ppd, height * darktable.gui->ppd);
   cairo_surface_set_device_scale(cst, darktable.gui->ppd, darktable.gui->ppd);
@@ -169,15 +170,6 @@ static inline cairo_surface_t *dt_gdk_cairo_surface_create_from_pixbuf(const Gdk
 static inline GdkPixbuf *dt_gdk_pixbuf_new_from_file_at_size(const char *filename, int width, int height, GError **error) {
   return gdk_pixbuf_new_from_file_at_size(filename, width * darktable.gui->ppd, height * darktable.gui->ppd, error);
 }
-#else
-#define dt_cairo_image_surface_create cairo_image_surface_create
-#define dt_cairo_image_surface_create_for_data cairo_image_surface_create_for_data
-#define dt_cairo_image_surface_create_from_png cairo_image_surface_create_from_png
-#define dt_cairo_image_surface_get_width cairo_image_surface_get_width
-#define dt_cairo_image_surface_get_height cairo_image_surface_get_height
-#define dt_gdk_cairo_surface_create_from_pixbuf gdk_cairo_surface_create_from_pixbuf
-#define dt_gdk_pixbuf_new_from_file_at_size gdk_pixbuf_new_from_file_at_size
-#endif
 
 int dt_gui_gtk_init(dt_gui_gtk_t *gui);
 void dt_gui_gtk_run(dt_gui_gtk_t *gui);
@@ -188,6 +180,7 @@ int dt_gui_gtk_load_config();
 int dt_gui_gtk_write_config();
 void dt_gui_gtk_set_source_rgb(cairo_t *cr, dt_gui_color_t);
 void dt_gui_gtk_set_source_rgba(cairo_t *cr, dt_gui_color_t, float opacity_coef);
+double dt_get_system_gui_ppd(GtkWidget *widget);
 
 /* Check sidebar_scroll_default and modifier keys to determine if scroll event
  * should be processed by control or by panel. If default is panel scroll but

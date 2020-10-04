@@ -46,6 +46,7 @@ static void _free_confgen_value(void *value)
   g_free(s->def);
   g_free(s->min);
   g_free(s->max);
+  g_free(s->enum_values);
   g_free(s);
 }
 
@@ -315,6 +316,16 @@ static char *_sanitize_confgen(const char *name, const char *value)
         result = g_strdup(value);
     }
     break;
+    case DT_ENUM:
+    {
+      char *v = g_strdup_printf("[%s]", value);
+      if(!strstr(item->enum_values, v))
+        result = g_strdup_printf("%s", dt_confgen_get(name, DT_DEFAULT));
+      else
+        result = g_strdup(value);
+      g_free(v);
+    }
+    break;
     default:
       result = g_strdup(value);
       break;
@@ -566,6 +577,37 @@ float dt_confgen_get_float(const char *name, dt_confgen_value_kind_t kind)
   const char *str = dt_confgen_get(name, kind);
   const float value = dt_calculator_solve(1, str);
   return value;
+}
+
+gboolean dt_conf_is_default(const char *name)
+{
+  if(!dt_confgen_exists(name))
+    return TRUE; // well if default doesn't know about it, it's default
+
+  switch(dt_confgen_type(name))
+  {
+  case DT_INT:
+    return dt_conf_get_int(name) == dt_confgen_get_int(name, DT_DEFAULT);
+    break;
+  case DT_INT64:
+    return dt_conf_get_int64(name) == dt_confgen_get_int64(name, DT_DEFAULT);
+    break;
+  case DT_FLOAT:
+    return dt_conf_get_float(name) == dt_confgen_get_float(name, DT_DEFAULT);
+    break;
+  case DT_BOOL:
+    return dt_conf_get_bool(name) == dt_confgen_get_bool(name, DT_DEFAULT);
+    break;
+  case DT_STRING:
+  case DT_ENUM:
+  default:
+    {
+      const char *def_val = dt_confgen_get(name, DT_DEFAULT);
+      const char *cur_val = dt_conf_get_var(name);
+      return g_strcmp0(def_val, cur_val) == 0;
+      break;
+    }
+  }
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
