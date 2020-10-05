@@ -318,7 +318,7 @@ const char *name()
 
 int default_group()
 {
-  return IOP_GROUP_BASIC;
+  return IOP_GROUP_BASIC | IOP_GROUP_TECHNICAL;
 }
 
 int flags()
@@ -2881,14 +2881,14 @@ int mouse_moved(struct dt_iop_module_t *self, double x, double y, double pressur
   // we don't do anything if the image is not ready
   if((self->dev->preview_pipe->backbuf_width == g->old_width
       && self->dev->preview_pipe->backbuf_height == g->old_height)
-    ||self->dev->preview_loading
-    )
+     || self->dev->preview_loading)
     return 0;
+
   g->old_width = g->old_height = -1;
 
   const float wd = self->dev->preview_pipe->backbuf_width;
   const float ht = self->dev->preview_pipe->backbuf_height;
-  dt_dev_zoom_t zoom = dt_control_get_dev_zoom();
+  const dt_dev_zoom_t zoom = dt_control_get_dev_zoom();
   const int closeup = dt_control_get_dev_closeup();
   const float zoom_scale = dt_dev_get_zoom_scale(self->dev, zoom, 1<<closeup, 1);
   float pzx, pzy;
@@ -2961,6 +2961,7 @@ int mouse_moved(struct dt_iop_module_t *self, double x, double y, double pressur
       dt_control_queue_redraw_center();
       return 1;
     }
+
     // case when we drag a segment for keystone
     if(g->k_drag == TRUE && g->k_selected_segment >= 0)
     {
@@ -3091,10 +3092,12 @@ int mouse_moved(struct dt_iop_module_t *self, double x, double y, double pressur
         if(g->clip_y + g->clip_h > g->clip_max_h + g->clip_max_y)
           g->clip_h = g->clip_max_h + g->clip_max_y - g->clip_y;
       }
+
       apply_box_aspect(self, grab);
       // we save crop params too
       float points[4]
           = { g->clip_x * wd, g->clip_y * ht, (g->clip_x + g->clip_w) * wd, (g->clip_y + g->clip_h) * ht };
+
       if(dt_dev_distort_backtransform_plus(self->dev, self->dev->preview_pipe, self->iop_order, DT_DEV_TRANSFORM_DIR_FORW_EXCL, points, 2))
       {
         dt_dev_pixelpipe_iop_t *piece = dt_dev_distort_get_iop_pipe(self->dev, self->dev->preview_pipe, self);
