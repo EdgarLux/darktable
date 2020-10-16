@@ -140,8 +140,8 @@ int dt_image_is_rawprepare_supported(const dt_image_t *img)
 
 gboolean dt_image_use_monochrome_workflow(const dt_image_t *img)
 {
-  return ((img->flags & (DT_IMAGE_MONOCHROME | DT_IMAGE_MONOCHROME_PREVIEW | DT_IMAGE_MONOCHROME_BAYER)) &&
-          (img->flags & DT_IMAGE_MONOCHROME_WORKFLOW));
+  return ((img->flags & (DT_IMAGE_MONOCHROME | DT_IMAGE_MONOCHROME_BAYER)) ||
+          ((img->flags & DT_IMAGE_MONOCHROME_PREVIEW) && (img->flags & DT_IMAGE_MONOCHROME_WORKFLOW)));
 }
 
 int dt_image_monochrome_flags(const dt_image_t *img)
@@ -1990,7 +1990,7 @@ int32_t dt_image_copy_rename(const int32_t imgid, const int32_t filmid, const gc
         sqlite3_step(stmt);
         sqlite3_finalize(stmt);
 
-        dt_history_copy_and_paste_on_image(imgid, newid, FALSE, NULL, TRUE);
+        dt_history_copy_and_paste_on_image(imgid, newid, FALSE, NULL, TRUE, TRUE);
 
         // write xmp file
         dt_image_write_sidecar_file(newid);
