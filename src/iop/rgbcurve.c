@@ -133,22 +133,6 @@ int default_colorspace(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_p
   return iop_cs_rgb;
 }
 
-void init_key_accels(dt_iop_module_so_t *self)
-{
-  dt_accel_register_combobox_iop(self, FALSE, NC_("accel", "interpolation method"));
-  dt_accel_register_combobox_iop(self, FALSE, NC_("accel", "preserve colors"));
-  dt_accel_register_combobox_iop(self, FALSE, NC_("accel", "mode"));
-}
-
-void connect_key_accels(dt_iop_module_t *self)
-{
-  dt_iop_rgbcurve_gui_data_t *g = (dt_iop_rgbcurve_gui_data_t *)self->gui_data;
-
-  dt_accel_connect_combobox_iop(self, "interpolation method", GTK_WIDGET(g->interpolator));
-  dt_accel_connect_combobox_iop(self, "preserve colors", GTK_WIDGET(g->cmb_preserve_colors));
-  dt_accel_connect_combobox_iop(self, "mode", GTK_WIDGET(g->autoscale));
-}
-
 void init_presets(dt_iop_module_so_t *self)
 {
   dt_iop_rgbcurve_params_t p;
@@ -1323,6 +1307,7 @@ static gboolean _area_button_press_callback(GtkWidget *widget, GdkEventButton *e
       curve_nodes[k].x = curve_nodes[k + 1].x;
       curve_nodes[k].y = curve_nodes[k + 1].y;
     }
+    curve_nodes[nodes - 1].x = curve_nodes[nodes - 1].y = 0;
     g->selected = -2; // avoid re-insertion of that point immediately after this
     p->curve_num_nodes[ch]--;
     dt_iop_color_picker_reset(self, TRUE);
@@ -1437,7 +1422,7 @@ void gui_init(struct dt_iop_module_t *self)
     #define MONOTONE_HERMITE 2
   */
   g->interpolator = dt_bauhaus_combobox_new(self);
-  dt_bauhaus_widget_set_label(g->interpolator, NULL, _("interpolation method"));
+  dt_bauhaus_widget_set_label(g->interpolator, NULL, N_("interpolation method"));
   dt_bauhaus_combobox_add(g->interpolator, _("cubic spline"));
   dt_bauhaus_combobox_add(g->interpolator, _("centripetal spline"));
   dt_bauhaus_combobox_add(g->interpolator, _("monotonic spline"));

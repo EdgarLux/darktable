@@ -96,20 +96,6 @@ int default_colorspace(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_p
   return iop_cs_RAW;
 }
 
-void init_key_accels(dt_iop_module_so_t *self)
-{
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "clipping threshold"));
-  dt_accel_register_combobox_iop(self, FALSE, NC_("accel", "method"));
-}
-
-void connect_key_accels(dt_iop_module_t *self)
-{
-  dt_iop_highlights_gui_data_t *g = (dt_iop_highlights_gui_data_t *)self->gui_data;
-
-  dt_accel_connect_slider_iop(self, "clipping threshold", GTK_WIDGET(g->clip));
-  dt_accel_connect_combobox_iop(self, "method", GTK_WIDGET(g->mode));
-}
-
 int legacy_params(dt_iop_module_t *self, const void *const old_params, const int old_version,
                   void *new_params, const int new_version)
 {
@@ -1022,9 +1008,8 @@ void cleanup_pipe(struct dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev
 
 void gui_update(struct dt_iop_module_t *self)
 {
-  dt_iop_module_t *module = (dt_iop_module_t *)self;
   dt_iop_highlights_gui_data_t *g = (dt_iop_highlights_gui_data_t *)self->gui_data;
-  dt_iop_highlights_params_t *p = (dt_iop_highlights_params_t *)module->params;
+  dt_iop_highlights_params_t *p = (dt_iop_highlights_params_t *)self->params;
   dt_bauhaus_slider_set(g->clip, p->clip);
   dt_bauhaus_combobox_set(g->mode, p->mode);
 }

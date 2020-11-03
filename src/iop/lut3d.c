@@ -147,20 +147,6 @@ int default_colorspace(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_p
   return iop_cs_rgb;
 }
 
-void init_key_accels(dt_iop_module_so_t *self)
-{
-  dt_accel_register_combobox_iop(self, FALSE, NC_("accel", "application color space"));
-  dt_accel_register_combobox_iop(self, FALSE, NC_("accel", "interpolation"));
-}
-
-void connect_key_accels(dt_iop_module_t *self)
-{
-  dt_iop_lut3d_gui_data_t *g = (dt_iop_lut3d_gui_data_t *)self->gui_data;
-
-  dt_accel_connect_combobox_iop(self, "application color space", GTK_WIDGET(g->colorspace));
-  dt_accel_connect_combobox_iop(self, "interpolation ", GTK_WIDGET(g->interpolation ));
-}
-
 int legacy_params(dt_iop_module_t *self, const void *const old_params, const int old_version, void *new_params,
                   const int new_version)
 {
@@ -1691,7 +1677,7 @@ void gui_init(dt_iop_module_t *self)
 #else
   gtk_widget_set_tooltip_text(button, _("select a png (haldclut)"
       ", a cube or a 3dl file "
-      "CAUTION: 3D lut folder must be set in preferences/core options/miscellaneous before choosing the lut file"));
+      "CAUTION: 3D lut folder must be set in preferences/processing before choosing the lut file"));
 #endif // HAVE_GMIC
   gtk_box_pack_start(GTK_BOX(g->hbox), button, FALSE, FALSE, 0);
   g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(button_clicked), self);

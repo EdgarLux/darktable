@@ -166,7 +166,15 @@ typedef enum dt_iop_toneequalizer_filter_t
 
 typedef struct dt_iop_toneequalizer_params_t
 {
-  float noise, ultra_deep_blacks, deep_blacks, blacks, shadows, midtones, highlights, whites, speculars; // $MIN: -2.0 $MAX: 2.0 $DEFAULT: 0.0
+  float noise; // $MIN: -2.0 $MAX: 2.0 $DEFAULT: 0.0  $DESCRIPTION: "blacks"
+  float ultra_deep_blacks; // $MIN: -2.0 $MAX: 2.0 $DEFAULT: 0.0  $DESCRIPTION: "deep shadows"
+  float deep_blacks; // $MIN: -2.0 $MAX: 2.0 $DEFAULT: 0.0  $DESCRIPTION: "shadows"
+  float blacks; // $MIN: -2.0 $MAX: 2.0 $DEFAULT: 0.0  $DESCRIPTION: "light shadows"
+  float shadows; // $MIN: -2.0 $MAX: 2.0 $DEFAULT: 0.0  $DESCRIPTION: "midtones"
+  float midtones; // $MIN: -2.0 $MAX: 2.0 $DEFAULT: 0.0  $DESCRIPTION: "dark highlights"
+  float highlights; // $MIN: -2.0 $MAX: 2.0 $DEFAULT: 0.0  $DESCRIPTION: "highlights"
+  float whites; // $MIN: -2.0 $MAX: 2.0 $DEFAULT: 0.0  $DESCRIPTION: "whites"
+  float speculars; // $MIN: -2.0 $MAX: 2.0 $DEFAULT: 0.0  $DESCRIPTION: "speculars"
   float blending; // $MIN: 0.01 $MAX: 100.0 $DEFAULT: 5.0 $DESCRIPTION: "smoothing diameter"
   float smoothing; // $DEFAULT: 1.414213562 sqrtf(2.0f)
   float feathering; // $MIN: 0.01 $MAX: 10000.0 $DEFAULT: 1.0 $DESCRIPTION: "edges refinement/feathering"
@@ -312,50 +320,6 @@ int flags()
 int default_colorspace(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece)
 {
   return iop_cs_rgb;
-}
-
-void init_key_accels(dt_iop_module_so_t *self)
-{
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "blacks"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "deep shadows"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "shadows"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "light shadows"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "midtones"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "dark highlights"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "highlights"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "whites"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "speculars"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "filter diffusion"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "smoothing diameter"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "edges refinement or feathering"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "mask quantization"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "mask exposure compensation"));
-  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "mask contrast compensation"));
-  dt_accel_register_combobox_iop(self, FALSE, NC_("accel", "luminance estimator"));
-  dt_accel_register_combobox_iop(self, FALSE, NC_("accel", "preserve details"));
-}
-
-void connect_key_accels(dt_iop_module_t *self)
-{
-  dt_iop_toneequalizer_gui_data_t *g = (dt_iop_toneequalizer_gui_data_t *)self->gui_data;
-
-  dt_accel_connect_slider_iop(self, "blacks", GTK_WIDGET(g->noise));
-  dt_accel_connect_slider_iop(self, "deep shadows", GTK_WIDGET(g->ultra_deep_blacks));
-  dt_accel_connect_slider_iop(self, "shadows", GTK_WIDGET(g->deep_blacks));
-  dt_accel_connect_slider_iop(self, "light shadows", GTK_WIDGET(g->blacks));
-  dt_accel_connect_slider_iop(self, "midtones", GTK_WIDGET(g->shadows));
-  dt_accel_connect_slider_iop(self, "dark highlights", GTK_WIDGET(g->midtones));
-  dt_accel_connect_slider_iop(self, "highlights", GTK_WIDGET(g->highlights));
-  dt_accel_connect_slider_iop(self, "whites", GTK_WIDGET(g->whites));
-  dt_accel_connect_slider_iop(self, "speculars", GTK_WIDGET(g->speculars));
-  dt_accel_connect_slider_iop(self, "filter diffusion", GTK_WIDGET(g->iterations));
-  dt_accel_connect_slider_iop(self, "smoothing diameter", GTK_WIDGET(g->blending));
-  dt_accel_connect_slider_iop(self, "edges refinement or feathering", GTK_WIDGET(g->feathering));
-  dt_accel_connect_slider_iop(self, "mask quantization", GTK_WIDGET(g->quantization));
-  dt_accel_connect_slider_iop(self, "mask exposure compensation", GTK_WIDGET(g->exposure_boost));
-  dt_accel_connect_slider_iop(self, "mask contrast compensation", GTK_WIDGET(g->contrast_boost));
-  dt_accel_connect_combobox_iop(self, "luminance estimator", GTK_WIDGET(g->method));
-  dt_accel_connect_combobox_iop(self, "preserve details", GTK_WIDGET(g->details));
 }
 
 int legacy_params(dt_iop_module_t *self, const void *const old_params, const int old_version, void *new_params,
@@ -908,7 +872,7 @@ void toneeq_process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
   const size_t ch = 4;
 
   // Get the hash of the upstream pipe to track changes
-  int position = self->iop_order;
+  const int position = self->iop_order;
   uint64_t hash = dt_dev_pixelpipe_cache_hash(piece->pipe->image.id, roi_out, piece->pipe, position);
 
   // Sanity checks
@@ -924,7 +888,7 @@ void toneeq_process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
   }
 
   // Init the luminance masks buffers
-  int cached = FALSE;
+  gboolean cached = FALSE;
 
   if(self->dev->gui_attached)
   {
@@ -935,8 +899,8 @@ void toneeq_process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
       g->ui_preview_hash = 0;
       g->thumb_preview_hash = 0;
       g->pipe_order = position;
-      g->luminance_valid = 0;
-      g->histogram_valid = 0;
+      g->luminance_valid = FALSE;
+      g->histogram_valid = FALSE;
       dt_pthread_mutex_unlock(&g->lock);
     }
 
@@ -1021,7 +985,6 @@ void toneeq_process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
         hash_set_get(&hash, &g->ui_preview_hash, &g->lock);
       }
     }
-
     else if((piece->pipe->type & DT_DEV_PIXELPIPE_PREVIEW) == DT_DEV_PIXELPIPE_PREVIEW)
     {
       uint64_t saved_hash;
@@ -1042,7 +1005,6 @@ void toneeq_process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
         dt_pthread_mutex_unlock(&g->lock);
       }
     }
-
     else // make it dummy-proof
     {
       compute_luminance_mask(in, luminance, width, height, ch, d);
@@ -1071,14 +1033,13 @@ void toneeq_process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
   }
 
   if(!cached) dt_free_align(luminance);
-
 }
 
 void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
              const void *const restrict ivoid, void *const restrict ovoid,
              const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
-    toneeq_process(self, piece, ivoid, ovoid, roi_in, roi_out);
+  toneeq_process(self, piece, ivoid, ovoid, roi_in, roi_out);
 }
 
 
@@ -1621,9 +1582,8 @@ void update_exposure_sliders(dt_iop_toneequalizer_gui_data_t *g, dt_iop_toneequa
 
 void gui_update(struct dt_iop_module_t *self)
 {
-  dt_iop_module_t *module = (dt_iop_module_t *)self;
   dt_iop_toneequalizer_gui_data_t *g = (dt_iop_toneequalizer_gui_data_t *)self->gui_data;
-  dt_iop_toneequalizer_params_t *p = (dt_iop_toneequalizer_params_t *)module->params;
+  dt_iop_toneequalizer_params_t *p = (dt_iop_toneequalizer_params_t *)self->params;
 
   update_exposure_sliders(g, p);
 
@@ -2336,7 +2296,11 @@ void gui_post_expose(struct dt_iop_module_t *self, cairo_t *cr, int32_t width, i
   cairo_move_to(cr, x_pointer + (outer_radius + 4. * g->inner_padding) / zoom_scale,
                     y_pointer - ink.y - ink.height / 2.);
   pango_cairo_show_layout(cr, layout);
+
   cairo_stroke(cr);
+
+  pango_font_description_free(desc);
+  g_object_unref(layout);
 }
 
 
@@ -2369,10 +2333,19 @@ static inline gboolean _init_drawing(GtkWidget *widget, dt_iop_toneequalizer_gui
 {
   // Cache the equalizer graph objects to avoid recomputing all the view at each redraw
   gtk_widget_get_allocation(widget, &g->allocation);
+
+  if(g->cst) cairo_surface_destroy(g->cst);
   g->cst = dt_cairo_image_surface_create(CAIRO_FORMAT_ARGB32, g->allocation.width, g->allocation.height);
+
+  if(g->cr) cairo_destroy(g->cr);
   g->cr = cairo_create(g->cst);
+
+  if(g->layout) g_object_unref(g->layout);
   g->layout = pango_cairo_create_layout(g->cr);
+
+  if(g->desc) pango_font_description_free(g->desc);
   g->desc = pango_font_description_copy_static(darktable.bauhaus->pango_font_desc);
+
   pango_layout_set_font_description(g->layout, g->desc);
   pango_cairo_context_set_resolution(pango_layout_get_context(g->layout), darktable.gui->dpi);
   g->context = gtk_widget_get_style_context(widget);
@@ -2452,6 +2425,7 @@ static inline gboolean _init_drawing(GtkWidget *widget, dt_iop_toneequalizer_gui
   cairo_rectangle(g->cr, g->gradient_left_limit, g->gradient_top_limit, g->gradient_width, g->line_height);
   cairo_set_source(g->cr, grad);
   cairo_fill(g->cr);
+  cairo_pattern_destroy(grad);
 
   /** y axis **/
   // Draw the perceptually even gradient
@@ -3066,47 +3040,50 @@ void gui_init(struct dt_iop_module_t *self)
   g->noise = dt_bauhaus_slider_from_params(self, "noise");
   dt_bauhaus_slider_set_step(g->noise, .05);
   dt_bauhaus_slider_set_format(g->noise, _("%+.2f EV"));
-  dt_bauhaus_widget_set_label(g->noise, NULL, _("-8 EV"));
 
   g->ultra_deep_blacks = dt_bauhaus_slider_from_params(self, "ultra_deep_blacks");
   dt_bauhaus_slider_set_step(g->ultra_deep_blacks, .05);
   dt_bauhaus_slider_set_format(g->ultra_deep_blacks, _("%+.2f EV"));
-  dt_bauhaus_widget_set_label(g->ultra_deep_blacks, NULL, _("-7 EV"));
 
   g->deep_blacks = dt_bauhaus_slider_from_params(self, "deep_blacks");
   dt_bauhaus_slider_set_step(g->deep_blacks, .05);
   dt_bauhaus_slider_set_format(g->deep_blacks, _("%+.2f EV"));
-  dt_bauhaus_widget_set_label(g->deep_blacks, NULL, _("-6 EV"));
 
   g->blacks = dt_bauhaus_slider_from_params(self, "blacks");
   dt_bauhaus_slider_set_step(g->blacks, .05);
   dt_bauhaus_slider_set_format(g->blacks, _("%+.2f EV"));
-  dt_bauhaus_widget_set_label(g->blacks, NULL, _("-5 EV"));
 
   g->shadows = dt_bauhaus_slider_from_params(self, "shadows");
   dt_bauhaus_slider_set_step(g->shadows, .05);
   dt_bauhaus_slider_set_format(g->shadows, _("%+.2f EV"));
-  dt_bauhaus_widget_set_label(g->shadows, NULL, _("-4 EV"));
 
   g->midtones = dt_bauhaus_slider_from_params(self, "midtones");
   dt_bauhaus_slider_set_step(g->midtones, .05);
   dt_bauhaus_slider_set_format(g->midtones, _("%+.2f EV"));
-  dt_bauhaus_widget_set_label(g->midtones, NULL, _("-3 EV"));
 
   g->highlights = dt_bauhaus_slider_from_params(self, "highlights");
   dt_bauhaus_slider_set_step(g->highlights, .05);
   dt_bauhaus_slider_set_format(g->highlights, _("%+.2f EV"));
-  dt_bauhaus_widget_set_label(g->highlights, NULL, _("-2 EV"));
 
   g->whites = dt_bauhaus_slider_from_params(self, "whites");
   dt_bauhaus_slider_set_step(g->whites, .05);
   dt_bauhaus_slider_set_format(g->whites, _("%+.2f EV"));
-  dt_bauhaus_widget_set_label(g->whites, NULL, _("-1 EV"));
 
   g->speculars = dt_bauhaus_slider_from_params(self, "speculars");
   dt_bauhaus_slider_set_step(g->speculars, .05);
   dt_bauhaus_slider_set_format(g->speculars, _("%+.2f EV"));
-  dt_bauhaus_widget_set_label(g->speculars, NULL, _("+0 EV"));
+
+  ++darktable.bauhaus->skip_accel;
+  dt_bauhaus_widget_set_label(g->noise, NULL, N_("-8 EV"));
+  dt_bauhaus_widget_set_label(g->ultra_deep_blacks, NULL, N_("-7 EV"));
+  dt_bauhaus_widget_set_label(g->deep_blacks, NULL, N_("-6 EV"));
+  dt_bauhaus_widget_set_label(g->blacks, NULL, N_("-5 EV"));
+  dt_bauhaus_widget_set_label(g->shadows, NULL, N_("-4 EV"));
+  dt_bauhaus_widget_set_label(g->midtones, NULL, N_("-3 EV"));
+  dt_bauhaus_widget_set_label(g->highlights, NULL, N_("-2 EV"));
+  dt_bauhaus_widget_set_label(g->whites, NULL, N_("-1 EV"));
+  dt_bauhaus_widget_set_label(g->speculars, NULL, N_("+0 EV"));
+  --darktable.bauhaus->skip_accel;
 
   // Advanced view
 
@@ -3132,7 +3109,7 @@ void gui_init(struct dt_iop_module_t *self)
 
   g->smoothing = dt_bauhaus_slider_new_with_range(self, -1.0f, +1.0f, 0.1, 0.0f, 2);
   dt_bauhaus_slider_enable_soft_boundaries(g->smoothing, -2.33f, 1.67f);
-  dt_bauhaus_widget_set_label(g->smoothing, NULL, _("curve smoothing"));
+  dt_bauhaus_widget_set_label(g->smoothing, NULL, N_("curve smoothing"));
   gtk_widget_set_tooltip_text(g->smoothing, _("positive values will produce more progressive tone transitions\n"
                                               "but the curve might become oscillatory in some settings.\n"
                                               "negative values will avoid oscillations and behave more robustly\n"
@@ -3150,7 +3127,7 @@ void gui_init(struct dt_iop_module_t *self)
                                            "higher contrast between areas to dodge and areas to burn"));
 
   g->details = dt_bauhaus_combobox_from_params(self, N_("details"));
-  dt_bauhaus_widget_set_label(g->details, NULL, _("preserve details"));
+  dt_bauhaus_widget_set_label(g->details, NULL, N_("preserve details"));
   gtk_widget_set_tooltip_text(g->details, _("'no' affects global and local contrast (safe if you only add contrast)\n"
                                             "'guided filter' only affects global contrast and tries to preserve local contrast\n"
                                             "'averaged guided filter' is a geometric mean of 'no' and 'guided filter' methods\n"
@@ -3223,7 +3200,7 @@ void gui_init(struct dt_iop_module_t *self)
   gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(g->notebook), FALSE, FALSE, 0);
 
   g->show_luminance_mask = dt_bauhaus_combobox_new(self);
-  dt_bauhaus_widget_set_label(g->show_luminance_mask, NULL, _("display exposure mask"));
+  dt_bauhaus_widget_set_label(g->show_luminance_mask, NULL, N_("display exposure mask"));
   dt_bauhaus_widget_set_quad_paint(g->show_luminance_mask, dtgtk_cairo_paint_showmask,
                                    CPF_STYLE_FLAT | CPF_DO_NOT_USE_BORDER, NULL);
   dt_bauhaus_widget_set_quad_toggle(g->show_luminance_mask, TRUE);
@@ -3239,8 +3216,6 @@ void gui_init(struct dt_iop_module_t *self)
 
   DT_DEBUG_CONTROL_SIGNAL_CONNECT(darktable.signals, DT_SIGNAL_DEVELOP_HISTORY_CHANGE,
                             G_CALLBACK(_develop_ui_pipe_started_callback), self);
-
-  show_guiding_controls(self);
 }
 
 

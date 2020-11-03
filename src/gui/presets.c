@@ -213,7 +213,7 @@ static void menuitem_delete_preset(GtkMenuItem *menuitem, dt_iop_module_t *modul
   if(res == GTK_RESPONSE_YES)
   {
     char tmp_path[1024];
-    snprintf(tmp_path, sizeof(tmp_path), "%s/%s", _("preset"), name);
+    snprintf(tmp_path, sizeof(tmp_path), "%s`%s", N_("preset"), name);
     dt_accel_deregister_iop(module, tmp_path);
     DT_DEBUG_SQLITE3_PREPARE_V2(
         dt_database_get(darktable.db),
@@ -332,9 +332,7 @@ static void edit_preset_response(GtkDialog *dialog, gint response_id, dt_gui_pre
     }
 
     // rename accelerators
-    char path[1024];
-    snprintf(path, sizeof(path), "%s/%s", _("preset"), g->original_name);
-    dt_accel_rename_preset_iop(g->module, path, name);
+    dt_accel_rename_preset_iop(g->module, g->original_name, name);
     // commit all the user input fields
     DT_DEBUG_SQLITE3_PREPARE_V2(
         dt_database_get(darktable.db),
@@ -430,6 +428,7 @@ static void edit_preset(const char *name_in, dt_iop_module_t *module)
   snprintf(title, sizeof(title), _("edit `%s' for module `%s'"), name, module->name());
   dialog = gtk_dialog_new_with_buttons(title, GTK_WINDOW(window), GTK_DIALOG_DESTROY_WITH_PARENT,
                                        _("_cancel"), GTK_RESPONSE_REJECT, _("_ok"), GTK_RESPONSE_ACCEPT, NULL);
+  gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
 #ifdef GDK_WINDOWING_QUARTZ
   dt_osx_disallow_fullscreen(dialog);
 #endif
@@ -445,10 +444,12 @@ static void edit_preset(const char *name_in, dt_iop_module_t *module)
   g->module = module;
   g->name = GTK_ENTRY(gtk_entry_new());
   gtk_entry_set_text(g->name, name);
+  gtk_entry_set_activates_default(g->name, TRUE);
   gtk_box_pack_start(box, GTK_WIDGET(g->name), FALSE, FALSE, 0);
   gtk_widget_set_tooltip_text(GTK_WIDGET(g->name), _("name of the preset"));
 
   g->description = GTK_ENTRY(gtk_entry_new());
+  gtk_entry_set_activates_default(g->description, TRUE);
   gtk_box_pack_start(box, GTK_WIDGET(g->description), FALSE, FALSE, 0);
   gtk_widget_set_tooltip_text(GTK_WIDGET(g->description), _("description or further information"));
 
@@ -711,16 +712,16 @@ static void menuitem_new_preset(GtkMenuItem *menuitem, dt_iop_module_t *module)
   sqlite3_finalize(stmt);
   // create a shortcut for the new entry
   char path[1024];
-  snprintf(path, sizeof(path), "%s/%s", _("preset"), _("new preset"));
+  snprintf(path, sizeof(path), "%s`%s", N_("preset"), _("new preset"));
   dt_accel_register_iop(module->so, FALSE, path, 0, 0);
   dt_accel_connect_preset_iop(module, _("new preset"));
+  dt_accel_connect_instance_iop(module);
   // then show edit dialog
   edit_preset(_("new preset"), module);
 }
 
-static void menuitem_pick_preset(GtkMenuItem *menuitem, dt_iop_module_t *module)
+static void apply_preset(const gchar* name, dt_iop_module_t *module)
 {
-  gchar *name = g_object_get_data(G_OBJECT(menuitem), "dt-preset-name");
   sqlite3_stmt *stmt;
   DT_DEBUG_SQLITE3_PREPARE_V2
     (dt_database_get(darktable.db),
@@ -775,6 +776,83 @@ static void menuitem_pick_preset(GtkMenuItem *menuitem, dt_iop_module_t *module)
     // rebuild the accelerators
     dt_iop_connect_accels_multi(module->so);
   }
+}
+
+static void menuitem_pick_preset(GtkMenuItem *menuitem, dt_iop_module_t *module)
+{
+  gchar *name = g_object_get_data(G_OBJECT(menuitem), "dt-preset-name");
+  apply_preset(name, module);
+}
+
+gboolean dt_gui_presets_autoapply_for_module(dt_iop_module_t *module)
+{
+  dt_image_t *image = &module->dev->image_storage;
+
+  gchar *workflow = dt_conf_get_string("plugins/darkroom/workflow");
+  const gboolean is_display_referred = strcmp(workflow, "display-referred") == 0;
+  const gboolean is_scene_referred = strcmp(workflow, "scene-referred") == 0;
+  const gboolean has_matrix = dt_image_is_matrix_correction_supported(image);
+  g_free(workflow);
+
+  char query[2024];
+  snprintf(query, sizeof(query),
+     "SELECT name"
+     " FROM data.presets"
+     " WHERE operation = ?1"
+     "        AND ((autoapply=1"
+     "           AND ((?2 LIKE model AND ?3 LIKE maker) OR (?4 LIKE model AND ?5 LIKE maker))"
+     "           AND ?6 LIKE lens AND ?7 BETWEEN iso_min AND iso_max"
+     "           AND ?8 BETWEEN exposure_min AND exposure_max"
+     "           AND ?9 BETWEEN aperture_min AND aperture_max"
+     "           AND ?10 BETWEEN focal_length_min AND focal_length_max"
+     "           AND (format = 0 OR (format&?11 != 0 AND ~format&?12 != 0))"
+     "           AND operation NOT IN"
+     "               ('ioporder', 'metadata', 'export', 'tagging', 'collect', '%s'))"
+     "  OR (name = ?13)) AND op_version = ?14",
+     is_display_referred?"":"basecurve");
+
+  sqlite3_stmt *stmt;
+  const char *workflow_preset = has_matrix && is_display_referred
+                                ? _("display-referred default")
+                                : (has_matrix && is_scene_referred
+                                   ?_("scene-referred default")
+                                   :"\t\n");
+  int iformat = 0;
+  if(dt_image_is_rawprepare_supported(image)) iformat |= FOR_RAW;
+  else iformat |= FOR_LDR;
+  if(dt_image_is_hdr(image)) iformat |= FOR_HDR;
+
+  int excluded = 0;
+  if(dt_image_monochrome_flags(image)) excluded |= FOR_NOT_MONO;
+  else excluded |= FOR_NOT_COLOR;
+
+  DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);
+  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 1, module->op, -1, SQLITE_TRANSIENT);
+  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 2, image->exif_model, -1, SQLITE_TRANSIENT);
+  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 3, image->exif_maker, -1, SQLITE_TRANSIENT);
+  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 4, image->camera_alias, -1, SQLITE_TRANSIENT);
+  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 5, image->camera_maker, -1, SQLITE_TRANSIENT);
+  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 6, image->exif_lens, -1, SQLITE_TRANSIENT);
+  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 7, fmaxf(0.0f, fminf(FLT_MAX, image->exif_iso)));
+  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 8, fmaxf(0.0f, fminf(1000000, image->exif_exposure)));
+  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 9, fmaxf(0.0f, fminf(1000000, image->exif_aperture)));
+  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 10, fmaxf(0.0f, fminf(1000000, image->exif_focal_length)));
+  // 0: dontcare, 1: ldr, 2: raw plus monochrome & color
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 11, iformat);
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 12, excluded);
+  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 13, workflow_preset, -1, SQLITE_TRANSIENT);
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 14, module->version());
+
+  gboolean applied = FALSE;
+  while(sqlite3_step(stmt) == SQLITE_ROW)
+  {
+    const char *name = (const char *)sqlite3_column_text(stmt, 0);
+    apply_preset(name, module);
+    applied = TRUE;
+  }
+  sqlite3_finalize(stmt);
+
+  return applied;
 }
 
 static gboolean menuitem_button_released_preset(GtkMenuItem *menuitem, GdkEventButton *event, dt_iop_module_t *module)
