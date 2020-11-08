@@ -1754,6 +1754,12 @@
     <longdescription/>
   </dtconfig>
   <dtconfig>
+    <name>plugins/darkroom/channelmixerrgb/gui_page</name>
+    <type>int</type>
+    <default>0</default>
+    <shortdescription>last page selected in channel mixer rgb notebook</shortdescription>
+  </dtconfig>
+  <dtconfig>
     <name>plugins/darkroom/demosaic/fdc_xover_iso</name>
     <type>int</type>
     <default>1600</default>
@@ -2580,5 +2586,12 @@
     <default>400</default>
     <shortdescription>height of the styles list</shortdescription>
     <longdescription>maximum height the styles list in lighttable will grow to before scrolling</longdescription>
+  </dtconfig>
+  <dtconfig>
+    <name>plugins/darkroom/toneequal/gui_page</name>
+    <type>int</type>
+    <default>0</default>
+    <shortdescription>active tab in tone equaliser module</shortdescription>
+    <longdescription>which of simple, advanced or masking tabs will show at startup</longdescription>
   </dtconfig>
 </dtconfiglist>
