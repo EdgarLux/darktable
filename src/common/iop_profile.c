@@ -433,9 +433,11 @@ static inline void _transform_lab_to_rgb_matrix(const float *const restrict imag
 }
 
 
-static inline void _transform_matrix_rgb(const float *const restrict image_in, float *const restrict image_out, const int width,
-                                  const int height, const dt_iop_order_iccprofile_info_t *const profile_info_from,
-                                  const dt_iop_order_iccprofile_info_t *const profile_info_to)
+static inline void _transform_matrix_rgb(const float *const restrict image_in,
+                                         float *const restrict image_out,
+                                         const int width, const int height,
+                                         const dt_iop_order_iccprofile_info_t *const profile_info_from,
+                                         const dt_iop_order_iccprofile_info_t *const profile_info_to)
 {
   const int ch = 4;
   const size_t stride = (size_t)width * height * ch;
@@ -493,9 +495,14 @@ static inline void _transform_matrix_rgb(const float *const restrict image_in, f
 }
 
 
-static inline void _transform_matrix(struct dt_iop_module_t *self, const float *const restrict image_in, float *const restrict image_out,
-                              const int width, const int height, const int cst_from, const int cst_to,
-                              int *converted_cst, const dt_iop_order_iccprofile_info_t *const profile_info)
+static inline void _transform_matrix(struct dt_iop_module_t *self,
+                                     const float *const restrict image_in,
+                                     float *const restrict image_out,
+                                     const int width, const int height,
+                                     const dt_iop_colorspace_type_t cst_from,
+                                     const dt_iop_colorspace_type_t cst_to,
+                                     dt_iop_colorspace_type_t *converted_cst,
+                                     const dt_iop_order_iccprofile_info_t *const profile_info)
 {
   if(cst_from == cst_to)
   {
@@ -809,10 +816,15 @@ dt_ioppr_set_pipe_output_profile_info(struct dt_develop_t *dev,
 
   if(profile_info == NULL || isnan(profile_info->matrix_in[0]) || isnan(profile_info->matrix_out[0]))
   {
-    fprintf(stderr,
-            "[dt_ioppr_set_pipe_output_profile_info] unsupported output profile %i %s, it will be replaced with "
-            "sRGB\n",
-            type, filename);
+    if (type != DT_COLORSPACE_DISPLAY)
+    {
+      // ??? this error output has been disabled for a display profile.
+      // see discussion in https://github.com/darktable-org/darktable/issues/6774
+      fprintf(stderr,
+              "[dt_ioppr_set_pipe_output_profile_info] unsupported output"
+              " profile %i %s, it will be replaced with sRGB\n",
+              type, filename);
+    }
     profile_info = dt_ioppr_add_profile_info_to_list(dev, DT_COLORSPACE_SRGB, "", intent);
   }
   pipe->output_profile_info = profile_info;
@@ -1090,8 +1102,12 @@ static void _transform_lab_to_rgb_matrix_sse(float *const image, const int width
 }
 
 // FIXME: this is slower than the C version
-static void _transform_matrix_sse(struct dt_iop_module_t *self, float *const image, const int width, const int height,
-    const int cst_from, const int cst_to, int *converted_cst, const dt_iop_order_iccprofile_info_t *const profile_info)
+static void _transform_matrix_sse(struct dt_iop_module_t *self, float *const image,
+                                  const int width, const int height,
+                                  const dt_iop_colorspace_type_t cst_from,
+                                  const dt_iop_colorspace_type_t cst_to,
+                                  dt_iop_colorspace_type_t *converted_cst,
+                                  const dt_iop_order_iccprofile_info_t *const profile_info)
 {
   if(cst_from == cst_to)
   {
@@ -1116,7 +1132,8 @@ static void _transform_matrix_sse(struct dt_iop_module_t *self, float *const ima
   }
 }
 
-static void _transform_matrix_rgb_sse(float *const image, const int width, const int height,
+static void _transform_matrix_rgb_sse(float *const image,
+                                      const int width, const int height,
                                       const dt_iop_order_iccprofile_info_t *const profile_info_from,
                                       const dt_iop_order_iccprofile_info_t *const profile_info_to)
 {

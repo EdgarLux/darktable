@@ -109,7 +109,7 @@ void dt_dev_init(dt_develop_t *dev, int32_t gui_attached)
   dev->iop_order_version = 0;
   dev->iop_order_list = NULL;
 
-  dev->proxy.exposure = NULL;
+  dev->proxy.exposure.module = NULL;
 
   dev->rawoverexposed.enabled = FALSE;
   dev->rawoverexposed.mode = dt_conf_get_int("darkroom/ui/rawoverexposed/mode");
@@ -186,8 +186,6 @@ void dt_dev_cleanup(dt_develop_t *dev)
 
   g_list_free_full(dev->forms, (void (*)(void *))dt_masks_free_form);
   g_list_free_full(dev->allforms, (void (*)(void *))dt_masks_free_form);
-
-  g_list_free_full(dev->proxy.exposure, g_free);
 
   dt_conf_set_int("darkroom/ui/rawoverexposed/mode", dev->rawoverexposed.mode);
   dt_conf_set_int("darkroom/ui/rawoverexposed/colorscheme", dev->rawoverexposed.colorscheme);
@@ -1377,6 +1375,10 @@ static gboolean _dev_auto_apply_presets(dt_develop_t *dev)
   gchar *workflow = dt_conf_get_string("plugins/darkroom/workflow");
   const gboolean is_scene_referred = strcmp(workflow, "scene-referred") == 0;
   const gboolean is_display_referred = strcmp(workflow, "display-referred") == 0;
+
+  workflow = dt_conf_get_string("plugins/darkroom/chromatic-adaptation");
+  const gboolean is_modern_chroma = strcmp(workflow, "modern") == 0;
+
   g_free(workflow);
 
   //  Add scene-referred workflow
@@ -1387,16 +1389,18 @@ static gboolean _dev_auto_apply_presets(dt_develop_t *dev)
   const gboolean has_matrix = dt_image_is_matrix_correction_supported(image);
 
   const gboolean auto_apply_filmic = has_matrix && is_scene_referred;
+  const gboolean auto_apply_cat = has_matrix && is_modern_chroma;
   const gboolean auto_apply_sharpen = dt_conf_get_bool("plugins/darkroom/sharpen/auto_apply");
 
-  if(auto_apply_filmic || auto_apply_sharpen)
+  if(auto_apply_filmic || auto_apply_sharpen || auto_apply_cat)
   {
     for(GList *modules = dev->iop; modules; modules = g_list_next(modules))
     {
       dt_iop_module_t *module = (dt_iop_module_t *)modules->data;
 
       if(((auto_apply_filmic && strcmp(module->op, "filmicrgb") == 0)
-          || (auto_apply_sharpen && strcmp(module->op, "sharpen") == 0))
+          || (auto_apply_sharpen && strcmp(module->op, "sharpen") == 0)
+          || (auto_apply_cat && strcmp(module->op, "channelmixerrgb") == 0))
          && !dt_history_check_module_exists(imgid, module->op)
          && !(module->flags() & IOP_FLAGS_NO_HISTORY_STACK))
       {
@@ -2069,24 +2073,11 @@ int dt_dev_is_current_image(dt_develop_t *dev, uint32_t imgid)
   return (dev->image_storage.id == imgid) ? 1 : 0;
 }
 
-gint dt_dev_exposure_hooks_sort(gconstpointer a, gconstpointer b)
-{
-  const dt_dev_proxy_exposure_t *ai = (const dt_dev_proxy_exposure_t *)a;
-  const dt_dev_proxy_exposure_t *bi = (const dt_dev_proxy_exposure_t *)b;
-  const dt_iop_module_t *am = (const dt_iop_module_t *)ai->module;
-  const dt_iop_module_t *bm = (const dt_iop_module_t *)bi->module;
-  // if(am->priority == bm->priority) return bm->multi_priority - am->multi_priority;
-  // return am->priority - bm->priority;
-  if(am->iop_order < bm->iop_order) return -1;
-  if(am->iop_order > bm->iop_order) return 1;
-  return 0;
-}
-
 static dt_dev_proxy_exposure_t *find_last_exposure_instance(dt_develop_t *dev)
 {
-  if(!dev->proxy.exposure) return NULL;
+  if(!dev->proxy.exposure.module) return NULL;
 
-  dt_dev_proxy_exposure_t *instance = (dt_dev_proxy_exposure_t *)(g_list_first(dev->proxy.exposure)->data);
+  dt_dev_proxy_exposure_t *instance = &dev->proxy.exposure;
 
   return instance;
 };
@@ -2105,8 +2096,6 @@ gboolean dt_dev_exposure_hooks_available(dt_develop_t *dev)
 
 void dt_dev_exposure_reset_defaults(dt_develop_t *dev)
 {
-  if(!dev->proxy.exposure) return;
-
   dt_dev_proxy_exposure_t *instance = find_last_exposure_instance(dev);
 
   if(!(instance && instance->module)) return;
