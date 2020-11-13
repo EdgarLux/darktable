@@ -102,6 +102,7 @@ typedef struct dt_iop_channelmixer_rgb_gui_data_t
   GtkWidget *scale_grey_R, *scale_grey_G, *scale_grey_B;
   GtkWidget *normalize_R, *normalize_G, *normalize_B, *normalize_sat, *normalize_light, *normalize_grey;
   GtkWidget *color_picker;
+  GtkWidget *warning_label;
   float xy[2];
   dt_ai_wb_model_t wb_model;
   float XYZ[4];
@@ -126,6 +127,17 @@ typedef struct dt_iop_channelmixer_rbg_data_t
 const char *name()
 {
   return _("color calibration");
+}
+
+const char *description(struct dt_iop_module_t *self)
+{
+  return dt_iop_set_description(self, _("perform color space corrections\n"
+                                        "such as white balance, channels mixing\n"
+                                        "and conversions to monochrome emulating film"),
+                                      _("corrective or creative"),
+                                      _("linear, RGB, scene-referred"),
+                                      _("linear, RGB or XYZ"),
+                                      _("linear, RGB, scene-referred"));
 }
 
 int flags()
@@ -208,7 +220,7 @@ void init_presets(dt_iop_module_so_t *self)
   p.grey[2] = 0.f;
 
   dt_gui_presets_add_generic(_("B&W : luminance-based"), self->op,
-                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_DISPLAY);
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
 
   // film emulations
 
@@ -237,7 +249,7 @@ void init_presets(dt_iop_module_so_t *self)
   p.grey[2] = 0.48737156f;
 
   dt_gui_presets_add_generic(_("B&W : Ilford HP5+"), self->op,
-                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_DISPLAY);
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
 
   // Ilford Delta 100
   // https://www.ilfordphoto.com/amfile/file/download/file/3/product/681/
@@ -246,7 +258,7 @@ void init_presets(dt_iop_module_so_t *self)
   p.grey[2] = 0.50081619f;
 
   dt_gui_presets_add_generic(_("B&W : Ilford Delta 100"), self->op,
-                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_DISPLAY);
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
 
   // Ilford Delta 400 and 3200 - they have the same curve
   // https://www.ilfordphoto.com/amfile/file/download/file/1915/product/685/
@@ -256,7 +268,7 @@ void init_presets(dt_iop_module_so_t *self)
   p.grey[2] = 0.52009729f;
 
   dt_gui_presets_add_generic(_("B&W : Ilford Delta 400 - 3200"), self->op,
-                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_DISPLAY);
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
 
   // Ilford FP 2
   // https://www.ilfordphoto.com/amfile/file/download/file/1919/product/690/
@@ -265,7 +277,7 @@ void init_presets(dt_iop_module_so_t *self)
   p.grey[2] = 0.53701643f;
 
   dt_gui_presets_add_generic(_("B&W : Ilford FP2"), self->op,
-                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_DISPLAY);
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
 
   // Fuji Acros 100
   // https://dacnard.wordpress.com/2013/02/15/the-real-shades-of-gray-bw-film-is-a-matter-of-heart-pt-1/
@@ -274,7 +286,7 @@ void init_presets(dt_iop_module_so_t *self)
   p.grey[2] = 0.353f;
 
   dt_gui_presets_add_generic(_("B&W : Fuji Acros 100"), self->op,
-                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_DISPLAY);
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
 
   // Kodak ?
   // can't find spectral sensivity curves and the illuminant under wich they are produced,
@@ -290,7 +302,46 @@ void init_presets(dt_iop_module_so_t *self)
   p.normalize_B = TRUE;
   p.normalize_grey = FALSE;
   dt_gui_presets_add_generic(_("basic channel mixer"), self->op,
-                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_DISPLAY);
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
+
+  // swap G-B
+  p.red[0] = 1.f;
+  p.red[1] = 0.f;
+  p.red[2] = 0.f;
+  p.green[0] = 0.f;
+  p.green[1] = 0.f;
+  p.green[2] = 1.f;
+  p.blue[0] = 0.f;
+  p.blue[1] = 1.f;
+  p.blue[2] = 0.f;
+  dt_gui_presets_add_generic(_("swap G and B"), self->op,
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
+
+  // swap G-R
+  p.red[0] = 0.f;
+  p.red[1] = 1.f;
+  p.red[2] = 0.f;
+  p.green[0] = 1.f;
+  p.green[1] = 0.f;
+  p.green[2] = 0.f;
+  p.blue[0] = 0.f;
+  p.blue[1] = 0.f;
+  p.blue[2] = 1.f;
+  dt_gui_presets_add_generic(_("swap G and R"), self->op,
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
+
+  // swap R-B
+  p.red[0] = 0.f;
+  p.red[1] = 0.f;
+  p.red[2] = 1.f;
+  p.green[0] = 0.f;
+  p.green[1] = 1.f;
+  p.green[2] = 0.f;
+  p.blue[0] = 1.f;
+  p.blue[1] = 0.f;
+  p.blue[2] = 0.f;
+  dt_gui_presets_add_generic(_("swap R and B"), self->op,
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
 }
 
 
@@ -815,6 +866,44 @@ static inline void repack_3x3_to_3xSSE(const float input[9], float output[3][4])
 }
 
 
+static void declare_cat_on_pipe(struct dt_iop_module_t *self)
+{
+  // Advertise to the pipeline that we are doing chromatic adaptation here
+  dt_iop_channelmixer_rgb_params_t *p = (dt_iop_channelmixer_rgb_params_t *)self->params;
+  dt_iop_order_entry_t *this
+      = dt_ioppr_get_iop_order_entry(self->dev->iop_order_list, "channelmixerrgb", self->multi_priority);
+
+  if(this == NULL) return; // there is no point then
+
+  if(self->enabled && !(p->adaptation == DT_ADAPTATION_RGB || p->illuminant == DT_ILLUMINANT_PIPE))
+  {
+    // We do CAT here so we need to register this instance as CAT-handler.
+    if(self->dev->proxy.chroma_adaptation == NULL)
+    {
+      // We are the first to try to register, let's go !
+      self->dev->proxy.chroma_adaptation = this;
+    }
+    else
+    {
+      // Another instance already registered.
+      // If we are lower in the pipe than it, register in its place.
+      if(this->o.iop_order < self->dev->proxy.chroma_adaptation->o.iop_order)
+        self->dev->proxy.chroma_adaptation = this;
+    }
+  }
+  else
+  {
+    if(self->dev->proxy.chroma_adaptation != NULL)
+    {
+      // We do NOT do CAT here.
+      // Deregister this instance as CAT-handler if it previously registered
+      if(self->dev->proxy.chroma_adaptation == this)
+        self->dev->proxy.chroma_adaptation = NULL;
+    }
+  }
+}
+
+
 static void update_illuminants(struct dt_iop_module_t *self);
 static void update_approx_cct(struct dt_iop_module_t *self);
 static void update_illuminant_color(struct dt_iop_module_t *self);
@@ -982,6 +1071,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
       break;
     }
   }
+  declare_cat_on_pipe(self);
 }
 
 static void _develop_ui_pipe_finished_callback(gpointer instance, gpointer user_data)
@@ -992,7 +1082,10 @@ static void _develop_ui_pipe_finished_callback(gpointer instance, gpointer user_
 
   if(g == NULL) return;
   if(p->illuminant != DT_ILLUMINANT_DETECT_EDGES && p->illuminant != DT_ILLUMINANT_DETECT_SURFACES)
+  {
+    gui_changed(self, NULL, NULL);
     return;
+  }
 
   dt_pthread_mutex_lock(&g->lock);
   p->x = g->XYZ[0];
@@ -1018,6 +1111,8 @@ static void _develop_ui_pipe_finished_callback(gpointer instance, gpointer user_
   update_illuminant_color(self);
 
   --darktable.gui->reset;
+
+  gui_changed(self, NULL, NULL);
 
   dt_dev_add_history_item(darktable.develop, self, TRUE);
 }
@@ -1096,6 +1191,8 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   // reference illuminant is hard-set D50 for darktable's pipeline
   // test illuminant is user params
   d->p = powf(0.818155f / d->illuminant[2], 0.0834f);
+
+  declare_cat_on_pipe(self);
 }
 
 
@@ -1689,6 +1786,7 @@ void init_pipe(struct dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_pi
 
 void cleanup_pipe(struct dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece)
 {
+  self->dev->proxy.chroma_adaptation = NULL;
   free(piece->data);
   piece->data = NULL;
 }
@@ -1696,7 +1794,36 @@ void cleanup_pipe(struct dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev
 void gui_reset(dt_iop_module_t *self)
 {
   dt_iop_color_picker_reset(self, TRUE);
+  gui_changed(self, NULL, NULL);
 }
+
+static int calculate_bogus_daylight_wb(dt_iop_module_t *module, double bwb[4])
+{
+  if(!dt_image_is_raw(&module->dev->image_storage))
+  {
+    bwb[0] = 1.0;
+    bwb[2] = 1.0;
+    bwb[1] = 1.0;
+    bwb[3] = 1.0;
+
+    return 0;
+  }
+
+  double mul[4];
+  if (dt_colorspaces_conversion_matrices_rgb(module->dev->image_storage.camera_makermodel, NULL, NULL, mul))
+  {
+    // normalize green:
+    bwb[0] = mul[0] / mul[1];
+    bwb[2] = mul[2] / mul[1];
+    bwb[1] = 1.0;
+    bwb[3] = mul[3] / mul[1];
+
+    return 0;
+  }
+
+  return 1;
+}
+
 
 void gui_update(struct dt_iop_module_t *self)
 {
@@ -1788,9 +1915,10 @@ void reload_defaults(dt_iop_module_t *module)
 
   const dt_image_t *img = &module->dev->image_storage;
 
-  if(is_modern)
+  double bwb[4] = { 0. };
+  if(is_modern && !(calculate_bogus_daylight_wb(module, bwb)))
   {
-    // if workflow = modern, take care of white balance here
+    // if workflow = modern and we find WB coeffs, take care of white balance here
     if(find_temperature_from_raw_coeffs(img, &(d->x), &(d->y)))
       d->illuminant = DT_ILLUMINANT_CAMERA;
 
@@ -1823,6 +1951,8 @@ void reload_defaults(dt_iop_module_t *module)
     }
     else
       dt_bauhaus_combobox_remove_at(g->illuminant, DT_ILLUMINANT_CAMERA);
+
+    gui_changed(module, NULL, NULL);
   }
 }
 
@@ -1899,7 +2029,65 @@ void gui_changed(dt_iop_module_t *self, GtkWidget *w, void *previous)
     update_B_colors(self);
   }
 
+  if(self->enabled && !(p->illuminant == DT_ILLUMINANT_PIPE || p->adaptation == DT_ADAPTATION_RGB))
+  {
+    // this module instance is doing chromatic adaptation
+    dt_iop_order_entry_t *CAT_instance = self->dev->proxy.chroma_adaptation;
+    dt_iop_order_entry_t *current_instance
+        = dt_ioppr_get_iop_order_entry(self->dev->iop_order_list, "channelmixerrgb", self->multi_priority);
+
+    if(CAT_instance && CAT_instance->o.iop_order != current_instance->o.iop_order)
+    {
+      // our second biggest problem : another channelmixerrgb instance is doing CAT earlier in the pipe
+      dt_iop_set_module_in_trouble(self, TRUE);
+      char *wmes = dt_iop_warning_message(_("double CAT applied"));
+      gtk_label_set_text(GTK_LABEL(g->warning_label), wmes);
+      g_free(wmes);
+      gtk_widget_set_tooltip_text(GTK_WIDGET(g->warning_label),
+                                  _("you have 2 instances or more of color calibration,\n"
+                                    "all performing chromatic adaptation.\n"
+                                    "this can lead to inconsistencies, unless you\n"
+                                    "use them with masks or know what you are doing."));
+      gtk_widget_set_visible(GTK_WIDGET(g->warning_label), TRUE);
+    }
+    else if(!self->dev->proxy.wb_is_D65)
+    {
+      // our first and biggest problem : white balance module is being clever with WB coeffs
+      dt_iop_set_module_in_trouble(self, TRUE);
+      char *wmes = dt_iop_warning_message(_("white balance module error"));
+      gtk_label_set_text(GTK_LABEL(g->warning_label), wmes);
+      g_free(wmes);
+      gtk_widget_set_tooltip_text(GTK_WIDGET(g->warning_label),
+                                  _("the white balance module is not using the camera\n"
+                                    "reference illuminant, which will cause issues here\n"
+                                    "with chromatic adaptation. either set it to reference\n"
+                                    "or disable chromatic adaptation here."));
+      gtk_widget_set_visible(GTK_WIDGET(g->warning_label), TRUE);
+    }
+    else
+    {
+      dt_iop_set_module_in_trouble(self, FALSE);
+      gtk_label_set_text(GTK_LABEL(g->warning_label), "");
+      gtk_widget_set_tooltip_text(GTK_WIDGET(g->warning_label), "");
+      gtk_widget_set_visible(GTK_WIDGET(g->warning_label), FALSE);
+    }
+  }
+  else
+  {
+    dt_iop_set_module_in_trouble(self, FALSE);
+    gtk_label_set_text(GTK_LABEL(g->warning_label), "");
+    gtk_widget_set_tooltip_text(GTK_WIDGET(g->warning_label), "");
+    gtk_widget_set_visible(GTK_WIDGET(g->warning_label), FALSE);
+  }
+
   --darktable.gui->reset;
+
+}
+
+
+void gui_focus(struct dt_iop_module_t *self, gboolean in)
+{
+  gui_changed(self, NULL, NULL);
 }
 
 
@@ -1973,6 +2161,10 @@ void gui_init(struct dt_iop_module_t *self)
 
   // Page CAT
   self->widget = dt_ui_notebook_page(g->notebook, _("CAT"), _("chromatic adaptation transform"));
+
+  g->warning_label = dt_ui_label_new("");
+  gtk_label_set_line_wrap(GTK_LABEL(g->warning_label), TRUE);
+  gtk_box_pack_start(GTK_BOX(self->widget), g->warning_label, FALSE, FALSE, 4);
 
   g->adaptation = dt_bauhaus_combobox_from_params(self, N_("adaptation"));
   gtk_widget_set_tooltip_text(GTK_WIDGET(g->adaptation),

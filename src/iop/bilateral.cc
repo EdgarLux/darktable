@@ -69,6 +69,11 @@ typedef struct dt_iop_bilateral_data_t
 
 const char *name()
 {
+  return _("surface blur");
+}
+
+const char *aliases()
+{
   return _("denoise (bilateral filter)");
 }
 

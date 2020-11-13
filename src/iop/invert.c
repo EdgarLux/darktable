@@ -110,6 +110,16 @@ const char *name()
   return _("invert");
 }
 
+const char *description(struct dt_iop_module_t *self)
+{
+  return dt_iop_set_description(self, _("invert film negatives"),
+                                      _("corrective"),
+                                      _("linear, raw, display-referred"),
+                                      _("linear, raw"),
+                                      _("linear, raw, display-referred"));
+}
+
+
 int default_group()
 {
   return IOP_GROUP_BASIC | IOP_GROUP_TECHNICAL;
@@ -117,7 +127,7 @@ int default_group()
 
 int flags()
 {
-  return IOP_FLAGS_ONE_INSTANCE;
+  return IOP_FLAGS_ONE_INSTANCE | IOP_FLAGS_DEPRECATED;
 }
 
 int default_colorspace(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece)

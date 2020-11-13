@@ -118,13 +118,18 @@ const char *name()
   return _("contrast equalizer");
 }
 
-const char *description()
+const char *aliases()
 {
-  return _("add or remove local contrast,\n"
-           "for corrective and creative purposes.\n"
-           "works in Lab,\n"
-           "takes preferably a linear RGB input,\n"
-           "outputs almost linear RGB.");
+  return _("sharpness|acutance|local contrast");
+}
+
+const char *description(struct dt_iop_module_t *self)
+{
+  return dt_iop_set_description(self, _("add or remove local contrast, sharpness, acutance"),
+                                      _("corrective and creative"),
+                                      _("linear, RGB, scene-referred"),
+                                      _("frequential, RGB"),
+                                      _("linear, Lab, scene-referred"));
 }
 
 int default_group()

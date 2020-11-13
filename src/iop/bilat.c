@@ -29,6 +29,7 @@
 #include "develop/imageop_gui.h"
 #include "develop/tiling.h"
 #include "gui/gtk.h"
+#include "gui/presets.h"
 #include "iop/iop_api.h"
 
 #include <gtk/gtk.h>
@@ -93,13 +94,13 @@ const char *name()
   return _("local contrast");
 }
 
-const char *description()
+const char *description(struct dt_iop_module_t *self)
 {
-  return _("manipulate local and global contrast separately,\n"
-           "for corrective and creative purposes.\n"
-           "works in Lab,\n"
-           "takes any RGB input,\n"
-           "outputs non-linear RGB.");
+  return dt_iop_set_description(self, _("manipulate local and global contrast separately"),
+                                      _("creative"),
+                                      _("non-linear, Lab, display-referred"),
+                                      _("non-linear, Lab"),
+                                      _("non-linear, Lab, display-referred"));
 }
 
 // some additional flags (self explanatory i think):
@@ -147,6 +148,31 @@ int legacy_params(
   }
   return 1;
 }
+
+void init_presets(dt_iop_module_so_t *self)
+{
+  dt_iop_bilat_params_t p;
+  memset(&p, 0, sizeof(p));
+
+  p.mode = s_mode_local_laplacian;
+  p.sigma_r = 0.f;
+  p.sigma_s = 0.f;
+  p.detail = 0.33f;
+  p.midtone = 0.5f;
+
+  dt_gui_presets_add_generic(_("clarity"), self->op,
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
+
+  p.mode = s_mode_local_laplacian;
+  p.sigma_r = 0.f;
+  p.sigma_s = 0.f;
+  p.detail = 1.f;
+  p.midtone = 0.25f;
+
+  dt_gui_presets_add_generic(_("HDR local tone-mapping"), self->op,
+                             self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
+}
+
 
 #ifdef HAVE_OPENCL
 int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_mem dev_in, cl_mem dev_out,

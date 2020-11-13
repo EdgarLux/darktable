@@ -220,6 +220,9 @@ void view_enter(dt_lib_module_t *self, dt_view_t *old_view, dt_view_t *new_view)
     if(!dt_lib_presets_apply(preset, self->plugin_name, self->version()))
       dt_lib_presets_apply(_(FALLBACK_PRESET_NAME), self->plugin_name, self->version());
     g_free(preset);
+
+    //and set the current group
+    d->current = dt_conf_get_int("plugins/darkroom/groups");
   }
 }
 
@@ -339,6 +342,7 @@ void gui_init(dt_lib_module_t *self)
   gtk_box_pack_start(GTK_BOX(self->widget), d->hbox_search_box, TRUE, TRUE, 0);
 
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(d->active_btn), TRUE);
+  d->current = dt_conf_get_int("plugins/darkroom/groups");
   if(d->current == DT_MODULEGROUP_NONE) _lib_modulegroups_update_iop_visibility(self);
   gtk_widget_show_all(self->widget);
   gtk_widget_show_all(d->hbox_buttons);
@@ -505,9 +509,13 @@ static void _lib_modulegroups_update_iop_visibility(dt_lib_module_t *self)
         }
         else
         {
-          const int is_match = (g_strstr_len(g_utf8_casefold(dt_iop_get_localized_name(module->op), -1), -1,
-                                             g_utf8_casefold(text_entered, -1))
-                                != NULL);
+           const int is_match = (g_strstr_len(g_utf8_casefold(dt_iop_get_localized_name(module->op), -1), -1,
+                                              g_utf8_casefold(text_entered, -1))
+                                 != NULL) ||
+                                 (g_strstr_len(g_utf8_casefold(dt_iop_get_localized_aliases(module->op), -1), -1,
+                                               g_utf8_casefold(text_entered, -1))
+                                 != NULL);
+
 
           if(is_match)
             gtk_widget_show(w);
