@@ -70,8 +70,8 @@ typedef struct dt_iop_channelmixer_rgb_params_t
   float green[CHANNEL_SIZE];       // $MIN: -2.0 $MAX: 2.0
   float blue[CHANNEL_SIZE];        // $MIN: -2.0 $MAX: 2.0
   float saturation[CHANNEL_SIZE];  // $MIN: -1.0 $MAX: 1.0
-  float lightness[CHANNEL_SIZE];   // $MIN: -2.0 $MAX: 2.0
-  float grey[CHANNEL_SIZE];        // $MIN: -1.0 $MAX: 1.0
+  float lightness[CHANNEL_SIZE];   // $MIN: -1.0 $MAX: 1.0
+  float grey[CHANNEL_SIZE];        // $MIN: 0.0 $MAX: 1.0
   gboolean normalize_R, normalize_G, normalize_B, normalize_sat, normalize_light, normalize_grey; // $DESCRIPTION: "normalize channels"
   dt_illuminant_t illuminant;      // $DEFAULT: DT_ILLUMINANT_D
   dt_illuminant_fluo_t illum_fluo; // $DEFAULT: DT_ILLUMINANT_FLUO_F3 $DESCRIPTION: "F source"
@@ -83,11 +83,6 @@ typedef struct dt_iop_channelmixer_rgb_params_t
   gboolean clip;                   // $DEFAULT: TRUE $DESCRIPTION: "clip negative RGB from gamut"
 } dt_iop_channelmixer_rgb_params_t;
 
-typedef enum dt_ai_wb_model_t
-{
-  DT_AI_SURFACES = 0,
-  DT_AI_EDGES = 1
-} dt_ai_wb_model_t;
 
 typedef struct dt_iop_channelmixer_rgb_gui_data_t
 {
@@ -104,7 +99,6 @@ typedef struct dt_iop_channelmixer_rgb_gui_data_t
   GtkWidget *color_picker;
   GtkWidget *warning_label;
   float xy[2];
-  dt_ai_wb_model_t wb_model;
   float XYZ[4];
   dt_pthread_mutex_t lock;
 } dt_iop_channelmixer_rgb_gui_data_t;
@@ -119,8 +113,8 @@ typedef struct dt_iop_channelmixer_rbg_data_t
   float p, gamut;
   int apply_grey;
   int clip;
-  gboolean run_detection;
   dt_adaptation_t adaptation;
+  dt_illuminant_t illuminant_type;
 } dt_iop_channelmixer_rbg_data_t;
 
 
@@ -133,7 +127,6 @@ const char *aliases()
 {
   return _("channel mixer|white balance|monochrome");
 }
-
 
 const char *description(struct dt_iop_module_t *self)
 {
@@ -678,9 +671,9 @@ static inline void loop_switch(const float *const restrict in, float *const rest
 #define SHF(ii, jj, c) ((i + ii) * width + j + jj) * ch + c
 #define OFF 4
 
-static inline void auto_detect_WB(const float *const restrict in, dt_ai_wb_model_t wb_model,
+static inline void auto_detect_WB(const float *const restrict in, dt_illuminant_t illuminant,
                                   const size_t width, const size_t height, const size_t ch,
-                                  const float RGB_to_XYZ[3][4], float illuminant[4])
+                                  const float RGB_to_XYZ[3][4], float xyz[4])
 {
   /**
    * Detect the chromaticity of the illuminant based on the grey edges hypothesis.
@@ -733,13 +726,12 @@ static inline void auto_detect_WB(const float *const restrict in, dt_ai_wb_model
     }
 
   float elements = 0.f;
-  float XYZ_edge[4] = { 0.f };
-  float XYZ_surface[4] = { 0.f };
+  float xyY[4] = { 0.f };
 
-  if(wb_model == DT_AI_SURFACES)
+  if(illuminant == DT_ILLUMINANT_DETECT_SURFACES)
   {
 #ifdef _OPENMP
-#pragma omp parallel for simd default(none) reduction(+:XYZ_edge, XYZ_surface, elements) \
+#pragma omp parallel for simd default(none) reduction(+:xyY, elements) \
   dt_omp_firstprivate(width, height, ch, temp) \
   aligned(temp:64) \
   schedule(simd:static)
@@ -800,14 +792,14 @@ static inline void auto_detect_WB(const float *const restrict in, dt_ai_wb_model
         const float weight = var[0] * var[1] * var[2];
 
         #pragma unroll
-        for(size_t c = 0; c < 2; c++) XYZ_surface[c] += central_average[c] * weight / p_norm;
+        for(size_t c = 0; c < 2; c++) xyY[c] += central_average[c] * weight / p_norm;
         elements += weight / p_norm;
       }
   }
-  else if(wb_model == DT_AI_EDGES)
+  else if(illuminant == DT_ILLUMINANT_DETECT_EDGES)
   {
     #ifdef _OPENMP
-#pragma omp parallel for simd default(none) reduction(+:XYZ_edge, XYZ_surface, elements) \
+#pragma omp parallel for simd default(none) reduction(+:xyY, elements) \
   dt_omp_firstprivate(width, height, ch, temp) \
   aligned(temp:64) \
   schedule(simd:static)
@@ -835,7 +827,7 @@ static inline void auto_detect_WB(const float *const restrict in, dt_ai_wb_model
         const float p_norm = powf(powf(fabsf(dd[0]), p) + powf(fabsf(dd[1]), p), 1.f / p) + 1e-6f;
 
         #pragma unroll
-        for(size_t c = 0; c < 2; c++) XYZ_edge[c] -= dd[c] / p_norm;
+        for(size_t c = 0; c < 2; c++) xyY[c] -= dd[c] / p_norm;
         elements += 1.f;
       }
   }
@@ -844,10 +836,7 @@ static inline void auto_detect_WB(const float *const restrict in, dt_ai_wb_model
   const float norm_D50 = hypotf(D50[0], D50[1]);
 
   for(size_t c = 0; c < 2; c++)
-  {
-    const float shift = (wb_model == DT_AI_SURFACES) ? XYZ_surface[c] : XYZ_edge[c];
-    illuminant[c] = (shift / (elements * norm_D50)) + D50[c];
-  }
+    xyz[c] = norm_D50 * (xyY[c] / elements) + D50[c];
 
   dt_free_align(temp);
 }
@@ -1011,13 +1000,13 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
   // auto-detect WB upon request
   if(self->dev->gui_attached && g)
   {
-    if(data->run_detection)
+    if(data->illuminant_type == DT_ILLUMINANT_DETECT_EDGES || data->illuminant_type == DT_ILLUMINANT_DETECT_SURFACES)
     {
       if(piece->pipe->type == DT_DEV_PIXELPIPE_FULL)
       {
         // detection on full image only
         dt_pthread_mutex_lock(&g->lock);
-        auto_detect_WB(in, g->wb_model, roi_in->width, roi_in->height, ch, RGB_to_XYZ, g->XYZ);
+        auto_detect_WB(in, data->illuminant_type, roi_in->width, roi_in->height, ch, RGB_to_XYZ, g->XYZ);
         dt_pthread_mutex_unlock(&g->lock);
       }
 
@@ -1110,7 +1099,7 @@ static void _develop_ui_pipe_finished_callback(gpointer instance, gpointer user_
   float Lch[3];
   dt_xyY_to_Lch(xyY, Lch);
   dt_bauhaus_slider_set(g->illum_x, Lch[2] / M_PI * 180.f);
-  dt_bauhaus_slider_set(g->illum_y, Lch[1]);
+  dt_bauhaus_slider_set_soft(g->illum_y, Lch[1]);
 
   update_illuminants(self);
   update_approx_cct(self);
@@ -1146,8 +1135,8 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   if(p->normalize_light) norm_light = (p->lightness[0] + p->lightness[1] + p->lightness[2]) / 3.f;
 
   float norm_grey = p->grey[0] + p->grey[1] + p->grey[2];
-  d->apply_grey = (norm_grey != 0.0f);
-  if(!p->normalize_grey) norm_grey = 1.f;
+  d->apply_grey = (p->grey[0] != 0.f) || (p->grey[1] != 0.f) || (p->grey[2] != 0.f);
+  if(!p->normalize_grey || norm_grey == 0.f) norm_grey = 1.f;
 
   for(int i = 0; i < 3; i++)
   {
@@ -1177,8 +1166,7 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   if(p->illuminant == DT_ILLUMINANT_CAMERA)
     check_if_close_to_daylight(x, y, NULL, NULL, &(d->adaptation));
 
-  d->run_detection
-      = (p->illuminant == DT_ILLUMINANT_DETECT_EDGES || p->illuminant == DT_ILLUMINANT_DETECT_SURFACES);
+  d->illuminant_type = p->illuminant;
 
   // Convert illuminant from xyY to XYZ
   float XYZ[3];
@@ -1250,7 +1238,7 @@ static void update_illuminants(dt_iop_module_t *self)
     float Lch[3];
     dt_xyY_to_Lch(xyY, Lch);
     dt_bauhaus_slider_set(g->illum_x, Lch[2] / M_PI * 180.f);
-    dt_bauhaus_slider_set(g->illum_y, Lch[1]);
+    dt_bauhaus_slider_set_soft(g->illum_y, Lch[1]);
   }
 
   // Display only the relevant sliders
@@ -1408,12 +1396,43 @@ static void update_xy_color(dt_iop_module_t *self)
   gtk_widget_queue_draw(self->widget);
 }
 
+static void _convert_GUI_colors(dt_iop_channelmixer_rgb_params_t *p,
+                                const struct dt_iop_order_iccprofile_info_t *const work_profile, const float LMS[4], float RGB[4])
+{
+  if(p->adaptation != DT_ADAPTATION_RGB)
+  {
+    convert_any_LMS_to_RGB(LMS, RGB, p->adaptation);
+    // RGB vector is normalized with max(RGB)
+  }
+  else
+  {
+    float XYZ[4];
+    if(work_profile)
+    {
+      dt_ioppr_rgb_matrix_to_xyz(LMS, XYZ, work_profile->matrix_in, work_profile->lut_in,
+                                  work_profile->unbounded_coeffs_in, work_profile->lutsize,
+                                  work_profile->nonlinearlut);
+      dt_XYZ_to_Rec709_D65(XYZ, RGB);
+
+      // normalize with hue-preserving method (sort-of) to prevent gamut-clipping in sRGB
+      const float max_RGB = fmaxf(fmaxf(RGB[0], RGB[1]), RGB[2]);
+      for(size_t c = 0; c < 3; c++) RGB[c] = fmaxf(RGB[c] / max_RGB, 0.f);
+    }
+    else
+    {
+      // work profile not available yet - default to grey
+      for(size_t c = 0; c < 3; c++) RGB[c] = 0.5f;
+    }
+  }
+}
+
 
 static void update_R_colors(dt_iop_module_t *self)
 {
   // update the fill background color of x, y sliders
   dt_iop_channelmixer_rgb_gui_data_t *g = (dt_iop_channelmixer_rgb_gui_data_t *)self->gui_data;
   dt_iop_channelmixer_rgb_params_t *p = (dt_iop_channelmixer_rgb_params_t *)self->params;
+  const struct dt_iop_order_iccprofile_info_t *const work_profile = dt_ioppr_get_pipe_current_profile_info(self, self->dev->pipe);
 
   // scale params if needed
   float RGB[3] = { p->red[0], p->red[1], p->red[2] };
@@ -1421,7 +1440,7 @@ static void update_R_colors(dt_iop_module_t *self)
   if(p->normalize_R)
   {
     const float sum = RGB[0] + RGB[1] + RGB[2];
-    for(int c = 0; c < 3; c++) RGB[c] /= sum;
+    if(sum != 0.f) for(int c = 0; c < 3; c++) RGB[c] /= sum;
   }
 
   // Get the current values bound of the slider, taking into account the possible soft rescaling
@@ -1435,14 +1454,8 @@ static void update_R_colors(dt_iop_module_t *self)
     const float RR = RR_min + stop * RR_range;
     const float stop_R = RR + RGB[1] + RGB[2];
     const float LMS[4] = { 0.5f * stop_R, 0.5f, 0.5f };
-    float RGB_t[4] = { 0 };
-
-    if(p->adaptation != DT_ADAPTATION_RGB)
-      convert_any_LMS_to_RGB(LMS, RGB_t, p->adaptation);
-    else
-      // TODO: convert from actual pipeline working profile to actual display profile
-      dt_simd_memcpy(LMS, RGB_t, 4);
-
+    float RGB_t[4] = { 0.5f };
+    _convert_GUI_colors(p, work_profile, LMS, RGB_t);
     dt_bauhaus_slider_set_stop(g->scale_red_R, stop, RGB_t[0], RGB_t[1], RGB_t[2]);
   }
 
@@ -1456,14 +1469,8 @@ static void update_R_colors(dt_iop_module_t *self)
     const float RG = RG_min + stop * RG_range;
     const float stop_R = RGB[0] + RG + RGB[2];
     const float LMS[4] = { 0.5f * stop_R, 0.5f, 0.5f };
-    float RGB_t[4] = { 0 };
-
-    if(p->adaptation != DT_ADAPTATION_RGB)
-      convert_any_LMS_to_RGB(LMS, RGB_t, p->adaptation);
-    else
-      // TODO: convert from actual pipeline working profile to actual display profile
-      dt_simd_memcpy(LMS, RGB_t, 4);
-
+    float RGB_t[4] = { 0.5f };
+    _convert_GUI_colors(p, work_profile, LMS, RGB_t);
     dt_bauhaus_slider_set_stop(g->scale_red_G, stop, RGB_t[0], RGB_t[1], RGB_t[2]);
   }
 
@@ -1477,14 +1484,8 @@ static void update_R_colors(dt_iop_module_t *self)
     const float RB = RB_min + stop * RB_range;
     const float stop_R = RGB[0] + RGB[1] + RB;
     const float LMS[4] = { 0.5f * stop_R, 0.5f, 0.5f };
-    float RGB_t[4] = { 0 };
-
-    if(p->adaptation != DT_ADAPTATION_RGB)
-      convert_any_LMS_to_RGB(LMS, RGB_t, p->adaptation);
-    else
-      // TODO: convert from actual pipeline working profile to actual display profile
-      dt_simd_memcpy(LMS, RGB_t, 4);
-
+    float RGB_t[4] = { 0.5f };
+    _convert_GUI_colors(p, work_profile, LMS, RGB_t);
     dt_bauhaus_slider_set_stop(g->scale_red_B, stop, RGB_t[0], RGB_t[1], RGB_t[2]);
   }
 
@@ -1497,6 +1498,7 @@ static void update_B_colors(dt_iop_module_t *self)
   // update the fill background color of x, y sliders
   dt_iop_channelmixer_rgb_gui_data_t *g = (dt_iop_channelmixer_rgb_gui_data_t *)self->gui_data;
   dt_iop_channelmixer_rgb_params_t *p = (dt_iop_channelmixer_rgb_params_t *)self->params;
+  const struct dt_iop_order_iccprofile_info_t *const work_profile = dt_ioppr_get_pipe_current_profile_info(self, self->dev->pipe);
 
   // scale params if needed
   float RGB[3] = { p->blue[0], p->blue[1], p->blue[2] };
@@ -1504,7 +1506,7 @@ static void update_B_colors(dt_iop_module_t *self)
   if(p->normalize_B)
   {
     const float sum = RGB[0] + RGB[1] + RGB[2];
-    for(int c = 0; c < 3; c++) RGB[c] /= sum;
+    if(sum != 0.f) for(int c = 0; c < 3; c++) RGB[c] /= sum;
   }
 
   // Get the current values bound of the slider, taking into account the possible soft rescaling
@@ -1518,14 +1520,8 @@ static void update_B_colors(dt_iop_module_t *self)
     const float BR = BR_min + stop * BR_range;
     const float stop_B = BR + RGB[1] + RGB[2];
     const float LMS[4] = { 0.5f, 0.5f, 0.5f * stop_B };
-    float RGB_t[4] = { 0 };
-
-    if(p->adaptation != DT_ADAPTATION_RGB)
-      convert_any_LMS_to_RGB(LMS, RGB_t, p->adaptation);
-    else
-      // TODO: convert from actual pipeline working profile to actual display profile
-      dt_simd_memcpy(LMS, RGB_t, 4);
-
+    float RGB_t[4] = { 0.5f };
+    _convert_GUI_colors(p, work_profile, LMS, RGB_t);
     dt_bauhaus_slider_set_stop(g->scale_blue_R, stop, RGB_t[0], RGB_t[1], RGB_t[2]);
   }
 
@@ -1539,14 +1535,8 @@ static void update_B_colors(dt_iop_module_t *self)
     const float BG = BG_min + stop * BG_range;
     const float stop_B = RGB[0] + BG + RGB[2];
     const float LMS[4] = { 0.5f , 0.5f, 0.5f * stop_B };
-    float RGB_t[4] = { 0 };
-
-    if(p->adaptation != DT_ADAPTATION_RGB)
-      convert_any_LMS_to_RGB(LMS, RGB_t, p->adaptation);
-    else
-      // TODO: convert from actual pipeline working profile to actual display profile
-      dt_simd_memcpy(LMS, RGB_t, 4);
-
+    float RGB_t[4] = { 0.5f };
+    _convert_GUI_colors(p, work_profile, LMS, RGB_t);
     dt_bauhaus_slider_set_stop(g->scale_blue_G, stop, RGB_t[0], RGB_t[1], RGB_t[2]);
   }
 
@@ -1559,15 +1549,9 @@ static void update_B_colors(dt_iop_module_t *self)
     const float stop = ((float)i / (float)(DT_BAUHAUS_SLIDER_MAX_STOPS - 1));
     const float BB = BB_min + stop * BB_range;
     const float stop_B = RGB[0] + RGB[1] + BB;
-    const float LMS[4] = { 0.5f, 0.5f, 0.5f * stop_B };
-    float RGB_t[4] = { 0 };
-
-    if(p->adaptation != DT_ADAPTATION_RGB)
-      convert_any_LMS_to_RGB(LMS, RGB_t, p->adaptation);
-    else
-      // TODO: convert from actual pipeline working profile to actual display profile
-      dt_simd_memcpy(LMS, RGB_t, 4);
-
+    const float LMS[4] = { 0.5f, 0.5f, 0.5f * stop_B , 0.f};
+    float RGB_t[4] = { 0.5f };
+    _convert_GUI_colors(p, work_profile, LMS, RGB_t);
     dt_bauhaus_slider_set_stop(g->scale_blue_B, stop, RGB_t[0], RGB_t[1], RGB_t[2]);
   }
 
@@ -1579,6 +1563,7 @@ static void update_G_colors(dt_iop_module_t *self)
   // update the fill background color of x, y sliders
   dt_iop_channelmixer_rgb_gui_data_t *g = (dt_iop_channelmixer_rgb_gui_data_t *)self->gui_data;
   dt_iop_channelmixer_rgb_params_t *p = (dt_iop_channelmixer_rgb_params_t *)self->params;
+  const struct dt_iop_order_iccprofile_info_t *const work_profile = dt_ioppr_get_pipe_current_profile_info(self, self->dev->pipe);
 
   // scale params if needed
   float RGB[3] = { p->green[0], p->green[1], p->green[2] };
@@ -1586,7 +1571,7 @@ static void update_G_colors(dt_iop_module_t *self)
   if(p->normalize_G)
   {
     float sum = RGB[0] + RGB[1] + RGB[2];
-    for(int c = 0; c < 3; c++) RGB[c] /= sum;
+    if(sum != 0.f) for(int c = 0; c < 3; c++) RGB[c] /= sum;
   }
 
   // Get the current values bound of the slider, taking into account the possible soft rescaling
@@ -1600,14 +1585,8 @@ static void update_G_colors(dt_iop_module_t *self)
     const float GR = GR_min + stop * GR_range;
     const float stop_G = GR + RGB[1] + RGB[2];
     const float LMS[4] = { 0.5f , 0.5f * stop_G, 0.5f };
-    float RGB_t[4] = { 0 };
-
-    if(p->adaptation != DT_ADAPTATION_RGB)
-      convert_any_LMS_to_RGB(LMS, RGB_t, p->adaptation);
-    else
-      // TODO: convert from actual pipeline working profile to actual display profile
-      dt_simd_memcpy(LMS, RGB_t, 4);
-
+    float RGB_t[4] = { 0.5f };
+    _convert_GUI_colors(p, work_profile, LMS, RGB_t);
     dt_bauhaus_slider_set_stop(g->scale_green_R, stop, RGB_t[0], RGB_t[1], RGB_t[2]);
   }
 
@@ -1621,14 +1600,8 @@ static void update_G_colors(dt_iop_module_t *self)
     const float GG = GG_min + stop * GG_range;
     const float stop_G = RGB[0] + GG + RGB[2];
     const float LMS[4] = { 0.5f, 0.5f * stop_G, 0.5f };
-    float RGB_t[4] = { 0 };
-
-    if(p->adaptation != DT_ADAPTATION_RGB)
-      convert_any_LMS_to_RGB(LMS, RGB_t, p->adaptation);
-    else
-      // TODO: convert from actual pipeline working profile to actual display profile
-      dt_simd_memcpy(LMS, RGB_t, 4);
-
+    float RGB_t[4] = { 0.5f };
+    _convert_GUI_colors(p, work_profile, LMS, RGB_t);
     dt_bauhaus_slider_set_stop(g->scale_green_G, stop, RGB_t[0], RGB_t[1], RGB_t[2]);
   }
 
@@ -1642,14 +1615,8 @@ static void update_G_colors(dt_iop_module_t *self)
     const float GB = GB_min + stop * GB_range;
     const float stop_G = RGB[0] + RGB[1] + GB;
     const float LMS[4] = { 0.5f, 0.5f * stop_G , 0.5f};
-    float RGB_t[4] = { 0 };
-
-    if(p->adaptation != DT_ADAPTATION_RGB)
-      convert_any_LMS_to_RGB(LMS, RGB_t, p->adaptation);
-    else
-      // TODO: convert from actual pipeline working profile to actual display profile
-      dt_simd_memcpy(LMS, RGB_t, 4);
-
+    float RGB_t[4] = { 0.5f };
+    _convert_GUI_colors(p, work_profile, LMS, RGB_t);
     dt_bauhaus_slider_set_stop(g->scale_green_B, stop, RGB_t[0], RGB_t[1], RGB_t[2]);
   }
 
@@ -1843,7 +1810,7 @@ void gui_update(struct dt_iop_module_t *self)
   dt_bauhaus_combobox_set(g->illum_fluo, p->illum_fluo);
   dt_bauhaus_combobox_set(g->illum_led, p->illum_led);
   dt_bauhaus_slider_set(g->temperature, p->temperature);
-  dt_bauhaus_slider_set(g->gamut, p->gamut);
+  dt_bauhaus_slider_set_soft(g->gamut, p->gamut);
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->clip), p->clip);
 
   float xyY[3] = { p->x, p->y, 1.f };
@@ -1851,43 +1818,43 @@ void gui_update(struct dt_iop_module_t *self)
   dt_xyY_to_Lch(xyY, Lch);
 
   dt_bauhaus_slider_set(g->illum_x, Lch[2] / M_PI * 180.f);
-  dt_bauhaus_slider_set(g->illum_y, Lch[1]);
+  dt_bauhaus_slider_set_soft(g->illum_y, Lch[1]);
 
   dt_bauhaus_combobox_set(g->adaptation, p->adaptation);
 
-  dt_bauhaus_slider_set(g->scale_red_R, p->red[0]);
-  dt_bauhaus_slider_set(g->scale_red_G, p->red[1]);
-  dt_bauhaus_slider_set(g->scale_red_B, p->red[2]);
+  dt_bauhaus_slider_set_soft(g->scale_red_R, p->red[0]);
+  dt_bauhaus_slider_set_soft(g->scale_red_G, p->red[1]);
+  dt_bauhaus_slider_set_soft(g->scale_red_B, p->red[2]);
 
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->normalize_R), p->normalize_R);
 
-  dt_bauhaus_slider_set(g->scale_green_R, p->green[0]);
-  dt_bauhaus_slider_set(g->scale_green_G, p->green[1]);
-  dt_bauhaus_slider_set(g->scale_green_B, p->green[2]);
+  dt_bauhaus_slider_set_soft(g->scale_green_R, p->green[0]);
+  dt_bauhaus_slider_set_soft(g->scale_green_G, p->green[1]);
+  dt_bauhaus_slider_set_soft(g->scale_green_B, p->green[2]);
 
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->normalize_G), p->normalize_G);
 
-  dt_bauhaus_slider_set(g->scale_blue_R, p->blue[0]);
-  dt_bauhaus_slider_set(g->scale_blue_G, p->blue[1]);
-  dt_bauhaus_slider_set(g->scale_blue_B, p->blue[2]);
+  dt_bauhaus_slider_set_soft(g->scale_blue_R, p->blue[0]);
+  dt_bauhaus_slider_set_soft(g->scale_blue_G, p->blue[1]);
+  dt_bauhaus_slider_set_soft(g->scale_blue_B, p->blue[2]);
 
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->normalize_B), p->normalize_B);
 
-  dt_bauhaus_slider_set(g->scale_saturation_R, p->saturation[0]);
-  dt_bauhaus_slider_set(g->scale_saturation_G, p->saturation[1]);
-  dt_bauhaus_slider_set(g->scale_saturation_B, p->saturation[2]);
+  dt_bauhaus_slider_set_soft(g->scale_saturation_R, p->saturation[0]);
+  dt_bauhaus_slider_set_soft(g->scale_saturation_G, p->saturation[1]);
+  dt_bauhaus_slider_set_soft(g->scale_saturation_B, p->saturation[2]);
 
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->normalize_sat), p->normalize_sat);
 
-  dt_bauhaus_slider_set(g->scale_lightness_R, p->lightness[0]);
-  dt_bauhaus_slider_set(g->scale_lightness_G, p->lightness[1]);
-  dt_bauhaus_slider_set(g->scale_lightness_B, p->lightness[2]);
+  dt_bauhaus_slider_set_soft(g->scale_lightness_R, p->lightness[0]);
+  dt_bauhaus_slider_set_soft(g->scale_lightness_G, p->lightness[1]);
+  dt_bauhaus_slider_set_soft(g->scale_lightness_B, p->lightness[2]);
 
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->normalize_light), p->normalize_light);
 
-  dt_bauhaus_slider_set(g->scale_grey_R, p->grey[0]);
-  dt_bauhaus_slider_set(g->scale_grey_G, p->grey[1]);
-  dt_bauhaus_slider_set(g->scale_grey_B, p->grey[2]);
+  dt_bauhaus_slider_set_soft(g->scale_grey_R, p->grey[0]);
+  dt_bauhaus_slider_set_soft(g->scale_grey_G, p->grey[1]);
+  dt_bauhaus_slider_set_soft(g->scale_grey_B, p->grey[2]);
 
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->normalize_grey), p->normalize_grey);
 
@@ -1995,18 +1962,14 @@ void gui_changed(dt_iop_module_t *self, GtkWidget *w, void *previous)
           dt_bauhaus_slider_set(g->temperature, p->temperature);
           dt_bauhaus_combobox_set(g->adaptation, p->adaptation);
           dt_bauhaus_slider_set(g->illum_x, Lch[2] / M_PI * 180.f);
-          dt_bauhaus_slider_set(g->illum_y, Lch[1]);
+          dt_bauhaus_slider_set_soft(g->illum_y, Lch[1]);
           --darktable.gui->reset;
         }
       }
       else if(p->illuminant == DT_ILLUMINANT_DETECT_EDGES
               || p->illuminant == DT_ILLUMINANT_DETECT_SURFACES)
       {
-        // Get image WB
-        if(p->illuminant == DT_ILLUMINANT_DETECT_EDGES) g->wb_model = DT_AI_EDGES;
-        else if(p->illuminant == DT_ILLUMINANT_DETECT_SURFACES) g->wb_model = DT_AI_SURFACES;
-
-        // We need to recompute only the thumbnail
+        // We need to recompute only the full preview
         dt_control_log(_("auto-detection of white balance started…"));
       }
     }
@@ -2026,6 +1989,12 @@ void gui_changed(dt_iop_module_t *self, GtkWidget *w, void *previous)
     update_G_colors(self);
   if(!w || w == g->scale_blue_R  || w == g->scale_blue_G  || w == g->scale_blue_B  || w == g->normalize_B)
     update_B_colors(self);
+
+  // if grey channel is used and norm = 0 and normalization = ON, we are going to have a division by zero
+  // in commit_param, we avoid dividing by zero automatically, but user needs a notification
+  if((p->grey[0] != 0.f) || (p->grey[1] != 0.f) || (p->grey[2] != 0.f))
+    if((p->grey[0] + p->grey[1] + p->grey[2] == 0.f) && p->normalize_grey)
+      dt_control_log(_("color calibration: the sum of the grey channel parameters is zero, normalization will be disabled."));
 
   if(w == g->adaptation)
   {
@@ -2140,7 +2109,7 @@ void color_picker_apply(dt_iop_module_t *self, GtkWidget *picker, dt_dev_pixelpi
   float Lch[3] = { 0 };
   dt_xyY_to_Lch(xyY, Lch);
   dt_bauhaus_slider_set(g->illum_x, Lch[2] / M_PI * 180.f);
-  dt_bauhaus_slider_set(g->illum_y, Lch[1]);
+  dt_bauhaus_slider_set_soft(g->illum_y, Lch[1]);
 
   update_illuminants(self);
   update_approx_cct(self);
@@ -2233,13 +2202,15 @@ void gui_init(struct dt_iop_module_t *self)
   g_signal_connect(G_OBJECT(g->illum_x), "value-changed", G_CALLBACK(illum_xy_callback), self);
   gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(g->illum_x), FALSE, FALSE, 0);
 
-  g->illum_y = dt_bauhaus_slider_new_with_range(self, 0., 180., 0.5, 0, 1);
+  g->illum_y = dt_bauhaus_slider_new_with_range(self, 0., 100., 0.5, 0, 1);
   dt_bauhaus_widget_set_label(g->illum_y, NULL, _("chroma"));
   dt_bauhaus_slider_set_format(g->illum_y, "%.1f %%");
+  dt_bauhaus_slider_set_hard_max(g->illum_y, 300.f);
   g_signal_connect(G_OBJECT(g->illum_y), "value-changed", G_CALLBACK(illum_xy_callback), self);
   gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(g->illum_y), FALSE, FALSE, 0);
 
   g->gamut = dt_bauhaus_slider_from_params(self, "gamut");
+  dt_bauhaus_slider_set_hard_max(g->gamut, 12.f);
 
   g->clip = dt_bauhaus_toggle_from_params(self, "clip");
 
@@ -2250,16 +2221,22 @@ void gui_init(struct dt_iop_module_t *self)
   first = dt_bauhaus_slider_from_params(self, swap ? #var "[2]" : #var "[0]");\
   dt_bauhaus_slider_set_step(first, 0.005);                                   \
   dt_bauhaus_slider_set_digits(first, 3);                                     \
+  dt_bauhaus_slider_set_hard_min(first, -2.f);                                \
+  dt_bauhaus_slider_set_hard_max(first, 2.f);                                 \
   dt_bauhaus_widget_set_label(first, section, _("input red"));                \
                                                                               \
   second = dt_bauhaus_slider_from_params(self, #var "[1]");                   \
   dt_bauhaus_slider_set_step(second, 0.005);                                  \
   dt_bauhaus_slider_set_digits(second, 3);                                    \
+  dt_bauhaus_slider_set_hard_min(second, -2.f);                               \
+  dt_bauhaus_slider_set_hard_max(second, 2.f);                                \
   dt_bauhaus_widget_set_label(second, section, _("input green"));             \
                                                                               \
   third = dt_bauhaus_slider_from_params(self, swap ? #var "[0]" : #var "[2]");\
   dt_bauhaus_slider_set_step(third, 0.005);                                   \
   dt_bauhaus_slider_set_digits(third, 3);                                     \
+  dt_bauhaus_slider_set_hard_min(third, -2.f);                                \
+  dt_bauhaus_slider_set_hard_max(third, 2.f);                                 \
   dt_bauhaus_widget_set_label(third, section, _("input blue"));               \
                                                                               \
   g->scale_##var##_R = swap ? third : first;                                  \
