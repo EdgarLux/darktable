@@ -154,6 +154,7 @@
 @define-color graph_fg @grey_75;
 @define-color graph_fg_active @grey_95;
 @define-color graph_grid @grey_05;
+@define-color graph_overlay @grey_50;
 @define-color inset_histogram alpha(@grey_65, 0.50);
 
 /* Reset GTK defaults - Otherwise dt inherits Adwaita default theme dark */
@@ -1400,6 +1401,14 @@ margin: 0 2px;
 #modulegroups-preset:hover #dt-button
 {
   color: @button_hover_fg;
+}
+
+#modulegroups-deprecated-msg,
+#iop-plugin-deprecated
+{
+  background-color: @grey_10;
+  padding-top: 0.45em;
+  padding-bottom: 0.45em;
 }
 
 /*---------------------------------------------------------------

@@ -103,6 +103,11 @@ const char *name()
   return _("global tonemap");
 }
 
+const char *deprecated_msg()
+{
+  return _("this module is deprecated. better use filmic rgb module instead.");
+}
+
 int flags()
 {
   return IOP_FLAGS_INCLUDE_IN_STYLES | IOP_FLAGS_SUPPORTS_BLENDING | IOP_FLAGS_ALLOW_TILING | IOP_FLAGS_DEPRECATED;
