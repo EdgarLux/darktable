@@ -129,42 +129,42 @@ void *legacy_params(struct dt_lib_module_t *self,
     dt_lib_collect_params_t *o = (dt_lib_collect_params_t *)old_params;
 
     if(o->rules > MAX_RULES)
-	/* preset is corrupted, return NULL and drop the preset */
-	return NULL;
+      /* preset is corrupted, return NULL and drop the preset */
+      return NULL;
 
     dt_lib_collect_params_t *n = (dt_lib_collect_params_t *)malloc(old_params_size);
 
     const int table[DT_COLLECTION_PROP_LAST] =
-    {
-      DT_COLLECTION_PROP_FILMROLL,
-      DT_COLLECTION_PROP_FOLDERS,
-      DT_COLLECTION_PROP_CAMERA,
-      DT_COLLECTION_PROP_TAG,
-      DT_COLLECTION_PROP_DAY,
-      DT_COLLECTION_PROP_TIME,
-      DT_COLLECTION_PROP_HISTORY,
-      DT_COLLECTION_PROP_COLORLABEL,
+      {
+        DT_COLLECTION_PROP_FILMROLL,
+        DT_COLLECTION_PROP_FOLDERS,
+        DT_COLLECTION_PROP_CAMERA,
+        DT_COLLECTION_PROP_TAG,
+        DT_COLLECTION_PROP_DAY,
+        DT_COLLECTION_PROP_TIME,
+        DT_COLLECTION_PROP_HISTORY,
+        DT_COLLECTION_PROP_COLORLABEL,
 
-      // spaces for the metadata, see metadata.h
-      DT_COLLECTION_PROP_COLORLABEL + 1,
-      DT_COLLECTION_PROP_COLORLABEL + 2,
-      DT_COLLECTION_PROP_COLORLABEL + 3,
-      DT_COLLECTION_PROP_COLORLABEL + 4,
-      DT_COLLECTION_PROP_COLORLABEL + 5,
+        // spaces for the metadata, see metadata.h
+        DT_COLLECTION_PROP_COLORLABEL + 1,
+        DT_COLLECTION_PROP_COLORLABEL + 2,
+        DT_COLLECTION_PROP_COLORLABEL + 3,
+        DT_COLLECTION_PROP_COLORLABEL + 4,
+        DT_COLLECTION_PROP_COLORLABEL + 5,
 
-      DT_COLLECTION_PROP_LENS,
-      DT_COLLECTION_PROP_FOCAL_LENGTH,
-      DT_COLLECTION_PROP_ISO,
-      DT_COLLECTION_PROP_APERTURE,
-      DT_COLLECTION_PROP_EXPOSURE,
-      DT_COLLECTION_PROP_ASPECT_RATIO,
-      DT_COLLECTION_PROP_FILENAME,
-      DT_COLLECTION_PROP_GEOTAGGING,
-      DT_COLLECTION_PROP_GROUPING,
-      DT_COLLECTION_PROP_LOCAL_COPY,
-      DT_COLLECTION_PROP_MODULE,
-      DT_COLLECTION_PROP_ORDER
-    };
+        DT_COLLECTION_PROP_LENS,
+        DT_COLLECTION_PROP_FOCAL_LENGTH,
+        DT_COLLECTION_PROP_ISO,
+        DT_COLLECTION_PROP_APERTURE,
+        DT_COLLECTION_PROP_EXPOSURE,
+        DT_COLLECTION_PROP_ASPECT_RATIO,
+        DT_COLLECTION_PROP_FILENAME,
+        DT_COLLECTION_PROP_GEOTAGGING,
+        DT_COLLECTION_PROP_GROUPING,
+        DT_COLLECTION_PROP_LOCAL_COPY,
+        DT_COLLECTION_PROP_MODULE,
+        DT_COLLECTION_PROP_ORDER
+      };
 
     n->rules = o->rules;
 
@@ -186,41 +186,41 @@ void *legacy_params(struct dt_lib_module_t *self,
     dt_lib_collect_params_t *old = (dt_lib_collect_params_t *)old_params;
 
     if(old->rules > MAX_RULES)
-	/* preset is corrupted, return NULL and drop the preset */
-	return NULL;
+      /* preset is corrupted, return NULL and drop the preset */
+      return NULL;
 
     dt_lib_collect_params_t *new = (dt_lib_collect_params_t *)malloc(old_params_size);
 
     const int table[DT_COLLECTION_PROP_LAST] =
       {
-      DT_COLLECTION_PROP_FILMROLL,
-      DT_COLLECTION_PROP_FOLDERS,
-      DT_COLLECTION_PROP_FILENAME,
-      DT_COLLECTION_PROP_CAMERA,
-      DT_COLLECTION_PROP_LENS,
-      DT_COLLECTION_PROP_APERTURE,
-      DT_COLLECTION_PROP_EXPOSURE,
-      DT_COLLECTION_PROP_FOCAL_LENGTH,
-      DT_COLLECTION_PROP_ISO,
-      DT_COLLECTION_PROP_DAY,
-      DT_COLLECTION_PROP_TIME,
-      DT_COLLECTION_PROP_GEOTAGGING,
-      DT_COLLECTION_PROP_ASPECT_RATIO,
-      DT_COLLECTION_PROP_TAG,
-      DT_COLLECTION_PROP_COLORLABEL,
+        DT_COLLECTION_PROP_FILMROLL,
+        DT_COLLECTION_PROP_FOLDERS,
+        DT_COLLECTION_PROP_FILENAME,
+        DT_COLLECTION_PROP_CAMERA,
+        DT_COLLECTION_PROP_LENS,
+        DT_COLLECTION_PROP_APERTURE,
+        DT_COLLECTION_PROP_EXPOSURE,
+        DT_COLLECTION_PROP_FOCAL_LENGTH,
+        DT_COLLECTION_PROP_ISO,
+        DT_COLLECTION_PROP_DAY,
+        DT_COLLECTION_PROP_TIME,
+        DT_COLLECTION_PROP_GEOTAGGING,
+        DT_COLLECTION_PROP_ASPECT_RATIO,
+        DT_COLLECTION_PROP_TAG,
+        DT_COLLECTION_PROP_COLORLABEL,
 
-      // spaces for the metadata, see metadata.h
-      DT_COLLECTION_PROP_COLORLABEL + 1,
-      DT_COLLECTION_PROP_COLORLABEL + 2,
-      DT_COLLECTION_PROP_COLORLABEL + 3,
-      DT_COLLECTION_PROP_COLORLABEL + 4,
-      DT_COLLECTION_PROP_COLORLABEL + 5,
+        // spaces for the metadata, see metadata.h
+        DT_COLLECTION_PROP_COLORLABEL + 1,
+        DT_COLLECTION_PROP_COLORLABEL + 2,
+        DT_COLLECTION_PROP_COLORLABEL + 3,
+        DT_COLLECTION_PROP_COLORLABEL + 4,
+        DT_COLLECTION_PROP_COLORLABEL + 5,
 
-      DT_COLLECTION_PROP_GROUPING,
-      DT_COLLECTION_PROP_LOCAL_COPY,
-      DT_COLLECTION_PROP_HISTORY,
-      DT_COLLECTION_PROP_MODULE,
-      DT_COLLECTION_PROP_ORDER
+        DT_COLLECTION_PROP_GROUPING,
+        DT_COLLECTION_PROP_LOCAL_COPY,
+        DT_COLLECTION_PROP_HISTORY,
+        DT_COLLECTION_PROP_MODULE,
+        DT_COLLECTION_PROP_ORDER
       };
 
     new->rules = old->rules;
@@ -778,8 +778,8 @@ static gboolean list_match_string(GtkTreeModel *model, GtkTreePath *path, GtkTre
     dt_collection_split_operator_number(needle, &number, &number2, &operator);
     if(number)
     {
-      float nb1 = g_strtod(number, NULL);
-      float nb2 = g_strtod(haystack, NULL);
+      const float nb1 = g_strtod(number, NULL);
+      const float nb2 = g_strtod(haystack, NULL);
       if(operator&& strcmp(operator, ">") == 0)
       {
         visible = (nb2 > nb1);
@@ -1042,7 +1042,7 @@ static char **split_path(const char *path)
 #else
 
   // there are size + 1 elements in tokens -- the final NULL! we want to ignore it.
-  unsigned int size = g_strv_length(tokens);
+  const unsigned int size = g_strv_length(tokens);
 
   result = malloc(size * sizeof(char *));
   for(unsigned int i = 0; i < size; i++)
@@ -1835,11 +1835,10 @@ static void list_view(dt_lib_collect_rule_t *dr)
     // test selection range [xxx;xxx]
     GRegex *regex;
     GMatchInfo *match_info;
-    int match_count;
 
     regex = g_regex_new("^\\s*\\[\\s*(.*)\\s*;\\s*(.*)\\s*\\]\\s*$", 0, 0, NULL);
     g_regex_match_full(regex, gtk_entry_get_text(GTK_ENTRY(dr->text)), -1, 0, 0, &match_info, NULL);
-    match_count = g_match_info_get_match_count(match_info);
+    const int match_count = g_match_info_get_match_count(match_info);
 
     if(match_count == 3)
     {
@@ -1934,7 +1933,7 @@ static void _lib_collect_gui_update(dt_lib_module_t *self)
     else if(i == active)
     {
       gtk_widget_set_tooltip_text(GTK_WIDGET(button), _("clear this rule or add new rules"));
-      gint flags = CPF_DIRECTION_DOWN | CPF_BG_TRANSPARENT | CPF_STYLE_FLAT;
+      const gint flags = CPF_DIRECTION_DOWN | CPF_BG_TRANSPARENT | CPF_STYLE_FLAT;
       dtgtk_button_set_paint(button, dtgtk_cairo_paint_solid_arrow, flags, NULL);
     }
     else
@@ -1990,23 +1989,44 @@ static void combo_changed(GtkWidget *combo, dt_lib_collect_rule_t *d)
      || property == DT_COLLECTION_PROP_ISO || property == DT_COLLECTION_PROP_ASPECT_RATIO
      || property == DT_COLLECTION_PROP_EXPOSURE)
   {
-    gtk_widget_set_tooltip_text(d->text, _("type your query, use <, <=, >, >=, <>, =, [;] as operators"));
+    gtk_widget_set_tooltip_text(d->text, _("use <, <=, >, >=, <>, =, [;] as operators"));
   }
   else if(property == DT_COLLECTION_PROP_DAY || is_time_property(property))
   {
     gtk_widget_set_tooltip_text(d->text,
-                                _("type your query, use <, <=, >, >=, <>, =, [;] as operators, type dates in "
-                                  "the form : YYYY:MM:DD HH:MM:SS (only the year is mandatory)"));
+                                _("use <, <=, >, >=, <>, =, [;] as operators\n"
+                                  "type dates in the form : YYYY:MM:DD HH:MM:SS (only the year is mandatory)"));
   }
   else if(property == DT_COLLECTION_PROP_FILENAME)
   {
+    gtk_widget_set_tooltip_text(d->text,
     /* xgettext:no-c-format */
-    gtk_widget_set_tooltip_text(d->text, _("type your query, use `%' as wildcard and `,' to separate values"));
+                                _("use `%' as wildcard and `,' to separate values"));
+  }
+  else if(property == DT_COLLECTION_PROP_TAG)
+  {
+    gtk_widget_set_tooltip_text(d->text,
+    /* xgettext:no-c-format */
+                                _("use `%' as wildcard\n"
+    /* xgettext:no-c-format */
+                                  "use `|%' to include all sub-hierarchies (ctrl-click)\n"
+    /* xgettext:no-c-format */
+                                  "use `*' to include hierarchy and sub-hierarchies (shift-click)"));
+  }
+  else if(property == DT_COLLECTION_PROP_GEOTAGGING)
+  {
+    gtk_widget_set_tooltip_text(d->text,
+    /* xgettext:no-c-format */
+                                _("use `%' as wildcard\n"
+    /* xgettext:no-c-format */
+                                  "use `|%' to include all sub-locations (ctrl-click)\n"
+    /* xgettext:no-c-format */
+                                  "use `*' to include locations and sub-locations (shift-click)"));
   }
   else
   {
     /* xgettext:no-c-format */
-    gtk_widget_set_tooltip_text(d->text, _("type your query, use `%' as wildcard"));
+    gtk_widget_set_tooltip_text(d->text, _("use `%' as wildcard"));
   }
 
   gboolean order_request = FALSE;
@@ -2106,7 +2126,7 @@ static void row_activated_with_event(GtkTreeView *view, GtkTreePath *path, GtkTr
          * hierarchy. */
         else if(event->state & GDK_SHIFT_MASK)
         {
-          gchar *n_text = g_strconcat(text, "%", NULL);
+          gchar *n_text = g_strconcat(text, "*", NULL);
           g_free(text);
           text = n_text;
         }

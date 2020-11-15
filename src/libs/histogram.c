@@ -36,6 +36,19 @@
 
 #define HISTOGRAM_BINS 256
 
+#ifndef dt_omp_shared
+#ifdef _OPENMP
+#if defined(__clang__) || __GNUC__ > 8
+# define dt_omp_shared(...)  shared(__VA_ARGS__)
+#else
+  // GCC 8.4 throws string of errors "'x' is predetermined 'shared' for 'shared'" if we explicitly declare
+  //  'const' variables as shared
+# define dt_omp_shared(var, ...)
+#endif
+#endif /* _OPENMP */
+#endif /* dt_omp_shared */
+
+
 DT_MODULE(1)
 
 typedef enum dt_lib_histogram_highlight_t
@@ -223,7 +236,8 @@ static void _lib_histogram_process_waveform(dt_lib_histogram_t *d, const float *
 #ifdef _OPENMP
 #pragma omp parallel for simd default(none) \
   dt_omp_firstprivate(input, width, height, wf_width, bin_width, _height, scale) \
-  shared(wf_linear) aligned(input, wf_linear:64) \
+  dt_omp_shared(wf_linear) \
+  aligned(input, wf_linear:64) \
   schedule(simd:static, bin_width)
 #endif
   for(int x = 0; x < width; x++)
@@ -513,7 +527,7 @@ static void _lib_histogram_draw_waveform_channel(dt_lib_histogram_t *d, cairo_t 
 #ifdef _OPENMP
 #pragma omp parallel for simd default(none) \
   dt_omp_firstprivate(wf_width, wf_height, wf_linear, primaries_linear, ch) \
-  shared(wf_display) aligned(wf_linear, wf_display, primaries_linear:64) \
+  dt_omp_shared(wf_display) aligned(wf_linear, wf_display, primaries_linear:64) \
   schedule(simd:static)
 #endif
   for(int p = 0; p < wf_height * wf_width * 4; p += 4)
@@ -532,7 +546,7 @@ static void _lib_histogram_draw_waveform_channel(dt_lib_histogram_t *d, cairo_t 
 #ifdef _OPENMP
 #pragma omp parallel for simd default(none) \
   dt_omp_firstprivate(wf_display, wf_width, wf_height, wf_stride) \
-  shared(wf_8bit) aligned(wf_8bit, wf_display:64) \
+  dt_omp_shared(wf_8bit) aligned(wf_8bit, wf_display:64) \
   schedule(simd:static) collapse(2)
 #endif
   // FIXME: we could do this in place in wf_display, but it'd require care w/OpenMP
@@ -1171,9 +1185,9 @@ static void _lib_histogram_update_color(dt_lib_histogram_t *d)
   // red, green, blue in Lab selected for visual legibility and to
   // combine to reasonable-looking secondaries and a neutral "white"
   const double Lab_primaries[3][3] = {
-    {50.0, 70.0, 55.0},
-    {45.0, -64.0, 45.0},
-    {35.0, 8.0, -73.0}
+    {56.0, 85.0, 74.0},
+    {70.0, -100.0, 62.0},
+    {30.0, 42.0, -99.0}
   };
 
   if(xform_Lab_to_display)
