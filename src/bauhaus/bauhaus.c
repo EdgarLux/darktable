@@ -541,12 +541,15 @@ void dt_bauhaus_load_theme()
   gtk_style_context_get(ctx, GTK_STATE_FLAG_NORMAL, "font", &pfont, NULL);
   gtk_widget_path_free(path);
 
+  // make sure we release previously loaded font
+  if(darktable.bauhaus->pango_font_desc)
+    pango_font_description_free(darktable.bauhaus->pango_font_desc);
+
   darktable.bauhaus->pango_font_desc = pfont;
 
-  PangoLayout *layout;
   cairo_surface_t *cst = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 128, 128);
   cairo_t *cr = cairo_create(cst);
-  layout = pango_cairo_create_layout(cr);
+  PangoLayout *layout = pango_cairo_create_layout(cr);
   pango_layout_set_text(layout, "m", -1);
   pango_layout_set_font_description(layout, darktable.bauhaus->pango_font_desc);
   pango_cairo_context_set_resolution(pango_layout_get_context(layout), darktable.gui->dpi);
@@ -573,6 +576,7 @@ void dt_bauhaus_init()
   darktable.bauhaus->current = NULL;
   darktable.bauhaus->popup_area = gtk_drawing_area_new();
   gtk_widget_set_name(darktable.bauhaus->popup_area, "bauhaus-popup");
+  darktable.bauhaus->pango_font_desc = NULL;
 
   dt_bauhaus_load_theme();
 
@@ -1841,9 +1845,8 @@ static gboolean dt_bauhaus_popup_draw(GtkWidget *widget, cairo_t *crf, gpointer 
   if(darktable.bauhaus->keys_cnt)
   {
     cairo_save(cr);
-    PangoLayout *layout;
+    PangoLayout *layout = pango_cairo_create_layout(cr);
     PangoRectangle ink;
-    layout = pango_cairo_create_layout(cr);
     pango_cairo_context_set_resolution(pango_layout_get_context(layout), darktable.gui->dpi);
     set_color(cr, text_color);
 
