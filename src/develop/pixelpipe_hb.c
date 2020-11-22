@@ -344,7 +344,13 @@ void dt_dev_pixelpipe_synch(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev, GList *
     piece = (dt_dev_pixelpipe_iop_t *)nodes->data;
     if(piece->module == hist->module)
     {
-      piece->enabled = hist->enabled;
+      const gboolean mustbe_enabled = piece->module->default_enabled && piece->module->hide_enable_button;
+      piece->enabled = hist->enabled || mustbe_enabled;
+      if((hist->enabled == 0) && mustbe_enabled)
+      {
+        fprintf(stderr,"[dt_dev_pixelpipe_synch] alway-on module `%s' found as disabled in history\n", piece->module->op);
+        // FIXME can we also repair history from here?
+      }
       dt_iop_commit_params(hist->module, hist->params, hist->blend_params, pipe, piece);
     }
     nodes = g_list_next(nodes);
@@ -1217,19 +1223,22 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
           const int in_x = MAX(roi_in.x, 0);
           const int in_y = MAX(roi_in.y, 0);
-          const int cp_width = MIN(roi_out->width, pipe->iwidth - in_x);
+          const int cp_width = MAX(0, MIN(roi_out->width, pipe->iwidth - in_x));
           const int cp_height = MIN(roi_out->height, pipe->iheight - in_y);
 
+          if (cp_width > 0)
+          {
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
           dt_omp_firstprivate(bpp, cp_height, cp_width, in_x, in_y) \
           shared(pipe, roi_out, roi_in, output) \
           schedule(static)
 #endif
-          for(int j = 0; j < cp_height; j++)
-            memcpy(((char *)*output) + (size_t)bpp * j * roi_out->width,
-                   ((char *)pipe->input) + (size_t)bpp * (in_x + (in_y + j) * pipe->iwidth),
-                   (size_t)bpp * cp_width);
+            for(int j = 0; j < cp_height; j++)
+              memcpy(((char *)*output) + (size_t)bpp * j * roi_out->width,
+                     ((char *)pipe->input) + (size_t)bpp * (in_x + (in_y + j) * pipe->iwidth),
+                     (size_t)bpp * cp_width);
+          }
         }
         else
         {
