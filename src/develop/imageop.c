@@ -1008,10 +1008,26 @@ static gboolean _rename_module_key_press(GtkWidget *entry, GdkEventKey *event, d
 
   if(event->type == GDK_FOCUS_CHANGE || event->keyval == GDK_KEY_Return || event->keyval == GDK_KEY_KP_Enter)
   {
-    const gchar *name = gtk_entry_get_text(GTK_ENTRY(entry));
-    if(strcmp(module->multi_name, name) != 0)
+    if(gtk_entry_get_text_length(GTK_ENTRY(entry)) > 0)
     {
-      g_strlcpy(module->multi_name, name, sizeof(module->multi_name));
+      // name is not empty, set new multi_name
+      
+       const gchar *name = gtk_entry_get_text(GTK_ENTRY(entry));
+      
+      // restore saved 1st character of instance name (without it the same name wouls still produce unnecessary copy + add history item)
+      module->multi_name[0] = module->multi_name[sizeof(module->multi_name) - 1];
+      module->multi_name[sizeof(module->multi_name) - 1] = 0;
+
+      if(g_strcmp0(module->multi_name, name) != 0)
+      {
+        g_strlcpy(module->multi_name, name, sizeof(module->multi_name));
+        dt_dev_add_history_item(module->dev, module, TRUE);
+      }
+    }
+    else
+    {
+      // clear out multi-name (set 1st char to 0)
+      module->multi_name[0] = 0;
       dt_dev_add_history_item(module->dev, module, TRUE);
     }
 
@@ -1360,7 +1376,11 @@ void dt_iop_gui_init(dt_iop_module_t *module)
 void dt_iop_reload_defaults(dt_iop_module_t *module)
 {
   if(darktable.gui) ++darktable.gui->reset;
-  if(module->reload_defaults) module->reload_defaults(module);
+  if(module->reload_defaults)
+  {
+    module->reload_defaults(module);
+    dt_print(DT_DEBUG_PARAMS, "[params] defaults reloaded for %s\n", module->op);
+  }
   dt_iop_load_default_params(module);
   if(darktable.gui) --darktable.gui->reset;
 
@@ -1918,6 +1938,8 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params,
     piece->hash = hash;
 
     free(str);
+
+    dt_print(DT_DEBUG_PARAMS, "[params] commit for %s in pipe %i with hash %lu\n", module->op, pipe->type, (long unsigned int)piece->hash);
   }
   // printf("commit params hash += module %s: %lu, enabled = %d\n", piece->module->op, piece->hash,
   // piece->enabled);

@@ -115,6 +115,12 @@ for dir in $TESTS; do
                  --conf plugins/lighttable/export/force_lcms2=FALSE \
                  --conf plugins/lighttable/export/iccintent=0"
 
+            # Some // loops seems to not honor the omp_set_num_threads() in
+            # darktable.c (this is needed to run 0068-rawdenoise-xtrans on
+            # different configurations)
+
+            export OMP_THREAD_LIMIT=4
+
             $CLI --width 2048 --height 2048 \
                  --hq true --apply-custom-presets false \
                  "$TEST_IMAGES/$IMAGE" "$TEST.xmp" output.png \
@@ -196,9 +202,18 @@ for dir in $TESTS; do
 
             if [ ! -f expected.png ]; then
                 echo "  copy output.png to expected.png"
+                echo "  optimize size of expected.png"
+
+                if [ -z $(which zopflipng) ]; then
+                    echo
+                    echo "  ERROR: please install zopflipng tool."
+                    exit 1
+                fi
+
+                zopflipng output.png expected.png 1> /dev/null 2>&1
+
                 echo "  check that expected.png is correct:"
                 echo "  \$ eog $(basename $PWD)/expected.png"
-                cp output.png expected.png
             fi
 
             exit $res
