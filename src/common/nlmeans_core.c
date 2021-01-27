@@ -18,6 +18,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "common/math.h"
 #include "common/opencl.h"
 #include "control/control.h"
 #include "develop/imageop.h"
@@ -70,17 +71,6 @@ struct patch_t
 };
 typedef struct patch_t patch_t;
 
-// some shorthand to make code more legible
-// if we have OpenMP simd enabled, declare a vectorizable for loop;
-// otherwise, just leave it a plain for()
-#if defined(_OPENMP) && defined(OPENMP_SIMD_)
-#define SIMD_FOR \
-  _Pragma("omp simd") \
-  for
-#else
-#define SIMD_FOR for
-#endif
-
 // avoid cluttering the scalar codepath with #ifdefs by hiding the dependency on SSE2
 #ifndef __SSE2__
 # define _mm_prefetch(where,hint)
@@ -122,7 +112,7 @@ define_patches(const dt_nlmeans_param_t *const params, const int stride, int *nu
     n_patches = (n_patches + 1) / 2;
   *num_patches = n_patches ;
   // allocate a cacheline-aligned buffer
-  struct patch_t* patches = dt_alloc_align(64,n_patches*sizeof(struct patch_t));
+  struct patch_t* patches = dt_alloc_align(64, sizeof(struct patch_t) * n_patches);
   // set up the patch offsets
   int patch_num = 0;
   int shift = 0;
@@ -158,10 +148,28 @@ static float compute_center_pixel_norm(const float center_weight, const int radi
 // compute the channel-normed squared difference between two pixels
 static inline float pixel_difference(const float* const pix1, const float* pix2, const float norm[4])
 {
-  float dif1 = pix1[0] - pix2[0];
-  float dif2 = pix1[1] - pix2[1];
-  float dif3 = pix1[2] - pix2[2];
-  return (dif1 * dif1 * norm[0]) + (dif2 * dif2 * norm[1]) + (dif3 * dif3 * norm[2]);
+  float DT_ALIGNED_PIXEL sum[4] = { 0.f, 0.f, 0.f, 0.f };
+  for_each_channel(i, aligned(sum:16))
+  {
+    const float diff = pix1[i] - pix2[i];
+    sum[i] = diff * diff * norm[i];
+  }
+  return sum[0] + sum[1] + sum[2];
+}
+
+// optimized: pixel_difference(pix1, pix2, norm) - pixel_difference(pix3, pix4, norm)
+static inline float diff_of_pixels_diff(const float* const pix1, const float* pix2,
+                                        const float* const pix3, const float* pix4,
+                                        const float norm[4])
+{
+  float DT_ALIGNED_PIXEL sum[4] = { 0.f, 0.f, 0.f, 0.f };
+  for_each_channel(i, aligned(sum:16))
+  {
+    const float diff1 = pix1[i] - pix2[i];
+    const float diff2 = pix3[i] - pix4[i];
+    sum[i] = (diff1 * diff1 - diff2 * diff2) * norm[i];
+  }
+  return sum[0] + sum[1] + sum[2];
 }
 
 #if defined(__SSE2__)
@@ -383,13 +391,13 @@ void nlmeans_denoise(const float *const inbuf, float *const outbuf,
 {
   // define the factors for applying blending between the original image and the denoised version
   // if running in RGB space, 'luma' should equal 'chroma'
-  const float weight[4] = { params->luma, params->chroma, params->chroma, 1.0f };
-  const float invert[4] = { 1.0f - params->luma, 1.0f - params->chroma, 1.0f - params->chroma, 0.0f };
+  const float DT_ALIGNED_PIXEL weight[4] = { params->luma, params->chroma, params->chroma, 1.0f };
+  const float DT_ALIGNED_PIXEL invert[4] = { 1.0f - params->luma, 1.0f - params->chroma, 1.0f - params->chroma, 0.0f };
   const bool skip_blend = (params->luma == 1.0 && params->chroma == 1.0);
 
   // define the normalization to convert central pixel differences into central pixel weights
   const float cp_norm = compute_center_pixel_norm(params->center_weight,params->patch_radius);
-  const float center_norm[4] = { cp_norm, cp_norm, cp_norm, 1.0f };
+  const float DT_ALIGNED_PIXEL center_norm[4] = { cp_norm, cp_norm, cp_norm, 1.0f };
 
   // define the patches to be compared when denoising a pixel
   const size_t stride = 4 * roi_in->width;
@@ -399,13 +407,13 @@ void nlmeans_denoise(const float *const inbuf, float *const outbuf,
   // allocate scratch space, including an overrun area on each end so we don't need a boundary check on every access
   const int radius = params->patch_radius;
 #if defined(CACHE_PIXDIFFS)
-  const int scratch_size = (2*radius+3)*(SLICE_WIDTH + 2*radius + 1);
+  const size_t scratch_size = (2*radius+3)*(SLICE_WIDTH + 2*radius + 1);
 #else
-  const int scratch_size = SLICE_WIDTH + 2*radius + 1 + 48; // getting false sharing without the +48....
+  const size_t scratch_size = SLICE_WIDTH + 2*radius + 1 + 48; // getting false sharing without the +48....
 #endif /* CACHE_PIXDIFFS */
-  const int padded_scratch_size = 16*((scratch_size+15)/16); // round up to a full cache line
-  const int numthreads = dt_get_num_threads() ;
-  float *scratch_buf = dt_alloc_align(64,numthreads * padded_scratch_size * sizeof(float));
+  const size_t padded_scratch_size = 16*((scratch_size+15)/16); // round up to a full cache line
+  const size_t numthreads = dt_get_num_threads() ;
+  float *scratch_buf = dt_alloc_align_float(numthreads * padded_scratch_size);
   const int chk_height = compute_slice_height(roi_out->height);
   const int chk_width = compute_slice_width(roi_out->width);
 #ifdef _OPENMP
@@ -430,7 +438,7 @@ void nlmeans_denoise(const float *const inbuf, float *const outbuf,
       // we want to incrementally sum results (especially weights in col[3]), so clear the output buffer to zeros
       for (int i = chunk_top; i < chunk_bot; i++)
       {
-        memset(outbuf + 4*(i*roi_out->width+chunk_left), '\0', (chunk_right-chunk_left) * 4 * sizeof(float));
+        memset(outbuf + 4*(i*roi_out->width+chunk_left), '\0', sizeof(float) * 4 * (chunk_right-chunk_left));
       }
       // cycle through all of the patches over our slice of the image
       for (int p = 0; p < num_patches; p++)
@@ -474,8 +482,8 @@ void nlmeans_denoise(const float *const inbuf, float *const outbuf,
               distortion += (col_sums[col+radius] - col_sums[col-radius-1]);
               const float wt = gh(distortion * sharpness);
               const float *const inpx = in+4*col;
-              const float pixel[4] = { inpx[offset],  inpx[offset+1], inpx[offset+2], 1.0f };
-              SIMD_FOR (size_t c = 0; c < 4; c++)
+              const float DT_ALIGNED_PIXEL pixel[4] = { inpx[offset],  inpx[offset+1], inpx[offset+2], 1.0f };
+              for_four_channels(c,aligned(pixel,out:16))
               {
                 out[4*col+c] += pixel[c] * wt;
               }
@@ -492,8 +500,8 @@ void nlmeans_denoise(const float *const inbuf, float *const outbuf,
                                            / (1.0f + params->center_weight);
               const float wt = gh(fmaxf(0.0f, dissimilarity * sharpness - 2.0f));
               const float *const inpx = in + 4*col;
-              const float pixel[4] = { inpx[offset],  inpx[offset+1], inpx[offset+2], 1.0f };
-              SIMD_FOR (size_t c = 0; c < 4; c++)
+              const float DT_ALIGNED_PIXEL pixel[4] = { inpx[offset],  inpx[offset+1], inpx[offset+2], 1.0f };
+              for_four_channels(c,aligned(pixel,out:16))
               {
                 out[4*col+c] += pixel[c] * wt;
               }
@@ -536,8 +544,7 @@ void nlmeans_denoise(const float *const inbuf, float *const outbuf,
 #else
               const float *const top_px = top_row + 4*col;
               const float *const bot_px = bot_row + 4*col;
-              const float diff = (pixel_difference(bot_px,bot_px+offset,params->norm)
-                                  - pixel_difference(top_px,top_px+offset,params->norm));
+              const float diff = diff_of_pixels_diff(bot_px,bot_px+offset,top_px,top_px+offset,params->norm);
               _mm_prefetch(bot_px+stride, _MM_HINT_T0);
               col_sums[col] += diff;
 #endif /* CACHE_PIXDIFFS */
@@ -570,7 +577,7 @@ void nlmeans_denoise(const float *const inbuf, float *const outbuf,
           float *const out = outbuf + 4 * row * roi_out->width;
           for (int col = chunk_left; col < chunk_right; col++)
           {
-            SIMD_FOR(size_t c = 0; c < 4; c++)
+            for_each_channel(c,aligned(out:16))
             {
               out[4*col+c] /= out[4*col+3];
             }
@@ -586,7 +593,7 @@ void nlmeans_denoise(const float *const inbuf, float *const outbuf,
           float *out = outbuf + row * 4 * roi_out->width;
           for (int col = chunk_left; col < chunk_right; col++)
           {
-            SIMD_FOR(size_t c = 0; c < 4; c++)
+            for_each_channel(c,aligned(in,out,weight,invert:16))
             {
               out[4*col+c] = (in[4*col+c] * invert[c]) + (out[4*col+c] / out[4*col+3] * weight[c]);
             }
@@ -615,7 +622,7 @@ void nlmeans_denoise_sse2(const float *const inbuf, float *const outbuf,
 
   // define the normalization to convert central pixel differences into central pixel weights
   const float cp_norm = compute_center_pixel_norm(params->center_weight,params->patch_radius);
-  const float center_norm[4] = { cp_norm, cp_norm, cp_norm, 1.0f };
+  const float DT_ALIGNED_PIXEL center_norm[4] = { cp_norm, cp_norm, cp_norm, 1.0f };
 
   // define the patches to be compared when denoising a pixel
   const size_t stride = 4 * roi_in->width;
@@ -625,13 +632,13 @@ void nlmeans_denoise_sse2(const float *const inbuf, float *const outbuf,
   // allocate scratch space, including an overrun area on each end so we don't need a boundary check on every access
   const int radius = params->patch_radius;
 #if defined(CACHE_PIXDIFFS_SSE)
-  const int scratch_size = (2*radius+3)*(SLICE_WIDTH + 2*radius + 1);
+  const size_t scratch_size = (2*radius+3)*(SLICE_WIDTH + 2*radius + 1);
 #else
-  const int scratch_size = SLICE_WIDTH + 2*radius + 1 + 48; // getting false sharing without the +48....
+  const size_t scratch_size = SLICE_WIDTH + 2*radius + 1 + 48; // getting false sharing without the +48....
 #endif /* CACHE_PIXDIFFS_SSE */
-  const int padded_scratch_size = 16*((scratch_size+15)/16); // round up to a full cache line
-  const int numthreads = dt_get_num_threads() ;
-  float *scratch_buf = dt_alloc_align(64,numthreads * padded_scratch_size * sizeof(float));
+  const size_t padded_scratch_size = 16*((scratch_size+15)/16); // round up to a full cache line
+  const size_t numthreads = dt_get_num_threads() ;
+  float *scratch_buf = dt_alloc_align_float((size_t)numthreads * padded_scratch_size);
   const int chk_height = compute_slice_height(roi_out->height);
   const int chk_width = compute_slice_width(roi_out->width);
 #ifdef _OPENMP
@@ -656,7 +663,7 @@ void nlmeans_denoise_sse2(const float *const inbuf, float *const outbuf,
       // we want to incrementally sum results (especially weights in col[3]), so clear the output buffer to zeros
       for (int i = chunk_top; i < chunk_bot; i++)
       {
-        memset(outbuf + 4*(i*roi_out->width+chunk_left), '\0', (chunk_right-chunk_left) * 4 * sizeof(float));
+        memset(outbuf + 4*(i*roi_out->width+chunk_left), '\0', sizeof(float) * 4 * (chunk_right-chunk_left));
       }
       // cycle through all of the patches over our slice of the image
       for (int p = 0; p < num_patches; p++)
@@ -930,7 +937,7 @@ int nlmeans_denoise_cl(const dt_nlmeans_param_t *const params, const int devid,
   unsigned int state = 0;
   for(int k = 0; k < NUM_BUCKETS; k++)
   {
-    buckets[k] = dt_opencl_alloc_device_buffer(devid, (size_t)width * height * sizeof(float));
+    buckets[k] = dt_opencl_alloc_device_buffer(devid, sizeof(float) * width * height);
     if(buckets[k] == NULL) goto error;
   }
 
@@ -1026,7 +1033,7 @@ int nlmeans_denoiseprofile_cl(const dt_nlmeans_param_t *const params, const int 
   unsigned int state = 0;
   for(int k = 0; k < NUM_BUCKETS; k++)
   {
-    buckets[k] = dt_opencl_alloc_device_buffer(devid, (size_t)width * height * sizeof(float));
+    buckets[k] = dt_opencl_alloc_device_buffer(devid, sizeof(float) * width * height);
     if(buckets[k] == NULL) goto error;
   }
 

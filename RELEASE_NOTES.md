@@ -29,9 +29,18 @@ you are strongly advised to take a backup first.
 
 ## New Features And Changes
 
+- Many optimizations in different part of the code (soften, tone equalizer,
+  circle masks, color picker).
+
 ## Bug fixes
 
 ## Notes
+
+- The database upgrade can be slow.
+
+  This new version is modifying quite a lot the structure by adding many
+  foreign keys and cascade support. This will avoid dangling data in the
+  database and will enforce a better consistency.
 
 ## Lua
 

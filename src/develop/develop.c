@@ -141,7 +141,6 @@ void dt_dev_cleanup(dt_develop_t *dev)
   if(!dev) return;
   // image_cache does not have to be unref'd, this is done outside develop module.
   dt_pthread_mutex_destroy(&dev->pipe_mutex);
-  dt_pthread_mutex_destroy(&dev->pipe_mutex);
   dt_pthread_mutex_destroy(&dev->preview_pipe_mutex);
   dt_pthread_mutex_destroy(&dev->preview2_pipe_mutex);
   dev->proxy.chroma_adaptation = NULL;
@@ -252,6 +251,14 @@ void dt_dev_invalidate_all(dt_develop_t *dev)
 {
   dev->image_status = dev->preview_status = dev->preview2_status = DT_DEV_PIXELPIPE_DIRTY;
   dev->timestamp++;
+}
+
+void dt_dev_invalidate_preview(dt_develop_t *dev)
+{
+  dev->preview_status = DT_DEV_PIXELPIPE_DIRTY;
+  dev->timestamp++;
+  if(dev->pipe) dev->pipe->input_timestamp = dev->timestamp;
+  if(dev->preview2_pipe) dev->preview2_pipe->input_timestamp = dev->timestamp;
 }
 
 void dt_dev_process_preview_job(dt_develop_t *dev)
@@ -1102,8 +1109,7 @@ void dt_dev_reload_history_items(dt_develop_t *dev)
         dt_iop_gui_init(module);
 
         /* add module to right panel */
-        GtkWidget *expander = dt_iop_gui_get_expander(module);
-        dt_ui_container_add_widget(darktable.gui->ui, DT_UI_CONTAINER_PANEL_RIGHT_CENTER, expander);
+        dt_iop_gui_set_expander(module);
         dt_iop_gui_set_expanded(module, TRUE, FALSE);
 
         dt_iop_reload_defaults(module);
@@ -1494,57 +1500,61 @@ static gboolean _dev_auto_apply_presets(dt_develop_t *dev)
   sqlite3_step(stmt);
   sqlite3_finalize(stmt);
 
-  // now we want to auto-apply the iop-order list if one corresponds
+  // now we want to auto-apply the iop-order list if one corresponds and none are
+  // still applied. Note that we can already have an iop-order list set when
+  // copying an history or applying a style to a not yet developed image.
 
-  DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
-                              "SELECT op_params"
-                              " FROM data.presets"
-                              " WHERE autoapply=1"
-                              "       AND ((?2 LIKE model AND ?3 LIKE maker) OR (?4 LIKE model AND ?5 LIKE maker))"
-                              "       AND ?6 LIKE lens AND ?7 BETWEEN iso_min AND iso_max"
-                              "       AND ?8 BETWEEN exposure_min AND exposure_max"
-                              "       AND ?9 BETWEEN aperture_min AND aperture_max"
-                              "       AND ?10 BETWEEN focal_length_min AND focal_length_max"
-                              "       AND (format = 0 OR (format&?11 != 0 AND ~format&?12 != 0))"
-                              "       AND operation = 'ioporder'"
-                              " ORDER BY writeprotect DESC, LENGTH(model), LENGTH(maker), LENGTH(lens)",
-                              -1, &stmt, NULL);
-  DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
-  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 2, image->exif_model, -1, SQLITE_TRANSIENT);
-  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 3, image->exif_maker, -1, SQLITE_TRANSIENT);
-  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 4, image->camera_alias, -1, SQLITE_TRANSIENT);
-  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 5, image->camera_maker, -1, SQLITE_TRANSIENT);
-  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 6, image->exif_lens, -1, SQLITE_TRANSIENT);
-  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 7, fmaxf(0.0f, fminf(FLT_MAX, image->exif_iso)));
-  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 8, fmaxf(0.0f, fminf(1000000, image->exif_exposure)));
-  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 9, fmaxf(0.0f, fminf(1000000, image->exif_aperture)));
-  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 10, fmaxf(0.0f, fminf(1000000, image->exif_focal_length)));
-  // 0: dontcare, 1: ldr, 2: raw plus monochrome & color
-  DT_DEBUG_SQLITE3_BIND_INT(stmt, 11, iformat);
-  DT_DEBUG_SQLITE3_BIND_INT(stmt, 12, excluded);
-  if(sqlite3_step(stmt) == SQLITE_ROW)
+  if(!dt_ioppr_has_iop_order_list(imgid))
   {
-    const char *params = (char *)sqlite3_column_blob(stmt, 0);
-    const int32_t params_len = sqlite3_column_bytes(stmt, 0);
-    GList *iop_list = dt_ioppr_deserialize_iop_order_list(params, params_len);
-    dt_ioppr_write_iop_order_list(iop_list, imgid);
-    g_list_free_full(iop_list, free);
-    dt_ioppr_set_default_iop_order(dev, imgid);
-  }
-  else
-  {
-    // we have no auto-apply order, so apply iop order, depending of the worflow
-    GList *iop_list;
-    if(is_scene_referred || is_workflow_none)
-      iop_list = dt_ioppr_get_iop_order_list_version(DT_IOP_ORDER_V30);
+    DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
+                                "SELECT op_params"
+                                " FROM data.presets"
+                                " WHERE autoapply=1"
+                                "       AND ((?2 LIKE model AND ?3 LIKE maker) OR (?4 LIKE model AND ?5 LIKE maker))"
+                                "       AND ?6 LIKE lens AND ?7 BETWEEN iso_min AND iso_max"
+                                "       AND ?8 BETWEEN exposure_min AND exposure_max"
+                                "       AND ?9 BETWEEN aperture_min AND aperture_max"
+                                "       AND ?10 BETWEEN focal_length_min AND focal_length_max"
+                                "       AND (format = 0 OR (format&?11 != 0 AND ~format&?12 != 0))"
+                                "       AND operation = 'ioporder'"
+                                " ORDER BY writeprotect DESC, LENGTH(model), LENGTH(maker), LENGTH(lens)",
+                                -1, &stmt, NULL);
+    DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
+    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 2, image->exif_model, -1, SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 3, image->exif_maker, -1, SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 4, image->camera_alias, -1, SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 5, image->camera_maker, -1, SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 6, image->exif_lens, -1, SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 7, fmaxf(0.0f, fminf(FLT_MAX, image->exif_iso)));
+    DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 8, fmaxf(0.0f, fminf(1000000, image->exif_exposure)));
+    DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 9, fmaxf(0.0f, fminf(1000000, image->exif_aperture)));
+    DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 10, fmaxf(0.0f, fminf(1000000, image->exif_focal_length)));
+    // 0: dontcare, 1: ldr, 2: raw plus monochrome & color
+    DT_DEBUG_SQLITE3_BIND_INT(stmt, 11, iformat);
+    DT_DEBUG_SQLITE3_BIND_INT(stmt, 12, excluded);
+    if(sqlite3_step(stmt) == SQLITE_ROW)
+    {
+      const char *params = (char *)sqlite3_column_blob(stmt, 0);
+      const int32_t params_len = sqlite3_column_bytes(stmt, 0);
+      GList *iop_list = dt_ioppr_deserialize_iop_order_list(params, params_len);
+      dt_ioppr_write_iop_order_list(iop_list, imgid);
+      g_list_free_full(iop_list, free);
+      dt_ioppr_set_default_iop_order(dev, imgid);
+    }
     else
-      iop_list = dt_ioppr_get_iop_order_list_version(DT_IOP_ORDER_LEGACY);
-    dt_ioppr_write_iop_order_list(iop_list, imgid);
-    g_list_free_full(iop_list, free);
-    dt_ioppr_set_default_iop_order(dev, imgid);
+    {
+      // we have no auto-apply order, so apply iop order, depending of the worflow
+      GList *iop_list;
+      if(is_scene_referred || is_workflow_none)
+        iop_list = dt_ioppr_get_iop_order_list_version(DT_IOP_ORDER_V30);
+      else
+        iop_list = dt_ioppr_get_iop_order_list_version(DT_IOP_ORDER_LEGACY);
+      dt_ioppr_write_iop_order_list(iop_list, imgid);
+      g_list_free_full(iop_list, free);
+      dt_ioppr_set_default_iop_order(dev, imgid);
+    }
+    sqlite3_finalize(stmt);
   }
-
-  sqlite3_finalize(stmt);
 
   image->flags |= DT_IMAGE_AUTO_PRESETS_APPLIED | DT_IMAGE_NO_LEGACY_PRESETS;
 
@@ -2073,6 +2083,16 @@ void dt_dev_reprocess_center(dt_develop_t *dev)
   }
 }
 
+void dt_dev_reprocess_preview(dt_develop_t *dev)
+{
+  if(darktable.gui->reset || !dev || !dev->gui_attached) return;
+
+  dev->preview_pipe->changed |= DT_DEV_PIPE_SYNCH;
+  dev->preview_pipe->cache_obsolete = 1;
+
+  dt_dev_invalidate_preview(dev);
+  dt_control_queue_redraw_center();
+}
 
 void dt_dev_check_zoom_bounds(dt_develop_t *dev, float *zoom_x, float *zoom_y, dt_dev_zoom_t zoom,
                               int closeup, float *boxww, float *boxhh)

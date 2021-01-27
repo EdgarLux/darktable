@@ -21,7 +21,9 @@
 #include "common/darktable.h"
 #include "common/debug.h"
 #include "common/file_location.h"
+#include "common/math.h"
 #include "common/srgb_tone_curve_values.h"
+#include "common/utility.h"
 #include "control/conf.h"
 #include "control/control.h"
 #include "develop/imageop.h"
@@ -138,29 +140,6 @@ generate_mat3inv_body(double, A, B)
 #undef A
 #undef generate_mat3inv_body
 
-
-static void mat3mulv(float *dst, const float *const mat, const float *const v)
-{
-  for(int k = 0; k < 3; k++)
-  {
-    float x = 0.0f;
-    for(int i = 0; i < 3; i++) x += mat[3 * k + i] * v[i];
-    dst[k] = x;
-  }
-}
-
-static void mat3mul(float *dst, const float *const m1, const float *const m2)
-{
-  for(int k = 0; k < 3; k++)
-  {
-    for(int i = 0; i < 3; i++)
-    {
-      float x = 0.0f;
-      for(int j = 0; j < 3; j++) x += m1[3 * k + j] * m2[3 * j + i];
-      dst[3 * k + i] = x;
-    }
-  }
-}
 
 static const dt_colorspaces_color_profile_t *_get_profile(dt_colorspaces_t *self,
                                                           dt_colorspaces_color_profile_type_t type,
@@ -315,7 +294,7 @@ static cmsHPROFILE _create_lcms_profile(const char *desc, const char *dmdd,
   cmsToneCurve *out_curves[3] = { trc, trc, trc };
   cmsHPROFILE profile = cmsCreateRGBProfile(whitepoint, primaries, out_curves);
 
-  if(v2) cmsSetProfileVersion(profile, 2.1);
+  if(v2) cmsSetProfileVersion(profile, 2.4);
 
   cmsSetHeaderFlags(profile, cmsEmbeddedProfileTrue);
 
@@ -393,7 +372,7 @@ static double _HLG_fct(double x)
 
 static cmsToneCurve* _colorspaces_create_transfer(int32_t size, double (*fct)(double))
 {
-  float *values = g_malloc(size * sizeof(float));
+  float *values = g_malloc(sizeof(float) * size);
 
   for (int32_t i = 0; i < size; ++i)
   {
@@ -1354,22 +1333,12 @@ static GList *load_profile_from_dir(const char *subdir)
         ;
       if(!g_ascii_strcasecmp(cc, ".icc") || !g_ascii_strcasecmp(cc, ".icm"))
       {
-        // TODO: add support for grayscale profiles, then remove _ensure_rgb_profile() from here
-        char *icc_content = NULL;
-        cmsHPROFILE tmpprof;
-
-        FILE *fd = g_fopen(filename, "rb");
-        if(!fd) goto icc_loading_done;
-
-        fseek(fd, 0, SEEK_END);
-        size_t end = ftell(fd);
-        rewind(fd);
-
-        icc_content = (char *)malloc(end * sizeof(char));
+        size_t end;
+        char *icc_content = dt_read_file(filename, &end);
         if(!icc_content) goto icc_loading_done;
-        if(fread(icc_content, sizeof(char), end, fd) != end) goto icc_loading_done;
 
-        tmpprof = _ensure_rgb_profile(cmsOpenProfileFromMem(icc_content, end * sizeof(char)));
+        // TODO: add support for grayscale profiles, then remove _ensure_rgb_profile() from here
+        cmsHPROFILE tmpprof = _ensure_rgb_profile(cmsOpenProfileFromMem(icc_content, sizeof(char) * end));
         if(tmpprof)
         {
           dt_colorspaces_color_profile_t *prof = (dt_colorspaces_color_profile_t *)calloc(1, sizeof(dt_colorspaces_color_profile_t));
@@ -1389,8 +1358,7 @@ static GList *load_profile_from_dir(const char *subdir)
         }
 
 icc_loading_done:
-        if(fd) fclose(fd);
-        free(icc_content);
+        if(icc_content) free(icc_content);
       }
       g_free(filename);
     }
@@ -1435,7 +1403,7 @@ dt_colorspaces_t *dt_colorspaces_init()
                                      _("system display profile"), -1, -1, ++display_pos, ++category_pos, -1, -1));
   res->profiles = g_list_append(
       res->profiles, _create_profile(DT_COLORSPACE_DISPLAY2, dt_colorspaces_create_srgb_profile(),
-                                     _("system display profile"), -1, -1, -1, ++category_pos, -1, ++display2_pos));
+                                     _("system display profile (second window)"), -1, -1, -1, ++category_pos, -1, ++display2_pos));
   // we want a v4 with parametric curve for input and a v2 with point trc for output
   // see http://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html#profile-variants-and-versions
   // TODO: what about display?
@@ -1527,10 +1495,25 @@ dt_colorspaces_t *dt_colorspaces_init()
   for(GList *iter = temp_profiles; iter; iter = g_list_next(iter))
   {
     dt_colorspaces_color_profile_t *prof = (dt_colorspaces_color_profile_t *)iter->data;
+    // FIXME: do want to filter out non-RGB profiles for cases besides histogram profile? colorin is OK with RGB or XYZ, print is OK with anything which LCMS likes, otherwise things are more choosey
+    const cmsColorSpaceSignature color_space = cmsGetColorSpace(prof->profile);
     prof->out_pos = ++out_pos;
     prof->display_pos = ++display_pos;
     prof->display2_pos = ++display2_pos;
-    prof->category_pos = ++category_pos;
+    if(color_space == cmsSigRgbData)
+    {
+      prof->category_pos = ++category_pos;
+    }
+    else
+    {
+      dt_print(DT_DEBUG_DEV,
+               "output profile `%s' color space `%c%c%c%c' not supported for histogram profile\n",
+               prof->name,
+               (char)(color_space>>24),
+               (char)(color_space>>16),
+               (char)(color_space>>8),
+               (char)(color_space));
+    }
     prof->work_pos = ++work_pos;
   }
   res->profiles = g_list_concat(res->profiles, temp_profiles);
@@ -1678,7 +1661,7 @@ const char *dt_colorspaces_get_name(dt_colorspaces_color_profile_type_t type,
      case DT_COLORSPACE_WORK:
        return _("work profile");
      case DT_COLORSPACE_DISPLAY2:
-       return _("system display profile");
+       return _("system display profile (second window)");
      case DT_COLORSPACE_REC709:
        return _("gamma22 Rec709");
      case DT_COLORSPACE_PROPHOTO_RGB:
