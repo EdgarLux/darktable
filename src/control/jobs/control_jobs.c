@@ -512,7 +512,7 @@ static int32_t dt_control_merge_hdr_job_run(dt_job_t *job)
   gchar *directory = g_path_get_dirname((const gchar *)pathname);
   dt_film_t film;
   const int filmid = dt_film_new(&film, directory);
-  const uint32_t imageid = dt_image_import(filmid, pathname, TRUE);
+  const uint32_t imageid = dt_image_import(filmid, pathname, TRUE, TRUE);
   g_free(directory);
 
   // refresh the thumbtable view
@@ -1140,11 +1140,13 @@ static int32_t dt_control_gpx_apply_job_run(dt_job_t *job)
 
   dt_undo_end_group(darktable.undo);
 
-  dt_control_log(ngettext("applied matched GPX location onto %d image", "applied matched GPX location onto %d images", cntr), cntr);
+  dt_control_log(ngettext("applied matched GPX location onto %d image",
+                          "applied matched GPX location onto %d images", cntr), cntr);
 
   g_time_zone_unref(tz_camera);
   g_time_zone_unref(tz_utc);
   dt_gpx_destroy(gpx);
+  DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_GEOTAG_CHANGED, g_list_copy(t), 0);
   return 0;
 
 bail_out:
