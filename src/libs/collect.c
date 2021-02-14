@@ -595,7 +595,10 @@ static gboolean view_onButtonPressed(GtkWidget *treeview, GdkEventButton *event,
        || d->view_rule == DT_COLLECTION_PROP_FILMROLL)
       && event->type == GDK_BUTTON_PRESS && event->button == 3)
      || (!d->singleclick && event->type == GDK_2BUTTON_PRESS && event->button == 1)
-     || (d->singleclick && event->type == GDK_BUTTON_PRESS && event->button == 1))
+     || (d->singleclick && event->type == GDK_BUTTON_PRESS && event->button == 1)
+     || ((d->view_rule == DT_COLLECTION_PROP_FOLDERS || d->view_rule == DT_COLLECTION_PROP_FILMROLL)
+          && (event->type == GDK_BUTTON_PRESS && event->button == 1 && 
+              event->state & GDK_SHIFT_MASK && event->state & GDK_CONTROL_MASK)))
   {
     GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(treeview));
     GtkTreePath *path = NULL;
@@ -634,7 +637,8 @@ static gboolean view_onButtonPressed(GtkWidget *treeview, GdkEventButton *event,
     /* single click on folder with the right mouse button? */
     if(((d->view_rule == DT_COLLECTION_PROP_FOLDERS)
         || (d->view_rule == DT_COLLECTION_PROP_FILMROLL))
-       && (event->type == GDK_BUTTON_PRESS && event->button == 3))
+       && (event->type == GDK_BUTTON_PRESS && event->button == 3)
+       && !(event->state & GDK_SHIFT_MASK && event->state & GDK_CONTROL_MASK))
     {
       row_activated_with_event(GTK_TREE_VIEW(treeview), path, NULL, event, d);
       view_popup_menu(treeview, event, d);
@@ -1249,8 +1253,10 @@ static void tree_view(dt_lib_collect_rule_t *dr)
         break;
       case DT_COLLECTION_PROP_TAG:
       {
-        char *sensitive = dt_conf_get_string("plugins/lighttable/tagging/case_sensitivity");
-        if(!strcmp(sensitive, _("insensitive")))
+        const gboolean is_insensitive =
+          dt_conf_is_equal("plugins/lighttable/tagging/case_sensitivity", "insensitive");
+
+        if(is_insensitive)
           query = g_strdup_printf("SELECT name, 1 AS tagid , COUNT(*) AS count"
                                   " FROM (SELECT DISTINCT name, id"
                                   "   FROM main.images AS mi"
@@ -1269,7 +1275,7 @@ static void tree_view(dt_lib_collect_rule_t *dr)
                                   "   ON tagid = tag_id"
                                   " WHERE %s"
                                   " GROUP BY name,tag_id", where_ext);
-        g_free(sensitive);
+
         query = dt_util_dstrcat(query, " UNION ALL "
                                        "SELECT '%s' AS name, 0 as id, COUNT(*) AS count "
                                        "FROM main.images AS mi "
@@ -2807,6 +2813,7 @@ void gui_init(dt_lib_module_t *self)
     dt_bauhaus_combobox_set_popup_scale(d->rule[i].combo, 2);
     dt_bauhaus_combobox_set_selected_text_align(d->rule[i].combo, DT_BAUHAUS_COMBOBOX_ALIGN_LEFT);
     _populate_collect_combo(d->rule[i].combo);
+    dt_bauhaus_combobox_mute_scrolling(d->rule[i].combo);
 
     g_signal_connect(G_OBJECT(d->rule[i].combo), "value-changed", G_CALLBACK(combo_changed), d->rule + i);
     gtk_box_pack_start(box, d->rule[i].combo, TRUE, TRUE, 0);

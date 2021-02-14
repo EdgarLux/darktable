@@ -435,12 +435,17 @@ static gboolean _blendif_clean_output_channels(dt_iop_module_t *module)
   gboolean changed = FALSE;
   if(!bd->output_channels_shown)
   {
+    const uint32_t mask = bd->csp == DEVELOP_BLEND_CS_LAB
+      ? DEVELOP_BLENDIF_Lab_MASK & DEVELOP_BLENDIF_OUTPUT_MASK
+      : DEVELOP_BLENDIF_RGB_MASK & DEVELOP_BLENDIF_OUTPUT_MASK;
+
     dt_develop_blend_params_t *const d = module->blend_params;
 
-    // clear (set to off) output channels on/off indicator
-    const uint32_t old_blendif = d->blendif;
+    // clear the output channels and invert them when needed
+     const uint32_t old_blendif = d->blendif;
+     const uint32_t need_inversion = d->mask_combine & DEVELOP_COMBINE_INCL ? (mask << 16) : 0;
 
-    d->blendif &= ~(DEVELOP_BLENDIF_OUTPUT_MASK);
+    d->blendif = (d->blendif & ~(mask | (mask << 16))) | need_inversion;
 
     changed = (d->blendif != old_blendif);
 
@@ -1047,12 +1052,24 @@ static void _blendop_blendif_showmask_clicked(GtkWidget *button, GdkEventButton 
       module->request_mask_display |= DT_DEV_PIXELPIPE_DISPLAY_MASK;
     else
       module->request_mask_display |= (has_mask_display ? 0 : DT_DEV_PIXELPIPE_DISPLAY_MASK);
+    const gboolean is_active = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(button));
 
-    if(module->request_mask_display & (DT_DEV_PIXELPIPE_DISPLAY_MASK | DT_DEV_PIXELPIPE_DISPLAY_CHANNEL))
-      gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(button), TRUE);
+    // note that a ctrl+click followed by a shift-click must keep the
+    // toggle button active. But a single click must invert current
+    // toggle buttong.  That's why we check for request_mask_display
+    // value below. But note that the toggle button state has not yet
+    // been inverted by Gtk at this stage. So if a button must be ON
+    // we ensure it is OFF now.
+
+    if(module->request_mask_display
+       & (DT_DEV_PIXELPIPE_DISPLAY_MASK | DT_DEV_PIXELPIPE_DISPLAY_CHANNEL))
+    {
+      if(is_active) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(button), FALSE);
+    }
     else
-      gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(button), FALSE);
-
+    {
+      if(!is_active) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(button), TRUE);
+    }
 
     if(module->off) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(module->off), TRUE);
 

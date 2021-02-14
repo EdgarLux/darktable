@@ -153,18 +153,29 @@ static inline float pixels2print(dt_lib_export_t *self, const uint32_t pix)
 
 const char *name(dt_lib_module_t *self)
 {
-  return _("export selected");
+  return _("export");
 }
 
 const char **views(dt_lib_module_t *self)
 {
-  static const char *v[] = {"lighttable", NULL};
+  static const char *v1[] = {"lighttable", "darkroom", NULL};
+  static const char *v2[] = {"lighttable", NULL};
+
+  if(dt_conf_get_bool("plugins/darkroom/export/visible"))
+    return v1;
+  else
+    return v2;
+  static const char *v[] = {"lighttable", "darkroom", NULL};
   return v;
 }
 
 uint32_t container(dt_lib_module_t *self)
 {
-  return DT_UI_CONTAINER_PANEL_RIGHT_CENTER;
+  const dt_view_t *cv = dt_view_manager_get_current_view(darktable.view_manager);
+  if(cv->view((dt_view_t *)cv) == DT_VIEW_DARKROOM)
+    return DT_UI_CONTAINER_PANEL_LEFT_CENTER;
+  else
+    return DT_UI_CONTAINER_PANEL_RIGHT_CENTER;
 }
 
 static void _update(dt_lib_module_t *self)
@@ -271,6 +282,12 @@ static void _scale_optim()
 
 static void _export_button_clicked(GtkWidget *widget, dt_lib_export_t *d)
 {
+  /* write current history changes so nothing gets lost,
+     do that only in the darkroom as there is nothing to be saved
+     when in the lighttable (and it would write over current history stack) */
+  const dt_view_t *cv = dt_view_manager_get_current_view(darktable.view_manager);
+  if(cv->view(cv) == DT_VIEW_DARKROOM) dt_dev_write_history(darktable.develop);
+
   char style[128] = { 0 };
 
   // get the format_name and storage_name settings which are plug-ins name and not necessary what is displayed on the combobox.
@@ -526,13 +543,12 @@ void _print_size_update_display(dt_lib_export_t *self)
   }
   else
   {
-    gchar *resizing = dt_conf_get_string(CONFIG_PREFIX "resizing");
-    if (strcmp(resizing, "scaling") != 0)
+    const gboolean is_scaling = dt_conf_is_equal(CONFIG_PREFIX "resizing", "scaling");
+    if (!is_scaling)
     {
       // max size
       gtk_widget_set_visible(GTK_WIDGET(self->print_size), TRUE);
     }
-    g_free(resizing);
     gtk_widget_set_sensitive(GTK_WIDGET(self->width), FALSE);
     gtk_widget_set_sensitive(GTK_WIDGET(self->height), FALSE);
 
@@ -1410,8 +1426,8 @@ void gui_init(dt_lib_module_t *self)
   gtk_widget_set_no_show_all(self->widget, TRUE);
   _print_size_update_display(d);
 
-  gchar *resizing = dt_conf_get_string(CONFIG_PREFIX "resizing");
-  if (strcmp(resizing, "scaling") == 0)
+  const gboolean is_scaling = dt_conf_is_equal(CONFIG_PREFIX "resizing", "scaling");
+  if (is_scaling)
   {
     // scaling
     gtk_widget_show(GTK_WIDGET(d->scale));
@@ -1425,7 +1441,6 @@ void gui_init(dt_lib_module_t *self)
     gtk_widget_show(GTK_WIDGET(d->hbox1));
     gtk_widget_show(GTK_WIDGET(d->print_size));
   }
-  g_free(resizing);
 
   d->metadata_export = NULL;
 
