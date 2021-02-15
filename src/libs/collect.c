@@ -598,7 +598,7 @@ static gboolean view_onButtonPressed(GtkWidget *treeview, GdkEventButton *event,
      || (d->singleclick && event->type == GDK_BUTTON_PRESS && event->button == 1)
      || ((d->view_rule == DT_COLLECTION_PROP_FOLDERS || d->view_rule == DT_COLLECTION_PROP_FILMROLL)
           && (event->type == GDK_BUTTON_PRESS && event->button == 1 && 
-              event->state & GDK_SHIFT_MASK && event->state & GDK_CONTROL_MASK)))
+              (event->state & GDK_SHIFT_MASK || event->state & GDK_CONTROL_MASK))))
   {
     GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(treeview));
     GtkTreePath *path = NULL;
@@ -620,7 +620,7 @@ static gboolean view_onButtonPressed(GtkWidget *treeview, GdkEventButton *event,
       {
         // range selection
         GList *sels = gtk_tree_selection_get_selected_rows(selection, NULL);
-        GtkTreePath *path2 = (GtkTreePath *)g_list_nth_data(sels, 0);
+        GtkTreePath *path2 = (GtkTreePath *)sels->data;
         gtk_tree_selection_unselect_all(selection);
         if(gtk_tree_path_compare(path, path2) > 0)
           gtk_tree_selection_select_range(selection, path, path2);
@@ -638,7 +638,7 @@ static gboolean view_onButtonPressed(GtkWidget *treeview, GdkEventButton *event,
     if(((d->view_rule == DT_COLLECTION_PROP_FOLDERS)
         || (d->view_rule == DT_COLLECTION_PROP_FILMROLL))
        && (event->type == GDK_BUTTON_PRESS && event->button == 3)
-       && !(event->state & GDK_SHIFT_MASK && event->state & GDK_CONTROL_MASK))
+       && !(event->state & GDK_SHIFT_MASK || event->state & GDK_CONTROL_MASK))
     {
       row_activated_with_event(GTK_TREE_VIEW(treeview), path, NULL, event, d);
       view_popup_menu(treeview, event, d);
@@ -2196,7 +2196,7 @@ static void row_activated_with_event(GtkTreeView *view, GtkTreePath *path, GtkTr
   GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(view));
   if(gtk_tree_selection_count_selected_rows(selection) < 1) return;
   GList *sels = gtk_tree_selection_get_selected_rows(selection, &model);
-  GtkTreePath *path1 = (GtkTreePath *)g_list_nth_data(sels, 0);
+  GtkTreePath *path1 = (GtkTreePath *)sels->data;
   if(!gtk_tree_model_get_iter(model, &iter, path1)) return;
 
   gchar *text;
