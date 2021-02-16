@@ -983,17 +983,14 @@ static int dt_brush_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, 
    frills */
 static float _brush_get_position_in_segment(float x, float y, dt_masks_form_t *form, int segment)
 {
-  const guint nb = g_list_length(form->points);
-  const int pos0 = segment;
-  const int pos2 = segment + 2;
-  const int pos3 = segment + 3;
-
-  GList *firstpt = g_list_nth_data(form->points, pos0);
-  GList *nextpt = g_list_next(firstpt);
-  dt_masks_point_brush_t *point0 = (dt_masks_point_brush_t *)firstpt->data;
-  dt_masks_point_brush_t *point1 = nextpt ? (dt_masks_point_brush_t *)nextpt->data : point0;
-  dt_masks_point_brush_t *point2 = pos2 < nb ? (dt_masks_point_brush_t *)g_list_nth_data(firstpt, 2) : point1;
-  dt_masks_point_brush_t *point3 = pos3 < nb ? (dt_masks_point_brush_t *)g_list_nth_data(firstpt, 3) : point2;
+  GList *pt = g_list_nth(form->points, segment);
+  dt_masks_point_brush_t *point0 = (dt_masks_point_brush_t *)pt->data;
+  if(pt) pt = g_list_next(pt);
+  dt_masks_point_brush_t *point1 = pt ? (dt_masks_point_brush_t *)pt->data : point0;
+  if(pt) pt = g_list_next(pt);
+  dt_masks_point_brush_t *point2 = pt ? (dt_masks_point_brush_t *)pt->data : point1;
+  if(pt) pt = g_list_next(pt);
+  dt_masks_point_brush_t *point3 = pt ? (dt_masks_point_brush_t *)pt->data : point2;
 
   float tmin = 0;
   float dmin = FLT_MAX;
@@ -1856,7 +1853,8 @@ static int dt_brush_events_mouse_moved(struct dt_iop_module_t *module, float pzx
   const dt_dev_zoom_t zoom = dt_control_get_dev_zoom();
   const int closeup = dt_control_get_dev_closeup();
   const float zoom_scale = dt_dev_get_zoom_scale(darktable.develop, zoom, 1<<closeup, 1);
-  const float as = 0.005f / zoom_scale * darktable.develop->preview_pipe->backbuf_width;
+  const float as = DT_PIXEL_APPLY_DPI(5) / zoom_scale;
+
   if(!gui) return 0;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *)g_list_nth_data(gui->points, index);
   if(!gpt) return 0;
