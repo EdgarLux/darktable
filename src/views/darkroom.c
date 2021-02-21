@@ -216,8 +216,7 @@ static cairo_filter_t _get_filtering_level(dt_develop_t *dev)
 void _display_module_trouble_message_callback(gpointer instance,
                                               dt_iop_module_t *module,
                                               const char *const trouble_msg,
-                                              const char *const trouble_tooltip,
-                                              const char *const stderr_message)
+                                              const char *const trouble_tooltip)
 {
   GtkWidget *label_widget = NULL;
 
@@ -232,12 +231,6 @@ void _display_module_trouble_message_callback(gpointer instance,
 
   if(trouble_msg && *trouble_msg)
   {
-    if((!module || !module->has_trouble) && (stderr_message || !module->widget))
-    {
-      const char *name = module ? module->name() : "?";
-      fprintf(stderr,"[%s] %s\n", name, stderr_message ? stderr_message : trouble_msg);
-    }
-
     if(module && module->widget)
     {
       if(label_widget)
@@ -3210,7 +3203,7 @@ void leave(dt_view_t *self)
 
   // darkroom development could have changed a collection, so update that before being back in lighttable
   dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD,
-                             g_list_append(NULL, GINT_TO_POINTER(darktable.develop->image_storage.id)));
+                             g_list_prepend(NULL, GINT_TO_POINTER(darktable.develop->image_storage.id)));
 
   darktable.develop->image_storage.id = -1;
 
