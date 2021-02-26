@@ -783,8 +783,7 @@ const GList *dt_view_get_images_to_act_on(const gboolean only_visible, const gbo
   {
     // we test active images if mouse outside table
     gboolean ok = TRUE;
-    if(!dt_ui_thumbtable(darktable.gui->ui)->mouse_inside
-       && g_slist_length(darktable.view_manager->act_on.active_imgs) > 0)
+    if(!dt_ui_thumbtable(darktable.gui->ui)->mouse_inside && darktable.view_manager->act_on.active_imgs)
     {
       GSList *l1 = darktable.view_manager->act_on.active_imgs;
       GSList *l2 = darktable.view_manager->active_images;
@@ -803,6 +802,7 @@ const GList *dt_view_get_images_to_act_on(const gboolean only_visible, const gbo
   }
 
   GList *l = NULL;
+  gboolean inside_sel = FALSE;
   if(mouseover > 0)
   {
     // collumn 1,2,3
@@ -810,7 +810,6 @@ const GList *dt_view_get_images_to_act_on(const gboolean only_visible, const gbo
     {
       // collumn 1,2
       sqlite3_stmt *stmt;
-      gboolean inside_sel = FALSE;
       gchar *query = dt_util_dstrcat(NULL, "SELECT imgid FROM main.selected_images WHERE imgid =%d", mouseover);
       DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);
       if(stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW)
@@ -823,15 +822,47 @@ const GList *dt_view_get_images_to_act_on(const gboolean only_visible, const gbo
       if(inside_sel)
       {
         // collumn 1
-        DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
-                                    "SELECT m.imgid FROM memory.collected_images as m, main.selected_images as s "
-                                    "WHERE m.imgid=s.imgid "
-                                    "ORDER BY m.rowid",
-                                    -1, &stmt, NULL);
+
+        // first, we try to return cached list if we wher already
+        // inside sel and the selection has not changed
+        if(!force
+           && darktable.view_manager->act_on.ok
+           && darktable.view_manager->act_on.image_over_inside_sel
+           && darktable.view_manager->act_on.inside_table)
+        {
+          return darktable.view_manager->act_on.images;
+        }
+
+        if(only_visible)
+        {
+          // we don't want to get image hidden because of grouping
+          DT_DEBUG_SQLITE3_PREPARE_V2
+            (dt_database_get(darktable.db),
+             "SELECT DISTINCT m.imgid"
+             " FROM memory.collected_images as m"
+             " WHERE m.imgid IN (SELECT s.imgid FROM main.selected_images as s)"
+             " ORDER BY m.rowid DESC",
+             -1, &stmt, NULL);
+        }
+        else
+        {
+          // we need to get hidden grouped images too, and the
+          // selection already contains them :)
+          DT_DEBUG_SQLITE3_PREPARE_V2
+            (dt_database_get(darktable.db),
+             "SELECT DISTINCT imgid"
+             " FROM main.selected_images"
+             " ORDER BY imgid DESC", -1, &stmt, NULL);
+        }
+
         while(stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW)
         {
-          _images_to_act_on_insert_in_list(&l, sqlite3_column_int(stmt, 0), only_visible);
+          // we don't use _images_to_act_on_insert_in_list for
+          // performance reason and because the query already take
+          // care of eventual duplicates
+          l = g_list_prepend(l, GINT_TO_POINTER(sqlite3_column_int(stmt, 0)));
         }
+        // put the list in right order as we have prepend for performance reasons
         if(stmt) sqlite3_finalize(stmt);
       }
       else
@@ -844,14 +875,15 @@ const GList *dt_view_get_images_to_act_on(const gboolean only_visible, const gbo
     {
       // collumn 3
       _images_to_act_on_insert_in_list(&l, mouseover, only_visible);
-      // be absolutely sure we have the id in the list (in darkroom, the active image can be out of collection)
+      // be absolutely sure we have the id in the list (in darkroom,
+      // the active image can be out of collection)
       if(!only_visible) _images_to_act_on_insert_in_list(&l, mouseover, TRUE);
     }
   }
   else
   {
     // collumn 4,5
-    if(g_slist_length(darktable.view_manager->active_images) > 0)
+    if(darktable.view_manager->active_images)
     {
       // collumn 5
       GSList *ll = darktable.view_manager->active_images;
@@ -859,7 +891,8 @@ const GList *dt_view_get_images_to_act_on(const gboolean only_visible, const gbo
       {
         const int id = GPOINTER_TO_INT(ll->data);
         _images_to_act_on_insert_in_list(&l, id, only_visible);
-        // be absolutely sure we have the id in the list (in darkroom, the active image can be out of collection)
+        // be absolutely sure we have the id in the list (in darkroom,
+        // the active image can be out of collection)
         if(!only_visible) _images_to_act_on_insert_in_list(&l, id, TRUE);
         ll = g_slist_next(ll);
       }
@@ -868,20 +901,25 @@ const GList *dt_view_get_images_to_act_on(const gboolean only_visible, const gbo
     {
       // collumn 4
       sqlite3_stmt *stmt;
-      DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
-                                  "SELECT m.imgid FROM memory.collected_images as m, main.selected_images as s "
-                                  "WHERE m.imgid=s.imgid "
-                                  "ORDER BY m.rowid",
-                                  -1, &stmt, NULL);
+      DT_DEBUG_SQLITE3_PREPARE_V2
+        (dt_database_get(darktable.db),
+         "SELECT DISTINCT m.imgid"
+         " FROM memory.collected_images as m"
+         " WHERE m.imgid IN (SELECT s.imgid FROM main.selected_images as s)"
+         " ORDER BY m.rowid DESC", -1, &stmt, NULL);
       while(stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW)
       {
-        _images_to_act_on_insert_in_list(&l, sqlite3_column_int(stmt, 0), only_visible);
+        // we don't use _images_to_act_on_insert_in_list for
+        // performance reason and because the query already take care
+        // of eventual duplicates
+        l = g_list_prepend(l, GINT_TO_POINTER(sqlite3_column_int(stmt, 0)));
       }
       if(stmt) sqlite3_finalize(stmt);
     }
   }
 
   // let's register the new list as cached
+  darktable.view_manager->act_on.image_over_inside_sel = inside_sel;
   darktable.view_manager->act_on.image_over = mouseover;
   g_list_free(darktable.view_manager->act_on.images);
   darktable.view_manager->act_on.images = l;
@@ -915,9 +953,9 @@ int dt_view_get_image_to_act_on()
   }
   else
   {
-    if(g_slist_length(darktable.view_manager->active_images) > 0)
+    if(darktable.view_manager->active_images)
     {
-      ret = GPOINTER_TO_INT(g_slist_nth_data(darktable.view_manager->active_images, 0));
+      ret = GPOINTER_TO_INT(darktable.view_manager->active_images->data);
     }
     else
     {
@@ -1238,7 +1276,7 @@ void dt_view_filter_reset(const dt_view_manager_t *vm, gboolean smart_filter)
 
 void dt_view_active_images_reset(gboolean raise)
 {
-  if(g_slist_length(darktable.view_manager->active_images) < 1) return;
+  if(!darktable.view_manager->active_images) return;
   g_slist_free(darktable.view_manager->active_images);
   darktable.view_manager->active_images = NULL;
 
@@ -1408,6 +1446,25 @@ void dt_view_print_settings(const dt_view_manager_t *vm, dt_print_info_t *pinfo)
 }
 #endif
 
+GSList *dt_mouse_action_create_simple(GSList *actions, dt_mouse_action_type_t type, GdkModifierType accel,
+                                      const char *const description)
+{
+  dt_mouse_action_t *a = (dt_mouse_action_t *)calloc(1, sizeof(dt_mouse_action_t));
+  a->action = type;
+  a->key.accel_mods = accel;
+  g_strlcpy(a->name, description, sizeof(a->name));
+  return g_slist_append(actions, a);
+}
+
+GSList *dt_mouse_action_create_format(GSList *actions, dt_mouse_action_type_t type, GdkModifierType accel,
+                                      const char *const format_string, const char *const replacement)
+{
+  dt_mouse_action_t *a = (dt_mouse_action_t *)calloc(1, sizeof(dt_mouse_action_t));
+  a->action = type;
+  a->key.accel_mods = accel;
+  g_snprintf(a->name, sizeof(a->name), format_string, replacement);
+  return g_slist_append(actions, a);
+}
 
 static gchar *_mouse_action_get_string(dt_mouse_action_t *ma)
 {

@@ -2456,11 +2456,10 @@ static void _view_map_dnd_get_callback(GtkWidget *widget, GdkDragContext *contex
           if(imgs_nb)
           {
             uint32_t *imgs = malloc(sizeof(uint32_t) * imgs_nb);
-            GList *l = lib->selected_images;
-            for(int i = 0; i < imgs_nb; i++)
+            int i = 0;
+            for(GList *l = lib->selected_images; l; l = g_list_next(l))
             {
-              imgs[i] = GPOINTER_TO_INT(l->data);
-              l = g_list_next(l);
+              imgs[i++] = GPOINTER_TO_INT(l->data);
             }
             gtk_selection_data_set(selection_data, gtk_selection_data_get_target(selection_data),
                                    _DWORD, (guchar *)imgs, imgs_nb * sizeof(uint32_t));
@@ -2581,23 +2580,9 @@ static void _view_map_build_main_query(dt_map_t *lib)
 GSList *mouse_actions(const dt_view_t *self)
 {
   GSList *lm = NULL;
-  dt_mouse_action_t *a = NULL;
-
-  a = (dt_mouse_action_t *)calloc(1, sizeof(dt_mouse_action_t));
-  a->action = DT_MOUSE_ACTION_DOUBLE_LEFT;
-  g_strlcpy(a->name, _("[on image] open in darkroom"), sizeof(a->name));
-  lm = g_slist_append(lm, a);
-
-  a = (dt_mouse_action_t *)calloc(1, sizeof(dt_mouse_action_t));
-  a->action = DT_MOUSE_ACTION_DOUBLE_LEFT;
-  g_strlcpy(a->name, _("[on map] zoom map"), sizeof(a->name));
-  lm = g_slist_append(lm, a);
-
-  a = (dt_mouse_action_t *)calloc(1, sizeof(dt_mouse_action_t));
-  a->action = DT_MOUSE_ACTION_DRAG_DROP;
-  g_strlcpy(a->name, _("move image location"), sizeof(a->name));
-  lm = g_slist_append(lm, a);
-
+  lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_DOUBLE_LEFT, 0, _("[on image] open in darkroom"));
+  lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_DOUBLE_LEFT, 0, _("[on map] zoom map"));
+  lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_DRAG_DROP, 0, _("move image location"));
   return lm;
 }
 
