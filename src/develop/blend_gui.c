@@ -714,6 +714,28 @@ static void _blendop_blendif_sliders_callback(GtkDarktableGradientSlider *slider
   dt_dev_add_history_item(darktable.develop, data->module, TRUE);
 }
 
+static void _blendop_blendif_sliders_reset_callback(GtkDarktableGradientSlider *slider,
+                                                    dt_iop_gui_blend_data_t *data)
+{
+  if(darktable.gui->reset) return;
+
+  dt_develop_blend_params_t *bp = data->module->blend_params;
+
+  const dt_iop_gui_blendif_channel_t *channel = &data->channel[data->tab];
+
+  const int in_out = (slider == data->filter[1].slider) ? 1 : 0;
+  dt_develop_blendif_channels_t ch = channel->param_channels[in_out];
+
+  // invert the parametric mask if needed
+  if(bp->mask_combine & DEVELOP_COMBINE_INCL)
+    bp->blendif |= (1 << (16 + ch));
+  else
+    bp->blendif &= ~(1 << (16 + ch));
+
+  dt_dev_add_history_item(darktable.develop, data->module, TRUE);
+  _blendop_blendif_update_tab(data->module, data->tab);
+}
+
 static void _blendop_blendif_polarity_callback(GtkToggleButton *togglebutton, dt_iop_gui_blend_data_t *data)
 {
   if(darktable.gui->reset) return;
@@ -1130,6 +1152,9 @@ static void _blendop_masks_modes_none_clicked(GtkWidget *button, GdkEventButton 
     _blendop_masks_mode_callback(DEVELOP_MASK_DISABLED, data);
     data->selected_mask_mode = button;
 
+    // remove the mask indicator
+    add_remove_mask_indicator(module->header, FALSE);
+
     /* and finally remove hinter messages */
     dt_control_hinter_message(darktable.control, "");
   }
@@ -1163,6 +1188,8 @@ static gboolean _blendop_masks_modes_toggle(GtkToggleButton *button, dt_iop_modu
       g_list_nth_data(data->masks_modes_toggles,
                       g_list_index(data->masks_modes, (gconstpointer)DEVELOP_MASK_DISABLED)));
   }
+  // (un)set the mask indicator
+  add_remove_mask_indicator(module->header, was_toggled);
 
   return TRUE;
 }
@@ -1394,9 +1421,9 @@ gboolean blend_color_picker_apply(dt_iop_module_t *module, GtkWidget *picker, dt
     dt_develop_blend_params_t *bp = module->blend_params;
 
     const int tab = data->tab;
-    float raw_min[4], raw_max[4];
-    float picker_min[8], picker_max[8];
-    float picker_values[4];
+    float raw_min[4] DT_ALIGNED_PIXEL, raw_max[4] DT_ALIGNED_PIXEL;
+    float picker_min[8] DT_ALIGNED_PIXEL, picker_max[8] DT_ALIGNED_PIXEL;
+    float picker_values[4] DT_ALIGNED_PIXEL;
 
     const int in_out = ((dt_key_modifier_state() == GDK_CONTROL_MASK) && data->output_channels_shown) ? 1 : 0;
 
@@ -1506,8 +1533,11 @@ gboolean blend_color_picker_apply(dt_iop_module_t *module, GtkWidget *picker, dt
     else
       bp->blendif |= (1 << ch);
 
-    // reverse (hue) channel if needed
-    bp->blendif = (bp->blendif & ~(1 << (16 + ch))) | (reverse_hues ? 1 << (16 + ch) : 0);
+    // set the polarity of the channel to include the picked values
+    if(reverse_hues == ((bp->mask_combine & DEVELOP_COMBINE_INV) == DEVELOP_COMBINE_INV))
+      bp->blendif &= ~(1 << (16 + ch));
+    else
+      bp->blendif |= 1 << (16 + ch);
 
     dt_dev_add_history_item(darktable.develop, module, TRUE);
     _blendop_blendif_update_tab(module, tab);
@@ -2138,6 +2168,7 @@ void dt_iop_gui_init_blendif(GtkBox *blendw, dt_iop_module_t *module)
       gtk_widget_set_tooltip_text(GTK_WIDGET(sl->head), _(slider_tooltip[in_out]));
 
       g_signal_connect(G_OBJECT(sl->slider), "value-changed", G_CALLBACK(_blendop_blendif_sliders_callback), bd);
+      g_signal_connect(G_OBJECT(sl->slider), "value-reset", G_CALLBACK(_blendop_blendif_sliders_reset_callback), bd);
       g_signal_connect(G_OBJECT(sl->slider), "leave-notify-event", G_CALLBACK(_blendop_blendif_leave), module);
       g_signal_connect(G_OBJECT(sl->slider), "enter-notify-event", G_CALLBACK(_blendop_blendif_enter), module);
       g_signal_connect(G_OBJECT(sl->slider), "key-press-event", G_CALLBACK(_blendop_blendif_key_press), module);
@@ -2268,6 +2299,11 @@ void dt_iop_gui_init_masks(GtkBox *blendw, dt_iop_module_t *module)
                                                   G_CALLBACK(_blendop_masks_add_shape_callback),
                                                   FALSE, 0, 0, dtgtk_cairo_paint_masks_gradient, abox);
 
+    bd->masks_type[4] = DT_MASKS_BRUSH;
+    bd->masks_shapes[4] = dt_iop_togglebutton_new(module, "blend`shapes", N_("add brush"), N_("add multiple brush strokes"),
+                                                  G_CALLBACK(_blendop_masks_add_shape_callback),
+                                                  FALSE, 0, 0, dtgtk_cairo_paint_masks_brush, abox);
+
     bd->masks_type[1] = DT_MASKS_PATH;
     bd->masks_shapes[1] = dt_iop_togglebutton_new(module, "blend`shapes", N_("add path"), N_("add multiple paths"),
                                                   G_CALLBACK(_blendop_masks_add_shape_callback),
@@ -2282,11 +2318,6 @@ void dt_iop_gui_init_masks(GtkBox *blendw, dt_iop_module_t *module)
     bd->masks_shapes[3] = dt_iop_togglebutton_new(module, "blend`shapes", N_("add circle"), N_("add multiple circles"),
                                                   G_CALLBACK(_blendop_masks_add_shape_callback),
                                                   FALSE, 0, 0, dtgtk_cairo_paint_masks_circle, abox);
-
-    bd->masks_type[4] = DT_MASKS_BRUSH;
-    bd->masks_shapes[4] = dt_iop_togglebutton_new(module, "blend`shapes", N_("add brush"), N_("add multiple brush strokes"),
-                                                  G_CALLBACK(_blendop_masks_add_shape_callback),
-                                                  FALSE, 0, 0, dtgtk_cairo_paint_masks_brush, abox);
 
     gtk_box_pack_start(GTK_BOX(bd->masks_box), GTK_WIDGET(hbox), TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(bd->masks_box), GTK_WIDGET(abox), TRUE, TRUE, 0);
@@ -2551,6 +2582,9 @@ void dt_iop_gui_update_blending(dt_iop_module_t *module)
     bd->selected_mask_mode = g_list_nth_data(
         bd->masks_modes_toggles, g_list_index(bd->masks_modes, GUINT_TO_POINTER(DEVELOP_MASK_DISABLED)));
   }
+
+  // (un)set the mask indicator
+  add_remove_mask_indicator(module->header, module->blend_params->mask_mode != DEVELOP_MASK_DISABLED);
 
   // initialization of blending modes
   if(bd->csp != bd->blend_modes_csp)
