@@ -527,13 +527,6 @@
     <longdescription/>
   </dtconfig>
   <dtconfig>
-    <name>plugins/capture/camera/import/jobcode</name>
-    <type>string</type>
-    <default>noname</default>
-    <shortdescription>jobcode of import job</shortdescription>
-    <longdescription/>
-  </dtconfig>
-  <dtconfig>
     <name>plugins/capture/camera/live_view_fps</name>
     <type>int</type>
     <default>15</default>
@@ -654,6 +647,20 @@
     <name>ui_last/expander_import</name>
     <type>bool</type>
     <default>false</default>
+    <shortdescription/>
+    <longdescription/>
+  </dtconfig>
+  <dtconfig>
+    <name>ui_last/import_dialog_width</name>
+    <type>int</type>
+    <default>600</default>
+    <shortdescription/>
+    <longdescription/>
+  </dtconfig>
+  <dtconfig>
+    <name>ui_last/import_dialog_height</name>
+    <type>int</type>
+    <default>600</default>
     <shortdescription/>
     <longdescription/>
   </dtconfig>
@@ -954,7 +961,7 @@
     </type>
     <default>never</default>
     <shortdescription>thumb use raw file instead of embedded JPEG from size</shortdescription>
-    <longdescription>if the thumbnail size is greater than this value, it will be processed using raw file instead of the embedded preview JPEG (better but slower).</longdescription>
+    <longdescription>if the thumbnail size is greater than this value, it will be processed using raw file instead of the embedded preview JPEG (better but slower).\nif you want all thumbnails and pre-rendered images in best quality you should choose the *always* option.\n(more comments in the manual)</longdescription>
   </dtconfig>
   <dtconfig prefs="lighttable" section="thumbs">
     <name>plugins/lighttable/thumbnail_hq_min_level</name>
@@ -973,7 +980,7 @@
     </type>
     <default>720p</default>
     <shortdescription>high quality thumb processing from size</shortdescription>
-    <longdescription>if the thumbnail size is greater than this value, it will be processed using the full quality rendering path (better but slower).</longdescription>
+    <longdescription>if the thumbnail size is greater than this value, it will be processed using the full quality rendering path (better but slower).\nif you want all thumbnails and pre-rendered images in best quality you should choose the *always* option.\n(more comments in the manual)</longdescription>
   </dtconfig>
   <dtconfig prefs="lighttable" section="thumbs">
     <name>plugins/lighttable/thumbnail_sizes</name>
@@ -1962,6 +1969,13 @@
     <default>original</default>
     <shortdescription>reduce resolution of preview image</shortdescription>
     <longdescription>decrease to speed up preview rendering, may hinder accurate masking</longdescription>
+  </dtconfig>
+  <dtconfig prefs="darkroom" section="general">
+    <name>darkroom/ui/loading_screen</name>
+    <type>bool</type>
+    <default>true</default>
+    <shortdescription>show loading screen between images</shortdescription>
+    <longdescription>show grey loading screen when navigating between images in the darkroom\ndisable to just show a toast message</longdescription>
   </dtconfig>
   <dtconfig prefs="processing">
     <name>plugins/lighttable/export/pixel_interpolator_warp</name>
