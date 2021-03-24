@@ -1767,10 +1767,10 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params,
     /* and we add masks */
     dt_masks_group_get_hash_buffer(grp, str + pos);
 
-    #ifdef HAVE_OPENCL
+#ifdef HAVE_OPENCL
     // assume process_cl is ready, commit_params can overwrite this.
     if(module->process_cl) piece->process_cl_ready = 1;
-    #endif // HAVE_OPENCL
+#endif // HAVE_OPENCL
 
     // register if module allows tiling, commit_params can overwrite this.
     if(module->flags() & IOP_FLAGS_ALLOW_TILING) piece->process_tiling_ready = 1;
@@ -2332,10 +2332,27 @@ void add_remove_mask_indicator(dt_iop_module_t *module, gboolean add)
 
   if(module->mask_indicator)
   {
-    if(raster)
-      gtk_widget_set_tooltip_text(module->mask_indicator, _("this module has a raster mask"));
+    gchar *type = _("unknown mask");
+    gchar *tooltip;
+    const uint32_t mm = module->blend_params->mask_mode;
+    if((mm & DEVELOP_MASK_MASK) && (mm & DEVELOP_MASK_CONDITIONAL))
+      type=_("drawn + parametric mask");
+    else if(mm & DEVELOP_MASK_MASK)
+      type=_("drawn mask");
+    else if(mm & DEVELOP_MASK_CONDITIONAL)
+      type=_("parametric mask");
+    else if(mm & DEVELOP_MASK_RASTER)
+      type=_("raster mask");
     else
-      gtk_widget_set_tooltip_text(module->mask_indicator, _("this module has a mask, click to display\nmodule must be activated first"));
+      fprintf(stderr, "unknown mask mode '%d' in module '%s'", mm, module->op);
+    gchar *str1 = g_strconcat(_("this module has a"), " ", type, NULL);
+    if(raster)
+      tooltip = g_strdup(str1);
+    else
+      tooltip = g_strconcat(str1, "\n", _("click to display (module must be activated first)"), NULL);
+    gtk_widget_set_tooltip_text(module->mask_indicator, tooltip);
+    g_free(str1);
+    g_free(tooltip);
   }
 }
 
