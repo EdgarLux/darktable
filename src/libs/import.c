@@ -98,7 +98,7 @@ typedef struct dt_lib_import_t
   GtkButton *import_camera;
   GtkButton *tethered_shoot;
 
-  GtkWidget *ignore_jpegs, *ignore_exif, *rating, *apply_metadata;
+  GtkWidget *ignore_exif, *rating, *apply_metadata;
   dt_import_metadata_t metadata;
   GtkBox *devices;
   GtkBox *locked_devices;
@@ -250,13 +250,13 @@ void _lib_import_ui_devices_update(dt_lib_module_t *self)
         d->camera = camera;
         g_signal_connect(G_OBJECT(ib), "clicked", G_CALLBACK(_lib_import_from_camera_callback), self);
         gtk_widget_set_halign(gtk_bin_get_child(GTK_BIN(ib)), GTK_ALIGN_CENTER);
-        dt_gui_add_help_link(ib, "lighttable_panels.html#import_from_camera");
+        dt_gui_add_help_link(ib, dt_get_help_url("import_camera"));
       }
       if(tb)
       {
         g_signal_connect(G_OBJECT(tb), "clicked", G_CALLBACK(_lib_import_tethered_callback), camera);
         gtk_widget_set_halign(gtk_bin_get_child(GTK_BIN(tb)), GTK_ALIGN_CENTER);
-        dt_gui_add_help_link(tb, "lighttable_panels.html#import_from_camera");
+        dt_gui_add_help_link(tb, dt_get_help_url("import_camera"));
       }
       gtk_box_pack_start(GTK_BOX(d->devices), vbx, FALSE, FALSE, 0);
     }
@@ -708,9 +708,7 @@ static gboolean _update_files_list(gpointer user_data)
 
 static void _ignore_jpegs_toggled(GtkWidget *widget, dt_lib_module_t* self)
 {
-  dt_lib_import_t *d = (dt_lib_import_t *)self->data;
   _update_files_list(self);
-  dt_gui_preferences_bool_update(d->ignore_jpegs);
 }
 
 static void _recursive_toggled(GtkWidget *widget, dt_lib_module_t* self)
@@ -803,8 +801,8 @@ static void _import_from_dialog_new(dt_lib_module_t* self)
   dt_osx_disallow_fullscreen(d->from.dialog);
 #endif
   gtk_window_set_default_size(GTK_WINDOW(d->from.dialog),
-                              DT_PIXEL_APPLY_DPI(dt_conf_get_int("ui_last/import_dialog_width")),
-                              DT_PIXEL_APPLY_DPI(dt_conf_get_int("ui_last/import_dialog_height")));
+                              dt_conf_get_int("ui_last/import_dialog_width"),
+                              dt_conf_get_int("ui_last/import_dialog_height"));
   gtk_window_set_transient_for(GTK_WINDOW(d->from.dialog), GTK_WINDOW(win));
   GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(d->from.dialog));
   GtkWidget *import_list = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -1125,7 +1123,7 @@ void gui_init(dt_lib_module_t *self)
   dt_lib_import_t *d = (dt_lib_import_t *)g_malloc0(sizeof(dt_lib_import_t));
   self->data = (void *)d;
   self->widget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-  dt_gui_add_help_link(self->widget, "lighttable_panels.html#import");
+  dt_gui_add_help_link(self->widget, dt_get_help_url("import"));
 
   // add import buttons
   GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
@@ -1165,7 +1163,6 @@ void gui_init(dt_lib_module_t *self)
   GtkGrid *grid = GTK_GRID(gtk_grid_new());
   gtk_grid_set_column_spacing(grid, DT_PIXEL_APPLY_DPI(5));
   guint line = 0;
-  d->ignore_jpegs = dt_gui_preferences_bool(grid, "ui_last/import_ignore_jpegs", 0, line++, FALSE);
   d->ignore_exif = dt_gui_preferences_bool(grid, "ui_last/ignore_exif_rating", 0, line++, FALSE);
   d->rating = dt_gui_preferences_int(grid, "ui_last/import_initial_rating", 0, line++);
   d->apply_metadata = dt_gui_preferences_bool(grid, "ui_last/import_apply_metadata", 0, line++, FALSE);
@@ -1396,7 +1393,6 @@ static void _apply_preferences(const char *pref, dt_lib_module_t *self)
   g_list_free_full(prefs, g_free);
 
   dt_lib_import_t *d = (dt_lib_import_t *)self->data;
-  dt_gui_preferences_bool_update(d->ignore_jpegs);
   dt_gui_preferences_bool_update(d->ignore_exif);
   dt_gui_preferences_int_update(d->rating);
   dt_gui_preferences_bool_update(d->apply_metadata);
