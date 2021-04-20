@@ -943,9 +943,10 @@ static void _brush_get_distance(float x, float y, float as, dt_masks_form_gui_t 
 
   if(!gui) return;
 
-  float yf = (float)y;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *)g_list_nth_data(gui->points, index);
   if(!gpt) return;
+
+  const float as2 = as * as;
 
   // we first check if we are inside the source form
 
@@ -967,17 +968,25 @@ static void _brush_get_distance(float x, float y, float as, dt_masks_form_gui_t 
       // distance from tested point to current form point
       const float yy = gpt->points[i * 2 + 1] + dy;
       const float xx = gpt->points[i * 2] + dx;
-      if((yy - yf) < as && (yy - yf) > -as && (xx - x) < as && (xx - x) > -as)
-      {
-        if(current_seg == 0)
-          *inside_source = corner_count - 1;
-        else
-          *inside_source = current_seg - 1;
 
-        if(*inside_source)
+      const float sdx = x - xx;
+      const float sdy = y - yy;
+      const float dd = (sdx * sdx) + (sdy * sdy);
+      *dist = fminf(*dist, dd);
+
+      if(dd < as2)
+      {
+        if(*inside == 0)
         {
-          *inside = 1;
-          return;
+          if(current_seg == 0)
+            *inside_source = corner_count - 1;
+          else
+            *inside_source = current_seg - 1;
+
+          if(*inside_source)
+          {
+            *inside = 1;
+          }
         }
       }
     }
@@ -991,7 +1000,7 @@ static void _brush_get_distance(float x, float y, float as, dt_masks_form_gui_t 
     for(int i = corner_count * 3; i < gpt->border_count; i++)
     {
       const float yy = gpt->border[i * 2 + 1];
-      if (((yf<=yy && yf>last) || (yf>=yy && yf<last)) && (gpt->border[i * 2] > x)) nb++;
+      if (((y<=yy && y>last) || (y>=yy && y<last)) && (gpt->border[i * 2] > x)) nb++;
       last = yy;
     }
     *inside = *inside_border = (nb & 1);
@@ -1017,7 +1026,7 @@ static void _brush_get_distance(float x, float y, float as, dt_masks_form_gui_t 
       const float dd = (dx * dx) + (dy * dy);
       *dist = fminf(*dist, dd);
 
-      if ((yy-yf)<as && (yy-yf)>-as && (xx-x)<as && (xx-x)>-as)
+      if(dd < as2)
       {
         if(current_seg == 0)
           *near = corner_count - 1;
