@@ -398,7 +398,7 @@
     <type>bool</type>
     <default>true</default>
     <shortdescription>ask before removing images from darktable</shortdescription>
-    <longdescription>always ask the user before any image is removed from darktable.</longdescription>
+    <longdescription>always ask the user before any image is removed from darktable</longdescription>
   </dtconfig>
   <dtconfig prefs="security">
     <name>ask_before_delete</name>
@@ -651,9 +651,16 @@
     <longdescription/>
   </dtconfig>
   <dtconfig>
+    <name>ui_last/import_dialog_paned_pos</name>
+    <type>int</type>
+    <default>0</default>
+    <shortdescription/>
+    <longdescription/>
+  </dtconfig>
+  <dtconfig>
     <name>ui_last/import_dialog_width</name>
     <type>int</type>
-    <default>600</default>
+    <default>800</default>
     <shortdescription/>
     <longdescription/>
   </dtconfig>
@@ -698,6 +705,13 @@
     <default>false</default>
     <shortdescription/>
     <longdescription/>
+  </dtconfig>
+  <dtconfig ui="yes">
+    <name>ui_last/import_select_new</name>
+    <type>bool</type>
+    <default>true</default>
+    <shortdescription>select only new pictures</shortdescription>
+    <longdescription>only select images that have not already been imported</longdescription>
   </dtconfig>
   <dtconfig ui="yes">
     <name>ui_last/import_ignore_jpegs</name>
@@ -760,6 +774,20 @@
     <type>string</type>
     <default/>
     <shortdescription>last opened directory.</shortdescription>
+    <longdescription/>
+  </dtconfig>
+  <dtconfig>
+    <name>ui_last/import_last_root</name>
+    <type>string</type>
+    <default/>
+    <shortdescription>last root folder</shortdescription>
+    <longdescription/>
+  </dtconfig>
+  <dtconfig>
+    <name>ui_last/import_last_folder_descending</name>
+    <type>bool</type>
+    <default>FALSE</default>
+    <shortdescription>folders display order in folder pane</shortdescription>
     <longdescription/>
   </dtconfig>
   <dtconfig ui="yes">
@@ -2130,6 +2158,20 @@
     <longdescription/>
   </dtconfig>
   <dtconfig>
+    <name>context_help/url</name>
+    <type>string</type>
+    <default>https://darktable.org/usermanual/</default>
+    <shortdescription/>
+    <longdescription/>
+  </dtconfig>
+  <dtconfig>
+    <name>context_help/dev_url</name>
+    <type>string</type>
+    <default>https://darktable-org.github.io/dtdocs/</default>
+    <shortdescription/>
+    <longdescription/>
+  </dtconfig>
+  <dtconfig>
     <name>plugins/imageio/storage/email/client</name>
     <type>string</type>
     <default/>
@@ -2536,6 +2578,7 @@
       <enum>
         <option>histogram</option>
         <option>waveform</option>
+        <option>vectorscope</option>
       </enum>
     </type>
     <default>histogram</default>
@@ -2565,6 +2608,25 @@
     <default>overlaid</default>
     <shortdescription/>
     <longdescription/>
+  </dtconfig>
+  <dtconfig>
+    <name>plugins/darkroom/histogram/vectorscope</name>
+    <type>
+      <enum>
+        <option>u*v*</option>
+        <option>AzBz</option>
+      </enum>
+    </type>
+    <default>u*v*</default>
+    <shortdescription/>
+    <longdescription/>
+  </dtconfig>
+  <dtconfig>
+    <name>plugins/darkroom/histogram/vectorscope/angle</name>
+    <type>int</type>
+    <default>270</default>
+    <shortdescription/>
+    <longdescription>Angle in degrees to orient the vectorscope. 0 is the color science proper orientation (see CIE 1976 UCS diagram). 270 is what video editors are used to when using a vectorscope (with red/magenta in 12:00 position).</longdescription>
   </dtconfig>
   <dtconfig>
     <name>plugins/darkroom/histogram/show_red</name>
@@ -2800,6 +2862,13 @@
     <shortdescription>detect monochrome previews</shortdescription>
     <longdescription>many monochrome images can be identified via exif and preview data. beware: this slows down imports and reading exif data</longdescription>
  </dtconfig>
+ <dtconfig prefs="processing">
+    <name>plugins/darkroom/show_warnings</name>
+    <type>bool</type>
+    <default>true</default>
+    <shortdescription>show warning messages</shortdescription>
+    <longdescription>display messages in modules to warn beginner users when non-standard and possibly harmful settings are used in the pipeline.\nthese messages can be false-positive and should be disregarded if you know what you are doing. this option will hide them all the time.</longdescription>
+  </dtconfig>
  <dtconfig>
     <name>screen_dpi_overwrite</name>
     <type>float</type>
@@ -2909,6 +2978,13 @@
     <default>true</default>
     <shortdescription>arange buttons as bar below temp/tint sliders</shortdescription>
     <longdescription>if enabled, the buttons in white balance module will be arranged below temp/tint sliders, otherwise they'll be shown in a grid to the right of temp/tint sliders</longdescription>
+  </dtconfig>
+  <dtconfig>
+    <name>plugins/darkroom/crop/expand_margins</name>
+    <type>bool</type>
+    <default>false</default>
+    <shortdescription>whether to show margins</shortdescription>
+    <longdescription>this is just for remembering whether to show margins or not and remember it</longdescription>
   </dtconfig>
   <dtconfig>
     <name>plugins/darkroom/colorzones/bg_sat_factor</name>

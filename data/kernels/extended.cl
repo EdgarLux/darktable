@@ -17,7 +17,7 @@
 */
 
 #include "common.h"
-#include "colorspace.cl"
+#include "colorspace.h"
 
 
 __kernel void
@@ -277,26 +277,6 @@ vibrance (read_only image2d_t in, write_only image2d_t out, const int width, con
   pixel.x *= ls;
   pixel.y *= ss;
   pixel.z *= ss;
-
-  write_imagef (out, (int2)(x, y), pixel);
-}
-
-__kernel void
-vibrancergb (read_only image2d_t in, write_only image2d_t out, const int width, const int height, const float vibrance)
-{
-  const int x = get_global_id(0);
-  const int y = get_global_id(1);
-
-  if(x >= width || y >= height) return;
-
-  float4 pixel = read_imagef(in, sampleri, (int2)(x, y));
-  const float w = pixel.w;
-
-  const float average = (pixel.x + pixel.y + pixel.z) / 3.0f;
-  const float delta = fast_length(average - pixel.xyz);
-  const float P = vibrance * (1.0f - pow(delta, fabs(vibrance)));
-  pixel = average + (1.0f + P) * (pixel - average);
-  pixel.w = w;
 
   write_imagef (out, (int2)(x, y), pixel);
 }

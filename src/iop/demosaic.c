@@ -31,6 +31,7 @@
 #include "develop/imageop_math.h"
 #include "develop/imageop_gui.h"
 #include "develop/masks.h"
+#include "develop/blend.h"
 #include "common/colorspaces_inline_conversions.h"
 #include "develop/tiling.h"
 #include "gui/accelerators.h"
@@ -108,7 +109,7 @@ typedef struct dt_iop_demosaic_params_t
   dt_iop_demosaic_smooth_t color_smoothing; // $DEFAULT: DEMOSAIC_SMOOTH_OFF $DESCRIPTION: "color smoothing"
   dt_iop_demosaic_method_t demosaicing_method; // $DEFAULT: DT_IOP_DEMOSAIC_RCD $DESCRIPTION: "demosaicing method"
   uint32_t yet_unused_data_specific_to_demosaicing_method;
-  float dual_thrs; // $MIN: 0.0 $MAX: 1.0 $DEFAULT: 0.15 $DESCRIPTION: "switch dual threshold"
+  float dual_thrs; // $MIN: 0.0 $MAX: 1.0 $DEFAULT: 0.20 $DESCRIPTION: "switch dual threshold"
 } dt_iop_demosaic_params_t;
 
 typedef struct dt_iop_demosaic_gui_data_t
@@ -174,10 +175,7 @@ typedef struct dt_iop_demosaic_global_data_t
   int kernel_rcd_step_5_2;
   int kernel_rcd_border_redblue;
   int kernel_rcd_border_green;
-  int kernel_calc_luminance_mask;
-  int kernel_calc_detail_blend;
   int kernel_write_blended_dual;
-  int kernel_fastblur_mask_9x9;
 } dt_iop_demosaic_global_data_t;
 
 typedef struct dt_iop_demosaic_data_t
@@ -2921,6 +2919,8 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   const float threshold = 0.0001f * img->exif_iso;
   dt_times_t start_time = { 0 }, end_time = { 0 };
 
+  dt_dev_clear_rawdetail_mask(piece->pipe);
+
   dt_iop_roi_t roi = *roi_in;
   dt_iop_roi_t roo = *roi_out;
   roo.x = roo.y = 0;
@@ -3047,6 +3047,8 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
         method2string(demosaicing_method & ~DEMOSAIC_DUAL), mpixels, tclock, uclock, mpixels / tclock);
     }
 
+    dt_dev_write_rawdetail_mask(piece, tmp, roi_in, DT_DEV_DETAIL_MASK_DEMOSAIC);
+
     if((demosaicing_method & DEMOSAIC_DUAL) && !run_fast)
     {
       dual_demosaic(piece, tmp, pixels, &roo, &roi, piece->pipe->dsc.filters, xtrans, showmask, data->dual_thrs);
@@ -3065,13 +3067,15 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
       dt_iop_clip_and_zoom_demosaic_passthrough_monochrome_f((float *)o, pixels, &roo, &roi, roo.width, roi.width);
     else if(demosaicing_method == DT_IOP_DEMOSAIC_PASSTHROUGH_COLOR)
        dt_iop_clip_and_zoom_demosaic_passthrough_monochrome_f((float *)o, pixels, &roo, &roi, roo.width, roi.width);
-    else // sample half-size raw (Bayer) or 1/3-size raw (X-Trans)
-        if(piece->pipe->dsc.filters == 9u)
-      dt_iop_clip_and_zoom_demosaic_third_size_xtrans_f((float *)o, pixels, &roo, &roi, roo.width, roi.width,
-                                                        xtrans);
+    else if(piece->pipe->dsc.filters == 9u)
+      dt_iop_clip_and_zoom_demosaic_third_size_xtrans_f((float *)o, pixels, &roo, &roi, roo.width, roi.width, xtrans);
     else
       dt_iop_clip_and_zoom_demosaic_half_size_f((float *)o, pixels, &roo, &roi, roo.width, roi.width,
                                                 piece->pipe->dsc.filters);
+
+    // this is used for preview pipes, currently there is now writing mask implemented
+    // we just clear the mask data as we might have changed the preview downsampling
+    dt_dev_clear_rawdetail_mask(piece->pipe);
   }
   if(data->color_smoothing)
     color_smoothing(o, roi_out, data->color_smoothing);
@@ -3451,9 +3455,6 @@ static int process_rcd_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *
     rgb2 = dt_opencl_alloc_device_buffer(devid, roi_in->width * roi_in->height * sizeof(float));
     if(rgb2 == NULL) goto error;
 
-
-
-
     {
       // populate data
       size_t sizes[3] = { ROUNDUPWD(width), ROUNDUPHT(height), 1 };
@@ -3600,6 +3601,11 @@ static int process_rcd_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *
     dt_opencl_release_mem_object(PQ_dir);
     dt_opencl_release_mem_object(VP_diff);
     dt_opencl_release_mem_object(HQ_diff);
+    dt_opencl_release_mem_object(dev_green_eq);
+    dev_green_eq = cfa = rgb0 = rgb1 = rgb2 = VH_dir = PQ_dir = VP_diff = HQ_diff = NULL;
+
+    dt_dev_write_rawdetail_mask_cl(piece, dev_aux, roi_in, DT_DEV_DETAIL_MASK_DEMOSAIC);
+
     if(scaled)
     {
       // scale aux buffer to output buffer
@@ -3631,9 +3637,7 @@ static int process_rcd_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *
   }
 
   if(dev_aux != dev_out) dt_opencl_release_mem_object(dev_aux);
-  dt_opencl_release_mem_object(dev_green_eq);
-
-  dev_aux = dev_green_eq = dev_tmp = cfa = rgb0 = rgb1 = rgb2 = VH_dir = PQ_dir = VP_diff = HQ_diff = NULL;
+  dev_aux = NULL;
 
   // color smoothing
   if((data->color_smoothing) && smooth)
@@ -3818,6 +3822,8 @@ static int process_default_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop
         if(err != CL_SUCCESS) goto error;
       }
     }
+
+    dt_dev_write_rawdetail_mask_cl(piece, dev_aux, roi_in, DT_DEV_DETAIL_MASK_DEMOSAIC);
 
     if(scaled)
     {
@@ -4227,6 +4233,7 @@ static int process_vng_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *
       err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_vng_green_equilibrate, sizes);
       if(err != CL_SUCCESS) goto error;
     }
+    dt_dev_write_rawdetail_mask_cl(piece, dev_aux, roi_in, DT_DEV_DETAIL_MASK_DEMOSAIC);
 
     if(scaled)
     {
@@ -4373,7 +4380,7 @@ static int process_markesteijn_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe
 
     int width = roi_in->width;
     int height = roi_in->height;
-    const int passes = (data->demosaicing_method == DT_IOP_DEMOSAIC_MARKESTEIJN_3) ? 3 : 1;
+    const int passes = ((data->demosaicing_method & ~DEMOSAIC_DUAL) == DT_IOP_DEMOSAIC_MARKESTEIJN_3) ? 3 : 1;
     const int ndir = 4 << (passes > 1);
     const int pad_tile = (passes == 1) ? 12 : 17;
 
@@ -4994,7 +5001,7 @@ static int process_markesteijn_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe
       dt_opencl_release_mem_object(dev_edge_out);
       dev_edge_in = dev_edge_out = NULL;
     }
-
+    dt_dev_write_rawdetail_mask_cl(piece, dev_tmp, roi_in, DT_DEV_DETAIL_MASK_DEMOSAIC);
 
     if(scaled)
     {
@@ -5070,13 +5077,15 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   dt_times_t start_time = { 0 }, end_time = { 0 };
   const gboolean info = ((darktable.unmuted & (DT_DEBUG_DEMOSAIC | DT_DEBUG_PERF)) && (piece->pipe->type == DT_DEV_PIXELPIPE_FULL));
 
+  dt_dev_clear_rawdetail_mask(piece->pipe);
+
   dt_iop_demosaic_data_t *data = (dt_iop_demosaic_data_t *)piece->data;
   const int demosaicing_method = data->demosaicing_method;
   const int qual_flags = demosaic_qual_flags(piece, &self->dev->image_storage, roi_out);
   cl_mem high_image = NULL;
   cl_mem low_image = NULL;
   cl_mem blend = NULL;
-  cl_mem luminance = NULL;
+  cl_mem details = NULL;
   cl_mem dev_aux = NULL;
   const gboolean dual = ((demosaicing_method & DEMOSAIC_DUAL) && (qual_flags & DEMOSAIC_FULL_SCALE) && (data->dual_thrs > 0.0f));
   const int devid = piece->pipe->devid;
@@ -5117,7 +5126,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
     {
       high_image = dt_opencl_alloc_device(devid, roi_in->width, roi_in->height, sizeof(float) * 4);
       if(high_image == NULL) return FALSE;
-      if(!process_markesteijn_cl(self, piece, dev_in, high_image, roi_in, roi_in, FALSE)) return FALSE;
+      if(!process_markesteijn_cl(self, piece, dev_in, high_image, roi_in, roi_in, TRUE)) return FALSE;
     }
     else
     {
@@ -5162,7 +5171,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
 
   // here we have work to be done only for dual demosaicers
   blend = dt_opencl_alloc_device_buffer(devid, width * height * sizeof(float));
-  luminance = dt_opencl_alloc_device_buffer(devid, width * height * sizeof(float));
+  details = dt_opencl_alloc_device_buffer(devid, width * height * sizeof(float));
   low_image = dt_opencl_alloc_device(devid, width, height, sizeof(float) * 4);
   if((blend == NULL) || (low_image == NULL)) goto finish;
 
@@ -5176,7 +5185,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   if(info) dt_get_times(&start_time);
   if(process_vng_cl(self, piece, dev_in, low_image, roi_in, roi_in, FALSE))
   {
-    retval = dual_demosaic_cl(self, piece, luminance, blend, high_image, low_image, dev_aux, width, height, showmask);   
+    retval = dual_demosaic_cl(self, piece, details, blend, high_image, low_image, dev_aux, width, height, showmask);   
   } 
 
   if(info)
@@ -5209,7 +5218,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   finish:
   dt_opencl_release_mem_object(high_image);
   dt_opencl_release_mem_object(low_image);
-  dt_opencl_release_mem_object(luminance);
+  dt_opencl_release_mem_object(details);
   dt_opencl_release_mem_object(blend);
   if(dev_aux != dev_out) dt_opencl_release_mem_object(dev_aux);
   if(!retval) dt_control_log(_("[dual demosaic_cl] internal problem"));
@@ -5391,10 +5400,7 @@ void init_global(dt_iop_module_so_t *module)
   gd->kernel_rcd_step_5_2 = dt_opencl_create_kernel(rcd, "rcd_step_5_2");
   gd->kernel_rcd_border_redblue = dt_opencl_create_kernel(rcd, "rcd_border_redblue");
   gd->kernel_rcd_border_green = dt_opencl_create_kernel(rcd, "rcd_border_green");
-  gd->kernel_calc_luminance_mask = dt_opencl_create_kernel(rcd, "calc_luminance_mask");
-  gd->kernel_calc_detail_blend = dt_opencl_create_kernel(rcd, "calc_detail_blend");
   gd->kernel_write_blended_dual  = dt_opencl_create_kernel(rcd, "write_blended_dual");  
-  gd->kernel_fastblur_mask_9x9 = dt_opencl_create_kernel(rcd, "fastblur_mask_9x9"); 
 }
 
 void cleanup_global(dt_iop_module_so_t *module)
@@ -5448,10 +5454,7 @@ void cleanup_global(dt_iop_module_so_t *module)
   dt_opencl_free_kernel(gd->kernel_rcd_step_5_2);
   dt_opencl_free_kernel(gd->kernel_rcd_border_redblue);
   dt_opencl_free_kernel(gd->kernel_rcd_border_green);
-  dt_opencl_free_kernel(gd->kernel_calc_luminance_mask);
-  dt_opencl_free_kernel(gd->kernel_calc_detail_blend);
   dt_opencl_free_kernel(gd->kernel_write_blended_dual);  
-  dt_opencl_free_kernel(gd->kernel_fastblur_mask_9x9);
   free(module->data);
   module->data = NULL;
 }

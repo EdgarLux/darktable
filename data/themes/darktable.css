@@ -84,7 +84,7 @@
 /* Modules box (plugins) */
 @define-color plugin_bg_color @grey_20;
 @define-color plugin_fg_color @fg_color;
-@define-color section_label shade(@plugin_fg_color, 0.9);
+@define-color section_label shade(@plugin_fg_color, 0.95);
 @define-color plugin_label_color @grey_65;
 
 /* Modules controls (sliders and comboboxes) */
@@ -150,7 +150,8 @@
 @define-color brush_trace alpha(black, .8);
 
 /* Graphs : histogram, navigation thumbnail and some items on tone curve */
-@define-color graph_bg @grey_10;
+@define-color graph_bg @grey_15;
+@define-color graph_exterior shade(@graph_bg, 0.9);
 @define-color graph_border @grey_05;
 @define-color graph_fg @grey_75;
 @define-color graph_fg_active @grey_95;
@@ -623,13 +624,18 @@ overshoot.right
 }
 
 /* Labels of controls sections in modules */
-#section_label
+#section_label,
+#section_label *
 {
   padding: 0;
   color: @section_label;
-  border-bottom: 0.035em solid  @section_label;
   font-family: sans-serif;
   font-weight: 500;
+}
+
+#section_label
+{
+  border-bottom: 0.035em solid  @section_label;
 }
 
 #iop-plugin-ui #section_label,
@@ -637,7 +643,7 @@ overshoot.right
 #lib-plugin-ui .section-expander,
 #iop-plugin-ui .section-expander
 {
-  margin: 0.35em 0;
+  margin: 0.5em 0 0.35em 0;
 }
 
 #iop-plugin-ui #section_label.section_label_top,
@@ -769,13 +775,6 @@ dialog .dialog-vbox scrolledwindow
 {
   margin: 0.28em 0;
   padding: 0;
-}
-
-dialog button:focus,
-dialog checkbutton check:focus
-{
-  color: @button_hover_fg;
-  background-color: @field_hover_bg;
 }
 
 /* Set title headerbar and main buttons */
@@ -1424,6 +1423,16 @@ filechooser row:hover,
   margin-top: 0.75em;
 }
 
+#modulegroups-groupbox scrolledwindow
+{
+  margin-top: 0.5em;
+}
+
+#modulegroups-groupbox #modulegroups-header
+{
+  margin-bottom: 0.5em;
+}
+
 #modulegroups-icons-popup
 {
   padding: 0.5em;
@@ -1438,14 +1447,16 @@ filechooser row:hover,
   border: 0;
 }
 
+#modulegroups-groupbox #modulegroups-btn
+{
+  min-height: 1.2em;
+  min-width: 1.2em;
+  margin: 0;
+}
+
 #modulegroups_iop_title
 {
   font-weight: bold;
-}
-
-#modulegroups-add-module-btn
-{
-  margin-top: 0.4em;
 }
 
 #modulegroups-deprecated-msg,

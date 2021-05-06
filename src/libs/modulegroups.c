@@ -49,8 +49,8 @@ DT_MODULE(1)
 
 // list of recommended basics widgets
 #define RECOMMENDED_BASICS                                                                                        \
-  "|exposure/exposure|temperature/temperature|temperature/tint|colorbalance/contrast|colorbalance/output "        \
-  "saturation|clipping/angle|denoiseprofile|lens|bilat|"
+  "|exposure/exposure|temperature/temperature|temperature/tint|colorbalancergb/contrast|colorbalancergb/global "        \
+  "vibrance|colorbalancergb/global chroma|colorbalancergb/global saturation|clipping/angle|denoiseprofile|lens|bilat|"
 
 // if a preset cannot be loaded or the current preset deleted, this is the fallback preset
 
@@ -1195,8 +1195,9 @@ static gchar *_preset_retrieve_old_layout_updated()
     if(i == 0)
     {
       ret = dt_util_dstrcat(ret, "1ꬹ1|||%s",
-                            "exposure/exposure|temperature/temperature|temperature/tint|colorbalance/contrast"
-                            "|colorbalance/output saturation|clipping/angle|denoiseprofile|lens|bilat");
+                            "exposure/exposure|temperature/temperature|temperature/tint|colorbalancergb/contrast"
+                            "|colorbalancergb/global vibrance|colorbalancergb/global chroma|colorbalancergb/global saturation"
+                            "|clipping/angle|denoiseprofile|lens|bilat");
       ret = dt_util_dstrcat(ret, "ꬹfavorites|favorites|");
     }
     else if(i == 1)
@@ -1248,8 +1249,9 @@ static gchar *_preset_retrieve_old_layout(const char *list, const char *list_fav
     {
       // we don't have to care about "modern" workflow for temperature as it's more recent than this layout
       ret = dt_util_dstrcat(ret, "1ꬹ1|||%s",
-                            "exposure/exposure|temperature/temperature|temperature/tint|colorbalance/contrast"
-                            "|colorbalance/output saturation|clipping/angle|denoiseprofile|lens|bilat");
+                            "exposure/exposure|temperature/temperature|temperature/tint|colorbalancergb/contrast"
+                            "|colorbalancergb/global vibrance|colorbalancergb/global chroma|colorbalancergb/global saturation"
+                            "|clipping/angle|denoiseprofile|lens|bilat");
       ret = dt_util_dstrcat(ret, "ꬹfavorites|favorites|");
     }
     else if(i == 1)
@@ -1524,9 +1526,10 @@ static void _preset_from_string(dt_lib_module_t *self, gchar *txt, gboolean edit
       AM("temperature/tint");                                                                                     \
     }                                                                                                             \
     AM("exposure/exposure");                                                                                      \
-    AM("colorbalance/contrast");                                                                                  \
-    AM("colorbalance/output saturation");                                                                         \
-    AM("vibrancergb/amount");                                                                                     \
+    AM("colorbalancergb/contrast");                                                                               \
+    AM("colorbalancergb/global chroma");                                                                          \
+    AM("colorbalancergb/global vibrance");                                                                        \
+    AM("colorbalancergb/global saturation");                                                                      \
     AM("clipping/angle");                                                                                         \
     AM("denoiseprofile");                                                                                         \
     AM("lens");                                                                                                   \
@@ -1563,6 +1566,7 @@ void init_presets(dt_lib_module_t *self)
   AM("basecurve");
   AM("basicadj");
   AM("clipping");
+  AM("crop");
   AM("colisa");
   AM("colorreconstruct");
   AM("demosaic");
@@ -1588,7 +1592,7 @@ void init_presets(dt_lib_module_t *self)
 
   SMG(C_("modulegroup", "color"), "color");
   AM("channelmixerrgb");
-  AM("colorbalance");
+  AM("colorbalancergb");
   AM("colorchecker");
   AM("colorcontrast");
   AM("colorcorrection");
@@ -1600,14 +1604,13 @@ void init_presets(dt_lib_module_t *self)
   AM("profile");
   AM("gamma");
   AM("velvia");
-  AM("vibrancergb");
 
   SMG(C_("modulegroup", "correct"), "correct");
   AM("ashift");
   AM("atrous");
   AM("bilateral");
   AM("cacorrect");
-  AM("defringe");
+  AM("cacorrectrgb");
   AM("denoiseprofile");
   AM("dither");
   AM("hazeremoval");
@@ -1648,6 +1651,7 @@ void init_presets(dt_lib_module_t *self)
   AM("ashift");
   AM("basecurve");
   AM("clipping");
+  AM("crop");
   AM("denoiseprofile");
   AM("exposure");
   AM("flip");
@@ -1679,6 +1683,7 @@ void init_presets(dt_lib_module_t *self)
   AM("basecurve");
   AM("toneequal");
   AM("clipping");
+  AM("crop");
   AM("flip");
   AM("exposure");
   AM("temperature");
@@ -1690,17 +1695,16 @@ void init_presets(dt_lib_module_t *self)
 
   SMG(C_("modulegroup", "color"), "color");
   AM("channelmixerrgb");
-  AM("colorbalance");
+  AM("colorbalancergb");
   AM("colorcorrection");
   AM("colorzones");
   AM("monochrome");
   AM("velvia");
-  AM("vibrancergb");
 
   SMG(C_("modulegroup", "correct"), "correct");
   AM("ashift");
   AM("cacorrect");
-  AM("defringe");
+  AM("cacorrectrgb");
   AM("denoiseprofile");
   AM("hazeremoval");
   AM("hotpixels");
@@ -1730,6 +1734,7 @@ void init_presets(dt_lib_module_t *self)
   AM("filmicrgb");
   AM("toneequal");
   AM("clipping");
+  AM("crop");
   AM("flip");
   AM("exposure");
   AM("temperature");
@@ -1737,13 +1742,13 @@ void init_presets(dt_lib_module_t *self)
 
   SMG(C_("modulegroup", "color"), "color");
   AM("channelmixerrgb");
-  AM("colorbalance");
+  AM("colorbalancergb");
   AM("colorzones");
 
   SMG(C_("modulegroup", "correct"), "correct");
   AM("ashift");
   AM("cacorrect");
-  AM("defringe");
+  AM("cacorrectrgb");
   AM("denoiseprofile");
   AM("hazeremoval");
   AM("hotpixels");
@@ -1774,12 +1779,13 @@ void init_presets(dt_lib_module_t *self)
   AM("bilateral");
   AM("cacorrect");
   AM("clipping");
+  AM("crop");
   AM("colorchecker");
   AM("colorin");
   AM("colorout");
 
   AM("colorreconstruct");
-  AM("defringe");
+  AM("cacorrectrgb");
   AM("demosaic");
   AM("denoiseprofile");
   AM("dither");
@@ -1805,7 +1811,7 @@ void init_presets(dt_lib_module_t *self)
   AM("basicadj");
   AM("channelmixerrgb");
   AM("colisa");
-  AM("colorbalance");
+  AM("colorbalancergb");
   AM("colorcontrast");
   AM("colorcorrection");
   AM("colorize");
@@ -1819,7 +1825,6 @@ void init_presets(dt_lib_module_t *self)
   AM("tonecurve");
   AM("toneequal");
   AM("velvia");
-  AM("vibrancergb");
 
   SMG(C_("modulegroup", "effects"), "effect");
   AM("atrous");
@@ -1861,6 +1866,7 @@ void init_presets(dt_lib_module_t *self)
   AM("basicadj");
   // this modules are deprecated in 3.6 and should be removed 1 yer later
   AM("spots");
+  AM("defringe");
 
   dt_lib_presets_add(_(DEPRECATED_PRESET_NAME), self->plugin_name, self->version(), tx, strlen(tx), TRUE);
 
@@ -1892,13 +1898,13 @@ static gchar *_presets_get_minimal(dt_lib_module_t *self)
 
   SQA();
   AM("exposure/exposure");
-  AM("colorbalance/contrast");
+  AM("colorbalancergb/contrast");
 
   SMG(C_("modulegroup", "base"), "basic");
   AM("basecurve");
   AM("filmicrgb");
   AM("exposure");
-  AM("colorbalance");
+  AM("colorbalancergb");
 
   return tx;
 }
@@ -2196,7 +2202,7 @@ static void _manage_editor_group_update_arrows(GtkWidget *box)
   for(const GList *lw_iter = lw; lw_iter; lw_iter = g_list_next(lw_iter))
   {
     GtkWidget *w = (GtkWidget *)lw_iter->data;
-    GtkWidget *hb = dt_gui_container_first_child(GTK_CONTAINER(w));
+    GtkWidget *hb = dt_gui_container_nth_child(GTK_CONTAINER(w), 1);
     if(pos > 0 && hb) // we skip the first item as it's quick access panel
     {
       GList *lw2 = gtk_container_get_children(GTK_CONTAINER(hb));
@@ -2204,8 +2210,8 @@ static void _manage_editor_group_update_arrows(GtkWidget *box)
       {
         GtkWidget *left = (GtkWidget *)lw2->data;
         GtkWidget *right = (GtkWidget *)g_list_nth_data(lw2, 2);
-        gtk_widget_set_visible(left, pos > 1);
-        gtk_widget_set_visible(right, pos < max);
+        gtk_widget_set_sensitive(left, pos > 1);
+        gtk_widget_set_sensitive(right, pos < max);
       }
       g_list_free(lw2);
     }
@@ -2635,6 +2641,16 @@ static void _manage_editor_module_add_popup(GtkWidget *widget, GdkEventButton *e
   _manage_module_add_popup(widget, gr, G_CALLBACK(_manage_editor_module_add), self, FALSE);
 }
 
+static gboolean _presets_pressed(GtkWidget *widget, GdkEventButton *event, dt_lib_module_t *self)
+{
+  if(dt_modifier_is(event->state, GDK_CONTROL_MASK))
+  {
+    manage_presets(self);
+    return TRUE;
+  }
+  return FALSE;
+}
+
 static gboolean _manage_direct_popup(GtkWidget *widget, GdkEventButton *event, dt_lib_module_t *self)
 {
   if(event->type == GDK_BUTTON_PRESS && event->button == 3)
@@ -2757,8 +2773,9 @@ void gui_init(dt_lib_module_t *self)
 
   // we load now the presets btn
   self->presets_button = dtgtk_button_new(dtgtk_cairo_paint_presets, CPF_STYLE_FLAT, NULL);
-  gtk_widget_set_tooltip_text(self->presets_button, _("presets"));
+  gtk_widget_set_tooltip_text(self->presets_button, _("presets\nctrl+click to manage"));
   gtk_box_pack_start(GTK_BOX(d->hbox_buttons), self->presets_button, FALSE, FALSE, 0);
+  g_signal_connect(self->presets_button, "button-press-event", G_CALLBACK(_presets_pressed), self);
 
   /* search box */
   GtkWidget *label = gtk_label_new(_("search module"));
@@ -3162,8 +3179,8 @@ static GtkWidget *_manage_editor_group_init_basics_box(dt_lib_module_t *self)
     GtkWidget *hb4 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     GtkWidget *bt = dtgtk_button_new(dtgtk_cairo_paint_plus_simple,
                                      CPF_DIRECTION_LEFT | CPF_STYLE_FLAT, NULL);
-    gtk_widget_set_tooltip_text(bt, _("add widgets to the list"));
-    gtk_widget_set_name(bt, "modulegroups-add-module-btn");
+    gtk_widget_set_tooltip_text(bt, _("add widget to the quick access panel"));
+    gtk_widget_set_name(bt, "modulegroups-btn");
     g_signal_connect(G_OBJECT(bt), "button-press-event", G_CALLBACK(_manage_editor_basics_add_popup), self);
     gtk_widget_set_halign(hb4, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(hb4), bt, FALSE, FALSE, 0);
@@ -3186,18 +3203,7 @@ static GtkWidget *_manage_editor_group_init_modules_box(dt_lib_module_t *self, d
   GtkWidget *hb2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   gtk_widget_set_name(hb2, "modulegroups-header");
 
-  // left arrow
   GtkWidget *btn = NULL;
-  if(!d->edit_ro)
-  {
-    btn = dtgtk_button_new(dtgtk_cairo_paint_arrow, CPF_DIRECTION_RIGHT | CPF_STYLE_FLAT,
-                           NULL);
-    gtk_widget_set_tooltip_text(btn, _("move group to the left"));
-    g_object_set_data(G_OBJECT(btn), "group", gr);
-    g_signal_connect(G_OBJECT(btn), "button-press-event", G_CALLBACK(_manage_editor_group_move_left), self);
-    gtk_box_pack_start(GTK_BOX(hb2), btn, FALSE, TRUE, 0);
-  }
-
   GtkWidget *hb3 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   gtk_widget_set_name(hb3, "modulegroups-header-center");
   gtk_widget_set_hexpand(hb3, TRUE);
@@ -3233,17 +3239,6 @@ static GtkWidget *_manage_editor_group_init_modules_box(dt_lib_module_t *self, d
 
   gtk_box_pack_start(GTK_BOX(hb2), hb3, FALSE, TRUE, 0);
 
-  // right arrow
-  if(!d->edit_ro)
-  {
-    btn = dtgtk_button_new(dtgtk_cairo_paint_arrow, CPF_DIRECTION_LEFT | CPF_STYLE_FLAT,
-                           NULL);
-    gtk_widget_set_tooltip_text(btn, _("move group to the right"));
-    g_object_set_data(G_OBJECT(btn), "group", gr);
-    g_signal_connect(G_OBJECT(btn), "button-press-event", G_CALLBACK(_manage_editor_group_move_right), self);
-    gtk_box_pack_end(GTK_BOX(hb2), btn, FALSE, TRUE, 0);
-  }
-
   gtk_box_pack_start(GTK_BOX(vb2), hb2, FALSE, TRUE, 0);
 
   // chosen modules
@@ -3258,14 +3253,37 @@ static GtkWidget *_manage_editor_group_init_modules_box(dt_lib_module_t *self, d
   if(!d->edit_ro)
   {
     GtkWidget *hb4 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+
+    // left arrow
+    btn = dtgtk_button_new(dtgtk_cairo_paint_arrow, CPF_DIRECTION_RIGHT | CPF_STYLE_FLAT,
+                           NULL);
+    gtk_widget_set_name(btn, "modulegroups-btn");
+    gtk_widget_set_tooltip_text(btn, _("move group to the left"));
+    g_object_set_data(G_OBJECT(btn), "group", gr);
+    g_signal_connect(G_OBJECT(btn), "button-press-event", G_CALLBACK(_manage_editor_group_move_left), self);
+    gtk_box_pack_start(GTK_BOX(hb4), btn, FALSE, FALSE, 2);
+
+    // plus button
+    GtkWidget *plusbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     GtkWidget *bt = dtgtk_button_new(dtgtk_cairo_paint_plus_simple,
                                      CPF_DIRECTION_LEFT | CPF_STYLE_FLAT, NULL);
-    gtk_widget_set_tooltip_text(bt, _("add module to the list"));
-    gtk_widget_set_name(bt, "modulegroups-add-module-btn");
+    gtk_widget_set_tooltip_text(bt, _("add module to the group"));
+    gtk_widget_set_name(bt, "modulegroups-btn");
     g_object_set_data(G_OBJECT(bt), "group", gr);
     g_signal_connect(G_OBJECT(bt), "button-press-event", G_CALLBACK(_manage_editor_module_add_popup), self);
-    gtk_widget_set_halign(hb4, GTK_ALIGN_CENTER);
-    gtk_box_pack_start(GTK_BOX(hb4), bt, FALSE, FALSE, 0);
+    gtk_widget_set_halign(plusbox, GTK_ALIGN_CENTER);
+    gtk_box_pack_start(GTK_BOX(plusbox), bt, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(hb4), plusbox, TRUE, TRUE, 0);
+
+    //right arrow
+    btn = dtgtk_button_new(dtgtk_cairo_paint_arrow, CPF_DIRECTION_LEFT | CPF_STYLE_FLAT,
+                           NULL);
+    gtk_widget_set_name(btn, "modulegroups-btn");
+    gtk_widget_set_tooltip_text(btn, _("move group to the right"));
+    g_object_set_data(G_OBJECT(btn), "group", gr);
+    g_signal_connect(G_OBJECT(btn), "button-press-event", G_CALLBACK(_manage_editor_group_move_right), self);
+    gtk_box_pack_end(GTK_BOX(hb4), btn, FALSE, FALSE, 2);
+
     gtk_box_pack_start(GTK_BOX(vb2), hb4, FALSE, FALSE, 0);
   }
 
@@ -3550,6 +3568,7 @@ static void _manage_editor_load(const char *preset, dt_lib_module_t *self)
 
   // we remove all widgets from the groups-box
   dt_gui_container_destroy_children(GTK_CONTAINER(d->preset_groups_box));
+  gtk_box_set_homogeneous(GTK_BOX(d->preset_groups_box), TRUE);
 
   // we select the right preset in the combobox (or we select the first one)
   gboolean sel_ok = FALSE;
@@ -3769,27 +3788,27 @@ static void _manage_show_window(dt_lib_module_t *self)
   gtk_widget_set_name(hb, "modulegroups_top_box");
   GtkWidget *vb = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   GtkWidget *hb2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-  gtk_box_pack_start(GTK_BOX(hb2), gtk_label_new(_("preset : ")), FALSE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(hb2), gtk_label_new(_("preset : ")), FALSE, TRUE, 2);
   d->presets_combo = gtk_combo_box_text_new();
   g_signal_connect(G_OBJECT(d->presets_combo), "changed", G_CALLBACK(_manage_preset_change), self);
-  gtk_box_pack_start(GTK_BOX(hb2), d->presets_combo, FALSE, TRUE, 0);
-  gtk_box_pack_start(GTK_BOX(vb), hb2, FALSE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(hb2), d->presets_combo, TRUE, TRUE, 2);
+  gtk_box_pack_start(GTK_BOX(vb), hb2, FALSE, TRUE, 2);
   // presets buttons
   hb2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   d->presets_btn_remove = dt_ui_button_new(_("remove"), _("remove the preset"), NULL);
   g_signal_connect(G_OBJECT(d->presets_btn_remove), "clicked", G_CALLBACK(_manage_preset_delete), self);
-  gtk_box_pack_start(GTK_BOX(hb2), d->presets_btn_remove, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(hb2), d->presets_btn_remove, TRUE, TRUE, 2);
   d->presets_btn_dup = dt_ui_button_new(_("duplicate"), _("duplicate the preset"), NULL);
   g_signal_connect(G_OBJECT(d->presets_btn_dup), "clicked", G_CALLBACK(_manage_editor_preset_action), self);
-  gtk_box_pack_start(GTK_BOX(hb2), d->presets_btn_dup, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(hb2), d->presets_btn_dup, TRUE, TRUE, 2);
   d->presets_btn_rename = dt_ui_button_new(_("rename"), _("rename the preset"), NULL);
   g_signal_connect(G_OBJECT(d->presets_btn_rename), "clicked", G_CALLBACK(_manage_editor_preset_action), self);
-  gtk_box_pack_start(GTK_BOX(hb2), d->presets_btn_rename, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(hb2), d->presets_btn_rename, TRUE, TRUE, 2);
   d->presets_btn_new = dt_ui_button_new(_("new"), _("create a new empty preset"), NULL);
   g_signal_connect(G_OBJECT(d->presets_btn_new), "clicked", G_CALLBACK(_manage_editor_preset_action), self);
-  gtk_box_pack_start(GTK_BOX(hb2), d->presets_btn_new, TRUE, TRUE, 0);
-  gtk_box_pack_start(GTK_BOX(vb), hb2, FALSE, TRUE, 0);
-  gtk_box_pack_start(GTK_BOX(hb), vb, FALSE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(hb2), d->presets_btn_new, TRUE, TRUE, 2);
+  gtk_box_pack_start(GTK_BOX(vb), hb2, FALSE, TRUE, 2);
+  gtk_box_pack_start(GTK_BOX(hb), vb, FALSE, TRUE, 2);
 
   // presets settings (search + quick acces)
   vb = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -3813,7 +3832,7 @@ static void _manage_show_window(dt_lib_module_t *self)
   d->edit_autoapply_btn = dtgtk_button_new(dtgtk_cairo_paint_preferences, 0, NULL);
   g_signal_connect(G_OBJECT(d->edit_autoapply_btn), "clicked", G_CALLBACK(_preset_autoapply_edit), self);
   gtk_widget_set_name(d->edit_autoapply_btn, "modulegroups-autoapply-btn");
-  gtk_box_pack_start(GTK_BOX(hb2), d->edit_autoapply_btn, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(hb2), d->edit_autoapply_btn, FALSE, FALSE, 2);
   gtk_box_pack_start(GTK_BOX(vb), hb2, FALSE, TRUE, 0);
   gtk_box_pack_start(GTK_BOX(hb), vb, FALSE, TRUE, 0);
 

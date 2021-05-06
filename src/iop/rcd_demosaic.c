@@ -38,7 +38,7 @@
 */
 
 /* Some notes about the algorithm
-* 1. The calculated data at the tiling borders RCD_BORDER must be at least 9 to be stable.
+* 1. The calculated data at the tiling borders RCD_BORDER must be at least 9 to be stable. Why does 8 **not** work?
 * 2. For the outermost tiles we only have to discard a 6 pixel border region interpolated otherwise.
 * 3. The tilesize has a significant influence on performance, the default is a good guess for modern
 *    x86/64 machines, tested on Xeon E-2288G, i5-8250U.
@@ -110,8 +110,9 @@ static INLINE float sqrf(float a)
 }
 
 /** This is basically ppg adopted to only write data to RCD_MARGIN */
-static void rcd_ppg_border(float *const out, const float *const in, const int width, const int height, const uint32_t filters)
+static void rcd_ppg_border(float *const out, const float *const in, const int width, const int height, const uint32_t filters, const int margin)
 {
+  const int border = margin + 3;
   // write approximatad 3-pixel border region to out
   float sum[8];
   for(int j = 0; j < height; j++)
@@ -128,7 +129,7 @@ static void rcd_ppg_border(float *const out, const float *const in, const int wi
           if((y >= 0) && (x >= 0) && (y < height) && (x < width))
           {
             const int f = FC(y, x, filters);
-            sum[f] += in[(size_t)y * width + x];
+            sum[f] += fmaxf(0.0f, in[(size_t)y * width + x]);
             sum[f + 4]++;
           }
         }
@@ -139,7 +140,7 @@ static void rcd_ppg_border(float *const out, const float *const in, const int wi
         if(c != f && sum[c + 4] > 0.0f)
           out[4 * ((size_t)j * width + i) + c] = sum[c] / sum[c + 4];
         else
-          out[4 * ((size_t)j * width + i) + c] = in[(size_t)j * width + i];
+          out[4 * ((size_t)j * width + i) + c] = fmaxf(0.0f, in[(size_t)j * width + i]);
       }
     }
   }
@@ -148,7 +149,7 @@ static void rcd_ppg_border(float *const out, const float *const in, const int wi
 
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
-  dt_omp_firstprivate(filters, out, width, height) \
+  dt_omp_firstprivate(filters, out, width, height, border) \
   shared(input) \
   schedule(static)
 #endif
@@ -158,9 +159,9 @@ static void rcd_ppg_border(float *const out, const float *const in, const int wi
     const float *buf_in = input + (size_t)width * j + 3;
     for(int i = 3; i < width - 3; i++)
     {
-      if(i == 9 && j >= 9 && j < height - 9)
+      if(i == border && j >= border && j < height - border)
       {
-        i = width - 9;
+        i = width - border;
         buf = out + (size_t)4 * width * j + 4 * i;
         buf_in = input + (size_t)width * j + i;
       }
@@ -168,22 +169,22 @@ static void rcd_ppg_border(float *const out, const float *const in, const int wi
 
       const int c = FC(j, i, filters);
       float color[4];
-      const float pc = buf_in[0];
+      const float pc = fmaxf(0.0f, buf_in[0]);
       if(c == 0 || c == 2)
       {
         color[c] = pc;
-        const float pym = buf_in[-width * 1];
-        const float pym2 = buf_in[-width * 2];
-        const float pym3 = buf_in[-width * 3];
-        const float pyM = buf_in[+width * 1];
-        const float pyM2 = buf_in[+width * 2];
-        const float pyM3 = buf_in[+width * 3];
-        const float pxm = buf_in[-1];
-        const float pxm2 = buf_in[-2];
-        const float pxm3 = buf_in[-3];
-        const float pxM = buf_in[+1];
-        const float pxM2 = buf_in[+2];
-        const float pxM3 = buf_in[+3];
+        const float pym  = fmaxf(0.0f, buf_in[-width * 1]);
+        const float pym2 = fmaxf(0.0f, buf_in[-width * 2]);
+        const float pym3 = fmaxf(0.0f, buf_in[-width * 3]);
+        const float pyM  = fmaxf(0.0f, buf_in[+width * 1]);
+        const float pyM2 = fmaxf(0.0f, buf_in[+width * 2]);
+        const float pyM3 = fmaxf(0.0f, buf_in[+width * 3]);
+        const float pxm  = fmaxf(0.0f, buf_in[-1]);
+        const float pxm2 = fmaxf(0.0f, buf_in[-2]);
+        const float pxm3 = fmaxf(0.0f, buf_in[-3]);
+        const float pxM  = fmaxf(0.0f, buf_in[+1]);
+        const float pxM2 = fmaxf(0.0f, buf_in[+2]);
+        const float pxM3 = fmaxf(0.0f, buf_in[+3]);
 
         const float guessx = (pxm + pc + pxM) * 2.0f - pxM2 - pxm2;
         const float diffx = (fabsf(pxm2 - pc) + fabsf(pxM2 - pc) + fabsf(pxm - pxM)) * 3.0f
@@ -217,7 +218,7 @@ static void rcd_ppg_border(float *const out, const float *const in, const int wi
 // for all pixels: interpolate colors into float array
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
-  dt_omp_firstprivate(filters, out, width, height) \
+  dt_omp_firstprivate(filters, out, width, height, margin) \
   schedule(static)
 #endif
   for(int j = 1; j < height - 1; j++)
@@ -225,9 +226,9 @@ static void rcd_ppg_border(float *const out, const float *const in, const int wi
     float *buf = out + (size_t)4 * width * j + 4;
     for(int i = 1; i < width - 1; i++)
     {
-      if(i == RCD_MARGIN && j >= RCD_MARGIN && j < height - RCD_MARGIN)
+      if(i == margin && j >= margin && j < height - margin)
       {
-        i = width - RCD_MARGIN;
+        i = width - margin;
         buf = out + (size_t)4 * (width * j + i);
       }
       const int c = FC(j, i, filters);
@@ -266,9 +267,9 @@ static void rcd_ppg_border(float *const out, const float *const in, const int wi
         if(c == 0)
         {
           // red pixel, fill blue:
-          const float diff1 = fabsf(ntl[2] - nbr[2]) + fabsf(ntl[1] - color[1]) + fabsf(nbr[1] - color[1]);
+          const float diff1  = fabsf(ntl[2] - nbr[2]) + fabsf(ntl[1] - color[1]) + fabsf(nbr[1] - color[1]);
           const float guess1 = ntl[2] + nbr[2] + 2.0f * color[1] - ntl[1] - nbr[1];
-          const float diff2 = fabsf(ntr[2] - nbl[2]) + fabsf(ntr[1] - color[1]) + fabsf(nbl[1] - color[1]);
+          const float diff2  = fabsf(ntr[2] - nbl[2]) + fabsf(ntr[1] - color[1]) + fabsf(nbl[1] - color[1]);
           const float guess2 = ntr[2] + nbl[2] + 2.0f * color[1] - ntr[1] - nbl[1];
           if(diff1 > diff2)
             color[2] = guess2 * .5f;
@@ -279,9 +280,9 @@ static void rcd_ppg_border(float *const out, const float *const in, const int wi
         }
         else // c == 2, blue pixel, fill red:
         {
-          const float diff1 = fabsf(ntl[0] - nbr[0]) + fabsf(ntl[1] - color[1]) + fabsf(nbr[1] - color[1]);
+          const float diff1  = fabsf(ntl[0] - nbr[0]) + fabsf(ntl[1] - color[1]) + fabsf(nbr[1] - color[1]);
           const float guess1 = ntl[0] + nbr[0] + 2.0f * color[1] - ntl[1] - nbr[1];
-          const float diff2 = fabsf(ntr[0] - nbl[0]) + fabsf(ntr[1] - color[1]) + fabsf(nbl[1] - color[1]);
+          const float diff2  = fabsf(ntr[0] - nbl[0]) + fabsf(ntr[1] - color[1]) + fabsf(nbl[1] - color[1]);
           const float guess2 = ntr[0] + nbl[0] + 2.0f * color[1] - ntr[1] - nbl[1];
           if(diff1 > diff2)
             color[0] = guess2 * .5f;
@@ -312,7 +313,7 @@ static void rcd_demosaic(dt_dev_pixelpipe_iop_t *piece, float *const restrict ou
     return;
   }
 
-  rcd_ppg_border(out, in, width, height, filters);
+  rcd_ppg_border(out, in, width, height, filters, RCD_MARGIN);
 
   const float scaler = fmaxf(piece->pipe->dsc.processed_maximum[0], fmaxf(piece->pipe->dsc.processed_maximum[1], piece->pipe->dsc.processed_maximum[2]));
   const float revscaler = 1.0f / scaler;
@@ -600,3 +601,4 @@ static void rcd_demosaic(dt_dev_pixelpipe_iop_t *piece, float *const restrict ou
 #undef w4
 #undef eps
 #undef epssq
+
