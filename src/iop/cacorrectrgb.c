@@ -245,6 +245,7 @@ dt_omp_firstprivate(blurred_in, blurred_manifold_lower, blurred_manifold_higher,
   }
 }
 
+#define DT_CACORRECTRGB_MAX_EV_DIFF 2.0f
 static void get_manifolds(const float* const restrict in, const size_t width, const size_t height,
                           const size_t ch, const float sigma, const float sigma2,
                           const dt_iop_cacorrectrgb_guide_channel_t guide,
@@ -278,15 +279,30 @@ dt_omp_firstprivate(in, blurred_in, manifold_lower, manifold_higher, width, heig
   {
     const float pixelg = fmaxf(in[k * 4 + guide], 1E-6f);
     const float avg = blurred_in[k * 4 + guide];
-    const float weighth = (pixelg >= avg);
-    const float weightl = (pixelg <= avg);
+    float weighth = (pixelg >= avg);
+    float weightl = (pixelg <= avg);
+    float logdiffs[2];
     for(size_t kc = 0; kc <= 1; kc++)
     {
       const size_t c = (kc + guide + 1) % 3;
       const float pixel = fmaxf(in[k * 4 + c], 1E-6f);
       const float log_diff = log2f(pixel / pixelg);
-      manifold_higher[k * 4 + c] = log_diff * weighth;
-      manifold_lower[k * 4 + c] = log_diff * weightl;
+      logdiffs[kc] = log_diff;
+    }
+    // regularization of logdiff to avoid too many problems with noise:
+    // we lower the weights of pixels with too high logdiff
+    const float maxlogdiff = fmaxf(fabsf(logdiffs[0]), fabsf(logdiffs[1]));
+    if(maxlogdiff > DT_CACORRECTRGB_MAX_EV_DIFF)
+    {
+      const float correction_weight = DT_CACORRECTRGB_MAX_EV_DIFF / maxlogdiff;
+      weightl *= correction_weight;
+      weighth *= correction_weight;
+    }
+    for(size_t kc = 0; kc <= 1; kc++)
+    {
+      const size_t c = (kc + guide + 1) % 3;
+      manifold_higher[k * 4 + c] = logdiffs[kc] * weighth;
+      manifold_lower[k * 4 + c] = logdiffs[kc] * weightl;
     }
     manifold_higher[k * 4 + guide] = pixelg * weighth;
     manifold_lower[k * 4 + guide] = pixelg * weightl;
@@ -395,12 +411,26 @@ dt_omp_firstprivate(in, blurred_in, manifold_lower, manifold_higher, width, heig
 
       if(pixelg > avgg)
       {
+        float logdiffs[2];
         for(size_t kc = 0; kc <= 1; kc++)
         {
           const size_t c = (guide + kc + 1) % 3;
           const float pixel = fmaxf(in[k * 4 + c], 1E-6f);
           const float log_diff = log2f(pixel) - pixelg;
-          manifold_higher[k * 4 + c] = log_diff * w;
+          logdiffs[kc] = log_diff;
+        }
+        // regularization of logdiff to avoid too many problems with noise:
+        // we lower the weights of pixels with too high logdiff
+        const float maxlogdiff = fmaxf(fabsf(logdiffs[0]), fabsf(logdiffs[1]));
+        if(maxlogdiff > DT_CACORRECTRGB_MAX_EV_DIFF)
+        {
+          const float correction_weight = DT_CACORRECTRGB_MAX_EV_DIFF / maxlogdiff;
+          w *= correction_weight;
+        }
+        for(size_t kc = 0; kc <= 1; kc++)
+        {
+          const size_t c = (kc + guide + 1) % 3;
+          manifold_higher[k * 4 + c] = logdiffs[kc] * w;
         }
         manifold_higher[k * 4 + guide] = fmaxf(in[k * 4 + guide], 0.0f) * w;
         manifold_higher[k * 4 + 3] = w;
@@ -413,12 +443,26 @@ dt_omp_firstprivate(in, blurred_in, manifold_lower, manifold_higher, width, heig
       }
       else
       {
+        float logdiffs[2];
         for(size_t kc = 0; kc <= 1; kc++)
         {
           const size_t c = (guide + kc + 1) % 3;
           const float pixel = fmaxf(in[k * 4 + c], 1E-6f);
           const float log_diff = log2f(pixel) - pixelg;
-          manifold_lower[k * 4 + c] = log_diff * w;
+          logdiffs[kc] = log_diff;
+        }
+        // regularization of logdiff to avoid too many problems with noise:
+        // we lower the weights of pixels with too high logdiff
+        const float maxlogdiff = fmaxf(fabsf(logdiffs[0]), fabsf(logdiffs[1]));
+        if(maxlogdiff > DT_CACORRECTRGB_MAX_EV_DIFF)
+        {
+          const float correction_weight = DT_CACORRECTRGB_MAX_EV_DIFF / maxlogdiff;
+          w *= correction_weight;
+        }
+        for(size_t kc = 0; kc <= 1; kc++)
+        {
+          const size_t c = (kc + guide + 1) % 3;
+          manifold_lower[k * 4 + c] = logdiffs[kc] * w;
         }
         manifold_lower[k * 4 + guide] = fmaxf(in[k * 4 + guide], 0.0f) * w;
         manifold_lower[k * 4 + 3] = w;
@@ -458,6 +502,7 @@ dt_omp_firstprivate(manifolds, blurred_manifold_lower, blurred_manifold_higher, 
   dt_free_align(blurred_manifold_lower);
   dt_free_align(blurred_manifold_higher);
 }
+#undef DT_CACORRECTRGB_MAX_EV_DIFF
 
 static void apply_correction(const float* const restrict in,
                           const float* const restrict manifolds,
@@ -639,7 +684,8 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
              const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
   dt_iop_cacorrectrgb_params_t *d = (dt_iop_cacorrectrgb_params_t *)piece->data;
-  const float scale = piece->iscale / roi_in->scale;
+  // used to adjuste blur level depending on size. Don't amplify noise if magnified > 100%
+  const float scale = fmaxf(piece->iscale / roi_in->scale, 1.f);
   const int ch = piece->colors;
   const size_t width = roi_out->width;
   const size_t height = roi_out->height;

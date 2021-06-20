@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2014-2020 darktable developers.
+    Copyright (C) 2014-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -105,6 +105,9 @@ void dt_get_printer_info(const char *printer_name, dt_printer_info_t *pinfo)
 
       if (attr)
       {
+        // scanf use local number format and PPD has en numbers
+        dt_util_str_to_loc_numbers_format(attr->value);
+
         sscanf(attr->value, "%lf %lf %lf %lf",
                &pinfo->hw_margin_left, &pinfo->hw_margin_bottom,
                &pinfo->hw_margin_right, &pinfo->hw_margin_top);

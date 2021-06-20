@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2011-2020 darktable developers.
+    Copyright (C) 2011-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -48,8 +48,9 @@ static void _selection_raise_signal()
 }
 
 /* updates the internal collection of an selection */
-static void _selection_update_collection(gpointer instance, dt_collection_change_t query_change, gpointer imgs,
-                                         int next, gpointer user_data);
+static void _selection_update_collection(gpointer instance, dt_collection_change_t query_change,
+                                         dt_collection_properties_t changed_property, gpointer imgs, int next,
+                                         gpointer user_data);
 
 static void _selection_select(dt_selection_t *selection, uint32_t imgid)
 {
@@ -89,7 +90,8 @@ static void _selection_select(dt_selection_t *selection, uint32_t imgid)
   dt_collection_hint_message(darktable.collection);
 }
 
-void _selection_update_collection(gpointer instance, dt_collection_change_t query_change, gpointer imgs, int next,
+void _selection_update_collection(gpointer instance, dt_collection_change_t query_change,
+                                  dt_collection_properties_t changed_property, gpointer imgs, int next,
                                   gpointer user_data)
 {
   dt_selection_t *selection = (dt_selection_t *)user_data;
@@ -111,7 +113,7 @@ const dt_selection_t *dt_selection_new()
   dt_selection_t *s = g_malloc0(sizeof(dt_selection_t));
 
   /* initialize the collection copy */
-  _selection_update_collection(NULL, DT_COLLECTION_CHANGE_RELOAD, NULL, -1, (gpointer)s);
+  _selection_update_collection(NULL, DT_COLLECTION_CHANGE_RELOAD, DT_COLLECTION_PROP_UNDEF, NULL, -1, (gpointer)s);
 
   /* initialize last_single_id based on current database */
   s->last_single_id = -1;
@@ -497,6 +499,7 @@ GList *dt_selection_get_list(struct dt_selection_t *selection, const gboolean on
   {
     l = g_list_prepend(l, GINT_TO_POINTER(sqlite3_column_int(stmt, 0)));
   }
+  if(!(only_visible && ordering)) l = g_list_reverse(l);
   if(stmt) sqlite3_finalize(stmt);
 
   return l;

@@ -1,6 +1,6 @@
 /*
  *    This file is part of darktable,
- *    Copyright (C) 2016-2020 darktable developers.
+ *    Copyright (C) 2016-2021 darktable developers.
  *
  *    darktable is free software: you can redistribute it and/or modify
  *    it under the terms of the GNU General Public License as published by
@@ -106,8 +106,8 @@ void checker_set_color(box_t *box, dt_colorspaces_color_profile_type_t color_spa
   box->color[1] = c1;
   box->color[2] = c2;
 
-  float Lab[3] = { c0, c1, c2 };
-  float XYZ[3] = { c0 * 0.01, c1 * 0.01, c2 * 0.01 };
+  float DT_ALIGNED_PIXEL Lab[4] = { c0, c1, c2 };
+  float DT_ALIGNED_PIXEL XYZ[4] = { c0 * 0.01, c1 * 0.01, c2 * 0.01 };
 
   switch(color_space)
   {

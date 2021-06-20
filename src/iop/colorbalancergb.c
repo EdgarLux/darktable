@@ -22,6 +22,7 @@
 // our includes go first:
 #include "bauhaus/bauhaus.h"
 #include "common/exif.h"
+#include "common/chromatic_adaptation.h"
 #include "common/colorspaces_inline_conversions.h"
 #include "common/opencl.h"
 #include "develop/blend.h"
@@ -40,8 +41,8 @@
 
 //#include <gtk/gtk.h>
 #include <stdlib.h>
-#define LUT_ELEM 360 // gamut LUT number of elements: resolution of 1°
-#define STEPS 72     // so we test 72×72×72 combinations of RGB in [0; 1] to build the gamut LUT
+#define LUT_ELEM 360     // gamut LUT number of elements: resolution of 1°
+#define STEPS 92         // so we test 92×92×92 combinations of RGB in [0; 1] to build the gamut LUT
 
 // Filmlight Yrg puts red at 330°, while usual HSL wheels put it at 360/0°
 // so shift in GUI only it to not confuse people. User params are always degrees,
@@ -88,11 +89,11 @@ typedef struct dt_iop_colorbalancergb_params_t
   float brilliance_shadows;    // $MIN: -1.0 $MAX: 1.0 $DEFAULT: 0.0 $DESCRIPTION: "shadows"
 
   /* params of v3 */
-  float mask_grey_fulcrum;     // $MIN: 0.0 $MAX: 1.0 $DEFAULT: 0.1845 $DESCRIPTION: "mask middle-grey fulcrum"
+  float mask_grey_fulcrum;     // $MIN: 0.0 $MAX: 1.0 $DEFAULT: 0.1845 $DESCRIPTION: "mask middle-gray fulcrum"
 
   /* params of v4 */
   float vibrance;         // $MIN: -1.0 $MAX: 1.0 $DEFAULT: 0 $DESCRIPTION: "global vibrance"
-  float grey_fulcrum;     // $MIN:  0.0 $MAX: 1.0 $DEFAULT: 0.1845 $DESCRIPTION: "contrast grey fulcrum"
+  float grey_fulcrum;     // $MIN:  0.0 $MAX: 1.0 $DEFAULT: 0.1845 $DESCRIPTION: "contrast gray fulcrum"
   float contrast;         // $MIN: -1.0 $MAX: 1.0 $DEFAULT: 0. $DESCRIPTION: "contrast"
 
   /* add future params after this so the legacy params import can use a blind memcpy */
@@ -147,6 +148,12 @@ typedef struct dt_iop_colorbalancergb_data_t
   gboolean lut_inited;
   struct dt_iop_order_iccprofile_info_t *work_profile;
 } dt_iop_colorbalancergb_data_t;
+
+typedef struct dt_iop_colorbalance_global_data_t
+{
+  int kernel_colorbalance_rgb;
+} dt_iop_colorbalancergb_global_data_t;
+
 
 const char *name()
 {
@@ -320,7 +327,7 @@ int legacy_params(dt_iop_module_t *self, const void *const old_params, const int
       float brilliance_shadows;    // $MIN: -1.0 $MAX: 1.0 $DEFAULT: 0.0 $DESCRIPTION: "shadows"
 
       /* params of v3 */
-      float mask_grey_fulcrum;     // $MIN: 0.0 $MAX: 1.0 $DEFAULT: 0.1845 $DESCRIPTION: "middle-grey fulcrum"
+      float mask_grey_fulcrum;     // $MIN: 0.0 $MAX: 1.0 $DEFAULT: 0.1845 $DESCRIPTION: "middle-gray fulcrum"
 
     } dt_iop_colorbalancergb_params_v3_t;
 
@@ -341,6 +348,25 @@ int legacy_params(dt_iop_module_t *self, const void *const old_params, const int
   return 1;
 }
 
+void init_presets(dt_iop_module_so_t *self)
+{
+  // Note : all the elements of the params structure are scalar floats,
+  // so we can just init them all to 0.f in batch
+  // Then, only 4 params have to be manually inited to non-zero values
+  dt_iop_colorbalancergb_params_t p = { 0.f };
+  p.shadows_weight = 1.f;        // DEFAULT: 1.0 DESCRIPTION: "shadows fall-off"
+  p.highlights_weight = 1.f;     // DEFAULT: 1.0 DESCRIPTION: "highlights fall-off"
+  p.mask_grey_fulcrum = 0.1845f; // DEFAULT: 0.1845 DESCRIPTION: "mask middle-gray fulcrum"
+  p.grey_fulcrum = 0.1845f;      // DEFAULT: 0.1845 DESCRIPTION: "contrast gray fulcrum"
+
+  // preset
+  p.chroma_global = 0.2f;
+  p.saturation_shadows = 0.1f;
+  p.saturation_midtones = 0.05f;
+  p.saturation_highlights = -0.05f;
+
+  dt_gui_presets_add_generic(_("add basic colorfulness"), self->op, self->version(), &p, sizeof(p), 1, DEVELOP_BLEND_CS_RGB_SCENE);
+}
 
 /* Custom matrix handling for speed */
 static inline void repack_3x3_to_3xSSE(const float input[9], float output[3][4])
@@ -363,7 +389,7 @@ static inline void repack_3x3_to_3xSSE(const float input[9], float output[3][4])
 }
 
 
-static void mat3mul4(float *dst, const float *const m1, const float *const m2)
+static void mat3mul4(float *restrict dst, const float *const restrict m1, const float *const restrict m2)
 {
   for(int k = 0; k < 3; ++k)
   {
@@ -418,6 +444,43 @@ static inline float soft_clip(const float x, const float soft_threshold, const f
 }
 
 
+static inline float lookup_gamut(const float *const gamut_lut, const float x)
+{
+  // WARNING : x should be between [-pi ; pi ], which is the default output of atan2 anyway
+
+  // convert in LUT coordinate
+  const float x_test = (LUT_ELEM - 1) * (x + M_PI_F) / (2.f * M_PI_F);
+
+  // find the 2 closest integer coordinates (next/previous)
+  float x_prev = floorf(x_test);
+  float x_next = ceilf(x_test);
+
+  // get the 2 closest LUT elements at integer coordinates
+  // cycle on the hue ring if out of bounds
+  int xi = (int)x_prev;
+  if(xi < 0) xi = LUT_ELEM - 1;
+  else if(xi > LUT_ELEM - 1) xi = 0;
+
+  int xii = (int)x_next;
+  if(xii < 0) xii = LUT_ELEM - 1;
+  else if(xii > LUT_ELEM - 1) xii = 0;
+
+  // fetch the corresponding y values
+  const float y_prev = gamut_lut[xi];
+  const float y_next = gamut_lut[xii];
+
+  // assume that we are exactly on an integer LUT element
+  float out = y_prev;
+
+  if(x_next != x_prev)
+    // we are between 2 LUT elements : do linear interpolation
+    // actually, we only add the slope term on the previous one
+    out += (x_test - x_prev) * (y_next - y_prev) / (x_next - x_prev);
+
+  return out;
+}
+
+
 void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
              void *const ovoid, const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
@@ -438,26 +501,35 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
     repack_3x3_to_3xSSE(work_profile->matrix_out, XYZ_to_RGB);
   }
 
-  // Matrices from CIE 1931 2° XYZ D50 to Filmlight grading RGB D65 through CIE 2006 LMS
-  const float XYZ_to_gradRGB[3][4] = { { 0.53346004f,  0.15226970f , -0.19946283f, 0.f },
-                                       {-0.67012691f,  1.91752954f,   0.39223917f, 0.f },
-                                       { 0.06557547f, -0.07983082f,   0.75036927f, 0.f } };
-  const float gradRGB_to_XYZ[3][4] = { { 1.67222161f, -0.11185000f,  0.50297636f, 0.f },
-                                       { 0.60120746f,  0.47018395f, -0.08596569f, 0.f },
-                                       {-0.08217531f,  0.05979694f,  1.27957582f, 0.f } };
+  // Premultiply the input matrices
 
-  // Premultiply the pipe RGB -> XYZ and XYZ -> grading RGB matrices to spare 2 matrix products per pixel
+  /* What we do here is equivalent to :
+
+    // go to CIE 1931 XYZ 2° D50
+    dot_product(RGB, RGB_to_XYZ, XYZ_D50); // matrice product
+
+    // chroma adapt D50 to D65
+    XYZ_D50_to_65(XYZ_D50, XYZ_D65);       // matrice product
+
+    // go to CIE 2006 LMS
+    XYZ_to_LMS(XYZ_D65, LMS);              // matrice product
+
+  * so we pre-multiply the 3 conversion matrices and operate only one matrix product
+  */
   float DT_ALIGNED_ARRAY input_matrix[3][4];
   float DT_ALIGNED_ARRAY output_matrix[3][4];
-  mat3mul4((float *)input_matrix, (float *)XYZ_to_gradRGB, (float *)RGB_to_XYZ);
-  mat3mul4((float *)output_matrix, (float *)XYZ_to_RGB, (float *)gradRGB_to_XYZ);
 
-  // Test white point of the current space in grading RGB
-  const float white_pipe_RGB[4] = { 1.f, 1.f, 1.f };
-  float white_grading_RGB[4] = { 0.f };
-  dot_product(white_pipe_RGB, input_matrix, white_grading_RGB);
-  const float sum_white = white_grading_RGB[0] + white_grading_RGB[1] + white_grading_RGB[2];
-  for_four_channels(c) white_grading_RGB[c] /= sum_white;
+  mat3mul4((float *)output_matrix, (float *)XYZ_D50_to_D65_CAT16, (float *)RGB_to_XYZ); // output_matrix used as temp buffer
+  mat3mul4((float *)input_matrix, (float *)XYZ_D65_to_LMS_2006_D65, (float *)output_matrix);
+
+  // Premultiply the output matrix
+
+  /* What we do here is equivalent to :
+    XYZ_D65_to_50(XYZ_D65, XYZ_D50);           // matrix product
+    dot_product(XYZ_D50, XYZ_to_RGB, pix_out); // matrix product
+  */
+
+  mat3mul4((float *)output_matrix, (float *)XYZ_to_RGB, (float *)XYZ_D65_to_D50_CAT16);
 
   const float *const restrict in = __builtin_assume_aligned(((const float *const restrict)ivoid), 64);
   float *const restrict out = __builtin_assume_aligned(((float *const restrict)ovoid), 64);
@@ -482,7 +554,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
 
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
-  dt_omp_firstprivate(in, out, roi_in, roi_out, d, g, mask_display, input_matrix, output_matrix, gamut_LUT, white_grading_RGB, \
+  dt_omp_firstprivate(in, out, roi_in, roi_out, d, g, mask_display, input_matrix, output_matrix, gamut_LUT, \
     global, highlights, shadows, midtones, chroma, saturation, brilliance, checker_1, checker_2) \
     schedule(static) collapse(2)
 #endif
@@ -493,20 +565,42 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
     const float *const restrict pix_in = __builtin_assume_aligned(in + k, 16);
     float *const restrict pix_out = __builtin_assume_aligned(out + k, 16);
 
-    float DT_ALIGNED_PIXEL Ych[4] = { 0.f };
+    float DT_ALIGNED_PIXEL XYZ_D65[4] = { 0.f };
+    float DT_ALIGNED_PIXEL LMS[4] = { 0.f };
     float DT_ALIGNED_PIXEL RGB[4] = { 0.f };
+    float DT_ALIGNED_PIXEL Yrg[4] = { 0.f };
+    float DT_ALIGNED_PIXEL Ych[4] = { 0.f };
 
-    for_four_channels(c, aligned(pix_in:16)) Ych[c] = fmaxf(pix_in[c], 0.0f);
-    dot_product(Ych, input_matrix, RGB);
-    gradingRGB_to_Ych(RGB, Ych, white_grading_RGB);
+    // clip pipeline RGB
+    for_four_channels(c, aligned(pix_in:16)) RGB[c] = fmaxf(pix_in[c], 0.0f);
+
+    // go to CIE 2006 LMS D65
+    dot_product(RGB, input_matrix, LMS);
+
+    /* The previous line is equivalent to :
+      // go to CIE 1931 XYZ 2° D50
+      dot_product(RGB, RGB_to_XYZ, XYZ_D50); // matrice product
+
+      // chroma adapt D50 to D65
+      XYZ_D50_to_65(XYZ_D50, XYZ_D65); // matrice product
+
+      // go to CIE 2006 LMS
+      XYZ_to_LMS(XYZ_D65, LMS); // matrice product
+    */
+
+    // go to Filmlight Yrg
+    LMS_to_Yrg(LMS, Yrg);
+
+    // go to Ych
+    Yrg_to_Ych(Yrg, Ych);
 
     // Sanitize input : no negative luminance
-    float Y = fmaxf(Ych[0], 0.f);
+    Ych[0] = fmaxf(Ych[0], 0.f);
 
     // Opacities for luma masks
     float DT_ALIGNED_PIXEL opacities[4];
     float DT_ALIGNED_PIXEL opacities_comp[4];
-    opacity_masks(powf(Y, 0.4101205819200422f), // center middle grey in 50 %
+    opacity_masks(powf(Ych[0], 0.4101205819200422f), // center middle grey in 50 %
                   d->shadows_weight, d->highlights_weight, d->midtones_weight, d->mask_grey_fulcrum, opacities, opacities_comp);
 
     // Hue shift - do it now because we need the gamut limit at output hue right after
@@ -516,19 +610,44 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
     if(Ych[2] > M_PI_F) Ych[2] -= 2.f * M_PI_F;
     else if(Ych[2] < -M_PI_F) Ych[2] += 2.f * M_PI_F;
 
-    // Get max allowed chroma in working RGB gamut at current output hue
-    const float max_chroma_h = Y * gamut_LUT[CLAMP((size_t)(LUT_ELEM * (Ych[2] + M_PI_F) / (2.f * M_PI_F)), 0, LUT_ELEM - 1)];
-
     // Linear chroma : distance to achromatic at constant luminance in scene-referred
-    // - in case we desaturate, we do so by a constant factor
-    // - in case we resaturate, we normalize the correction by the max chroma allowed at current hue
-    //   to prevent users from pushing saturated colors outside of gamut while the low-sat ones
-    //   are still muted.
     const float chroma_boost = d->chroma_global + scalar_product(opacities, chroma);
     const float vibrance = d->vibrance * (1.0f - powf(Ych[1], fabsf(d->vibrance)));
     const float chroma_factor = fmaxf(1.f + chroma_boost + vibrance, 0.f);
-    Ych[1] = soft_clip(Ych[1] * chroma_factor, max_chroma_h, max_chroma_h * 4.f);
-    Ych_to_gradingRGB(Ych, RGB, white_grading_RGB);
+    Ych[1] *= chroma_factor;
+
+    // Do a test conversion to Yrg
+    Ych_to_Yrg(Ych, Yrg);
+
+    // Gamut-clip in Yrg at constant hue and luminance
+    // e.g. find the max chroma value that fits in gamut at the current hue
+    const float D65[4] = { 0.21962576f, 0.54487092f, 0.23550333f, 0.f };
+    float max_c = Ych[1];
+    const float cos_h = cosf(Ych[2]);
+    const float sin_h = sinf(Ych[2]);
+
+    if(Yrg[1] < 0.f)
+    {
+      max_c = fminf(-D65[0] / cos_h, max_c);
+    }
+    if(Yrg[2] < 0.f)
+    {
+      max_c = fminf(-D65[1] / sin_h, max_c);
+    }
+    if(Yrg[1] + Yrg[2] > 1.f)
+    {
+      max_c = fminf((1.f - D65[0] - D65[1]) / (cos_h + sin_h), max_c);
+    }
+
+    // Overwrite chroma with the sanitized value and go to Yrg for real
+    Ych[1] = max_c;
+    Ych_to_Yrg(Ych, Yrg);
+
+    // Go to LMS
+    Yrg_to_LMS(Yrg, LMS);
+
+    // Go to Filmlight RGB
+    LMS_to_gradingRGB(LMS, RGB);
 
     // Color balance
     for_four_channels(c, aligned(RGB, opacities, opacities_comp, global, shadows, midtones, highlights:16))
@@ -545,35 +664,26 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
       RGB[c] = sign * powf(fabsf(RGB[c]) / d->white_fulcrum, midtones[c]) * d->white_fulcrum;
     }
 
-    // for the Y midtones power (gamma), we need to go in Ych again because RGB doesn't preserve color
-    gradingRGB_to_Ych(RGB, Ych, white_grading_RGB);
-    Y = Ych[0] = powf(fmaxf(Ych[0] / d->white_fulcrum, 0.f), d->midtones_Y) * d->white_fulcrum;
+    // for the non-linear ops we need to go in Yrg again because RGB doesn't preserve color
+    gradingRGB_to_LMS(RGB, LMS);
+    LMS_to_Yrg(LMS, Yrg);
 
-    // then the contrast
-    Y = Ych[0] = d->grey_fulcrum * powf(Ych[0] / d->grey_fulcrum, d->contrast);
-    Ych_to_gradingRGB(Ych, RGB, white_grading_RGB);
+    // Y midtones power (gamma)
+    Yrg[0] = powf(fmaxf(Yrg[0] / d->white_fulcrum, 0.f), d->midtones_Y) * d->white_fulcrum;
+
+    // Y fulcrumed contrast
+    Yrg[0] = d->grey_fulcrum * powf(Yrg[0] / d->grey_fulcrum, d->contrast);
+
+    Yrg_to_LMS(Yrg, LMS);
+    LMS_to_XYZ(LMS, XYZ_D65);
 
     // Perceptual color adjustments
-
-    // grading RGB to CIE 1931 XYZ 2° D65
-    const float DT_ALIGNED_ARRAY RGB_to_XYZ_D65[3][4] = { { 1.64004888f, -0.10969806f, 0.49329934f, 0.f },
-                                                          { 0.61055787f, 0.47749658f, -0.08730269f, 0.f },
-                                                          { -0.10698534f, 0.07785058f, 1.66590006f, 0.f } };
-
-    const float DT_ALIGNED_ARRAY XYZ_to_RGB_D65[3][4] = { { 0.54392489f, 0.14993776f, -0.15320716f, 0.f },
-                                                          { -0.68327274f, 1.88816348f, 0.30127843f, 0.f },
-                                                          { 0.06686186f, -0.07860825f, 0.57635773f, 0.f } };
-
-    // Go to JzAzBz for perceptual saturation
-    // We can't use gradingRGB_to_XYZ() since it also does chromatic adaptation to D50
-    // and JzAzBz uses D65, same as grading RGB. So we use the matrices above instead
     float DT_ALIGNED_PIXEL Jab[4] = { 0.f };
-    dot_product(RGB, RGB_to_XYZ_D65, Ych);
-    dt_XYZ_2_JzAzBz(Ych, Jab);
+    dt_XYZ_2_JzAzBz(XYZ_D65, Jab);
 
     // Convert to JCh
     float JC[2] = { Jab[0], hypotf(Jab[1], Jab[2]) };               // brightness/chroma vector
-    const float h = (JC[1] == 0.f) ? 0.f : atan2f(Jab[2], Jab[1]);  // hue : (a, b) angle
+    const float h = atan2f(Jab[2], Jab[1]);  // hue : (a, b) angle
 
     // Project JC onto S, the saturation eigenvector, with orthogonal vector O.
     // Note : O should be = (C * cosf(T) - J * sinf(T)) = 0 since S is the eigenvector,
@@ -599,23 +709,62 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
     JC[0] = fmaxf(SO[0] * M_rot_inv[0][0] + SO[1] * M_rot_inv[0][1], 0.f);
     JC[1] = fmaxf(SO[0] * M_rot_inv[1][0] + SO[1] * M_rot_inv[1][1], 0.f);
 
-    // Project back to JzAzBz
-    Jab[0] = JC[0];
-    Jab[1] = JC[1] * cosf(h);
-    Jab[2] = JC[1] * sinf(h);
-
-    dt_JzAzBz_2_XYZ(Jab, Ych);
-    dot_product(Ych, XYZ_to_RGB_D65, RGB);
-    gradingRGB_to_Ych(RGB, Ych, white_grading_RGB);
-
     // Gamut mapping
-    // Note : no need to check hue is in [-PI; PI], gradingRGB_to_Ych uses atan2f()
-    // which always returns angles in [-PI; PI]
-    const float out_max_chroma_h = Ych[0] * gamut_LUT[CLAMP((size_t)(LUT_ELEM * (Ych[2] + M_PI_F) / (2.f * M_PI_F)), 0, LUT_ELEM - 1)];
-    Ych[1] = soft_clip(Ych[1], out_max_chroma_h, out_max_chroma_h * 4.f);
+    const float out_max_sat_h = lookup_gamut(gamut_LUT, h);
+    float sat = (JC[0] > 0.f) ? JC[1] / JC[0] : 0.f;
+    sat = soft_clip(sat, 0.8f * out_max_sat_h, out_max_sat_h);
+    const float max_C_at_sat = JC[0] * sat;
+    const float max_J_at_sat = (sat > 0.f) ? JC[1] / sat : 0.f;
+    JC[0] = (JC[0] + max_J_at_sat) / 2.f;
+    JC[1] = (JC[1] + max_C_at_sat) / 2.f;
 
-    Ych_to_gradingRGB(Ych, RGB, white_grading_RGB);
-    dot_product(RGB, output_matrix, pix_out);
+    // Gamut-clip in Jch at constant hue and lightness,
+    // e.g. find the max chroma available at current hue that doesn't
+    // yield negative L'M'S' values, which will need to be clipped during conversion
+    const float cos_H = cosf(h);
+    const float sin_H = sinf(h);
+
+    const float d0 = 1.6295499532821566e-11f;
+    const float dd = -0.56f;
+    float Iz = JC[0] + d0;
+    Iz /= (1.f + dd - dd * Iz);
+    Iz = fmaxf(Iz, 0.f);
+
+    const float DT_ALIGNED_ARRAY AI[3][4]
+        = { {  1.0f,  0.1386050432715393f,  0.0580473161561189f, 0.0f },
+            {  1.0f, -0.1386050432715393f, -0.0580473161561189f, 0.0f },
+            {  1.0f, -0.0960192420263190f, -0.8118918960560390f, 0.0f } };
+
+    // Do a test conversion to L'M'S'
+    const float IzAzBz[4] = { Iz, JC[1] * cos_H, JC[1] * sin_H, 0.f };
+    dot_product(IzAzBz, AI, LMS);
+
+    // Clip chroma
+    float max_C = JC[1];
+    if(LMS[0] < 0.f)
+      max_C = fmin(-Iz / (AI[0][1] * cos_H + AI[0][2] * sin_H), max_C);
+
+    if(LMS[1] < 0.f)
+      max_C = fmin(-Iz / (AI[1][1] * cos_H + AI[1][2] * sin_H), max_C);
+
+    if(LMS[2] < 0.f)
+      max_C = fmin(-Iz / (AI[2][1] * cos_H + AI[2][2] * sin_H), max_C);
+
+    // Project back to JzAzBz for real
+    Jab[0] = JC[0];
+    Jab[1] = max_C * cos_H;
+    Jab[2] = max_C * sin_H;
+
+    dt_JzAzBz_2_XYZ(Jab, XYZ_D65);
+
+    // Project back to D50 pipeline RGB
+    dot_product(XYZ_D65, output_matrix, pix_out);
+
+    /* The previous line is equivalent to :
+      XYZ_D65_to_50(XYZ_D65, XYZ_D50);           // matrix product
+      dot_product(XYZ_D50, XYZ_to_RGB, pix_out); // matrix product
+    */
+
     if(mask_display)
     {
       // draw checkerboard
@@ -645,6 +794,175 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   }
 }
 
+
+#if HAVE_OPENCL
+int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_mem dev_in, cl_mem dev_out,
+               const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
+{
+  const dt_iop_colorbalancergb_data_t *const d = (dt_iop_colorbalancergb_data_t *)piece->data;
+  dt_iop_colorbalancergb_global_data_t *const gd = (dt_iop_colorbalancergb_global_data_t *)self->global_data;
+  dt_iop_colorbalancergb_gui_data_t *g = (dt_iop_colorbalancergb_gui_data_t *)self->gui_data;
+
+  cl_int err = -999;
+
+  if(piece->colors != 4)
+  {
+    dt_control_log(_("colorbalance works only on RGB input"));
+    return err;
+  }
+
+  const int devid = piece->pipe->devid;
+  const int width = roi_in->width;
+  const int height = roi_in->height;
+
+  size_t sizes[] = { ROUNDUPWD(width), ROUNDUPHT(height), 1 };
+
+  // Get working color profile
+  const struct dt_iop_order_iccprofile_info_t *const work_profile
+      = dt_ioppr_get_pipe_current_profile_info(self, piece->pipe);
+  if(work_profile == NULL) return err; // no point
+
+  cl_mem dev_profile_info = NULL;
+  cl_mem dev_profile_lut = NULL;
+  dt_colorspaces_iccprofile_info_cl_t *profile_info_cl;
+  cl_float *profile_lut_cl = NULL;
+
+  cl_mem input_matrix_cl = NULL;
+  cl_mem output_matrix_cl = NULL;
+  cl_mem gamut_LUT = NULL;
+
+  err = dt_ioppr_build_iccprofile_params_cl(work_profile, devid, &profile_info_cl, &profile_lut_cl,
+                                            &dev_profile_info, &dev_profile_lut);
+  if(err != CL_SUCCESS) goto error;
+
+  float DT_ALIGNED_ARRAY RGB_to_XYZ[3][4];
+  float DT_ALIGNED_ARRAY XYZ_to_RGB[3][4];
+
+  // repack the matrices as flat AVX2-compliant matrice
+  if(work_profile)
+  {
+    // work profile can't be fetched in commit_params since it is not yet initialised
+    repack_3x3_to_3xSSE(work_profile->matrix_in, RGB_to_XYZ);
+    repack_3x3_to_3xSSE(work_profile->matrix_out, XYZ_to_RGB);
+  }
+
+  // Premultiply the input matrices
+
+  /* What we do here is equivalent to :
+
+    // go to CIE 1931 XYZ 2° D50
+    dot_product(RGB, RGB_to_XYZ, XYZ_D50); // matrice product
+
+    // chroma adapt D50 to D65
+    XYZ_D50_to_65(XYZ_D50, XYZ_D65);       // matrice product
+
+    // go to CIE 2006 LMS
+    XYZ_to_LMS(XYZ_D65, LMS);              // matrice product
+
+  * so we pre-multiply the 3 conversion matrices and operate only one matrix product
+  */
+  float DT_ALIGNED_ARRAY input_matrix[3][4];
+  float DT_ALIGNED_ARRAY output_matrix[3][4];
+
+  mat3mul4((float *)output_matrix, (float *)XYZ_D50_to_D65_CAT16, (float *)RGB_to_XYZ); // output_matrix used as temp buffer
+  mat3mul4((float *)input_matrix, (float *)XYZ_D65_to_LMS_2006_D65, (float *)output_matrix);
+
+  // Premultiply the output matrix
+
+  /* What we do here is equivalent to :
+    XYZ_D65_to_50(XYZ_D65, XYZ_D50);           // matrix product
+    dot_product(XYZ_D50, XYZ_to_RGB, pix_out); // matrix product
+  */
+
+  mat3mul4((float *)output_matrix, (float *)XYZ_to_RGB, (float *)XYZ_D65_to_D50_CAT16);
+
+  input_matrix_cl = dt_opencl_copy_host_to_device_constant(devid, 12 * sizeof(float), input_matrix);
+  output_matrix_cl = dt_opencl_copy_host_to_device_constant(devid, 12 * sizeof(float), output_matrix);
+
+  // Send gamut LUT to GPU
+  gamut_LUT = dt_opencl_copy_host_to_device(devid, d->gamut_LUT, LUT_ELEM, 1, sizeof(float));
+
+  // Size of the checker
+  const gint mask_display
+      = ((piece->pipe->type & DT_DEV_PIXELPIPE_FULL) == DT_DEV_PIXELPIPE_FULL && self->dev->gui_attached
+         && g && g->mask_display);
+  const int checker_1 = (mask_display) ? DT_PIXEL_APPLY_DPI(d->checker_size) : 0;
+  const int checker_2 = 2 * checker_1;
+  const int mask_type = (mask_display) ? g->mask_type : 0;
+
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 0, sizeof(cl_mem), (void *)&dev_in);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 1, sizeof(cl_mem), (void *)&dev_out);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 2, sizeof(int), (void *)&width);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 3, sizeof(int), (void *)&height);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 4, sizeof(cl_mem), (void *)&dev_profile_info);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 5, sizeof(cl_mem), (void *)&input_matrix_cl);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 6, sizeof(cl_mem), (void *)&output_matrix_cl);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 7, sizeof(cl_mem), (void *)&gamut_LUT);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 8, sizeof(float), (void *)&d->shadows_weight);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 9, sizeof(float), (void *)&d->highlights_weight);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 10, sizeof(float), (void *)&d->midtones_weight);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 11, sizeof(float), (void *)&d->mask_grey_fulcrum);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 12, sizeof(float), (void *)&d->hue_angle);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 13, sizeof(float), (void *)&d->chroma_global);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 14, 4 * sizeof(float), (void *)&d->chroma);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 15, sizeof(float), (void *)&d->vibrance);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 16, 4 * sizeof(float), (void *)&d->global);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 17, 4 * sizeof(float), (void *)&d->shadows);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 18, 4 * sizeof(float), (void *)&d->highlights);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 19, 4 * sizeof(float), (void *)&d->midtones);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 20, sizeof(float), (void *)&d->white_fulcrum);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 21, sizeof(float), (void *)&d->midtones_Y);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 22, sizeof(float), (void *)&d->grey_fulcrum);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 23, sizeof(float), (void *)&d->contrast);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 24, sizeof(float), (void *)&d->brilliance_global);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 25, 4 * sizeof(float), (void *)&d->brilliance);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 26, sizeof(float), (void *)&d->saturation_global);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 27, 4 * sizeof(float), (void *)&d->saturation);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 28, sizeof(int), (void *)&mask_display);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 29, sizeof(int), (void *)&mask_type);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 30, sizeof(int), (void *)&checker_1);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 31, sizeof(int), (void *)&checker_2);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 32, 4 * sizeof(float), (void *)&d->checker_color_1);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_colorbalance_rgb, 33, 4 * sizeof(float), (void *)&d->checker_color_2);
+
+  err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_colorbalance_rgb, sizes);
+  if(err != CL_SUCCESS) goto error;
+
+  // cleanup and exit on success
+  dt_ioppr_free_iccprofile_params_cl(&profile_info_cl, &profile_lut_cl, &dev_profile_info, &dev_profile_lut);
+  dt_opencl_release_mem_object(input_matrix_cl);
+  dt_opencl_release_mem_object(output_matrix_cl);
+  dt_opencl_release_mem_object(gamut_LUT);
+  return TRUE;
+
+error:
+  dt_ioppr_free_iccprofile_params_cl(&profile_info_cl, &profile_lut_cl, &dev_profile_info, &dev_profile_lut);
+  if(input_matrix_cl) dt_opencl_release_mem_object(input_matrix_cl);
+  if(output_matrix_cl) dt_opencl_release_mem_object(output_matrix_cl);
+  if(gamut_LUT) dt_opencl_release_mem_object(gamut_LUT);
+  dt_print(DT_DEBUG_OPENCL, "[opencl_colorbalancergb] couldn't enqueue kernel! %d\n", err);
+  return FALSE;
+}
+
+void init_global(dt_iop_module_so_t *module)
+{
+  const int program = 8; // extended.cl in programs.conf
+  dt_iop_colorbalancergb_global_data_t *gd
+      = (dt_iop_colorbalancergb_global_data_t *)malloc(sizeof(dt_iop_colorbalancergb_global_data_t));
+
+  module->data = gd;
+  gd->kernel_colorbalance_rgb = dt_opencl_create_kernel(program, "colorbalancergb");
+}
+
+
+void cleanup_global(dt_iop_module_so_t *module)
+{
+  dt_iop_colorbalancergb_global_data_t *gd = (dt_iop_colorbalancergb_global_data_t *)module->data;
+  dt_opencl_free_kernel(gd->kernel_colorbalance_rgb);
+  free(module->data);
+  module->data = NULL;
+}
+#endif
 
 void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pixelpipe_t *pipe,
                    dt_dev_pixelpipe_iop_t *piece)
@@ -691,19 +1009,19 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   // measure the grading RGB of a pure white
   const float Ych_norm[4] = { 1.f, 0.f, 0.f, 0.f };
   float RGB_norm[4] = { 0.f };
-  Ych_to_gradingRGB(Ych_norm, RGB_norm, NULL);
+  Ych_to_gradingRGB(Ych_norm, RGB_norm);
 
   // global
   {
     float Ych[4] = { 1.f, p->global_C, DEG_TO_RAD(p->global_H), 0.f };
-    Ych_to_gradingRGB(Ych, d->global, NULL);
+    Ych_to_gradingRGB(Ych, d->global);
     for(size_t c = 0; c < 4; c++) d->global[c] = (d->global[c] - RGB_norm[c]) + RGB_norm[c] * p->global_Y;
   }
 
   // shadows
   {
     float Ych[4] = { 1.f, p->shadows_C, DEG_TO_RAD(p->shadows_H), 0.f };
-    Ych_to_gradingRGB(Ych, d->shadows, NULL);
+    Ych_to_gradingRGB(Ych, d->shadows);
     for(size_t c = 0; c < 4; c++) d->shadows[c] = 1.f + (d->shadows[c] - RGB_norm[c]) + p->shadows_Y;
     d->shadows_weight = 2.f + p->shadows_weight * 2.f;
   }
@@ -711,7 +1029,7 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   // highlights
   {
     float Ych[4] = { 1.f, p->highlights_C, DEG_TO_RAD(p->highlights_H), 0.f };
-    Ych_to_gradingRGB(Ych, d->highlights, NULL);
+    Ych_to_gradingRGB(Ych, d->highlights);
     for(size_t c = 0; c < 4; c++) d->highlights[c] = 1.f + (d->highlights[c] - RGB_norm[c]) + p->highlights_Y;
     d->highlights_weight = 2.f + p->highlights_weight * 2.f;
   }
@@ -719,7 +1037,7 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   // midtones
   {
     float Ych[4] = { 1.f, p->midtones_C, DEG_TO_RAD(p->midtones_H), 0.f };
-    Ych_to_gradingRGB(Ych, d->midtones, NULL);
+    Ych_to_gradingRGB(Ych, d->midtones);
     for(size_t c = 0; c < 4; c++) d->midtones[c] = 1.f / (1.f + (d->midtones[c] - RGB_norm[c]));
     d->midtones_Y = 1.f / (1.f + p->midtones_Y);
     d->white_fulcrum = exp2f(p->white_fulcrum);
@@ -743,31 +1061,24 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   // this will be used to prevent users to mess up their images by pushing chroma out of gamut
   if(!d->lut_inited && d->gamut_LUT)
   {
-    float *const restrict LUT = d->gamut_LUT;
+    float *const restrict LUT = dt_alloc_align_float(LUT_ELEM);
 
     // init the LUT between -pi and pi by increments of 1°
     for(size_t k = 0; k < LUT_ELEM; k++) LUT[k] = 0.f;
 
-    // Premultiply the matrix to speed-up
+    // D50 pipeline RGB to D50 XYZ
     float DT_ALIGNED_ARRAY RGB_to_XYZ[3][4];
     repack_3x3_to_3xSSE(work_profile->matrix_in, RGB_to_XYZ);
-    const float XYZ_to_gradingRGB[3][4] = { { 0.53346004f,  0.15226970f , -0.19946283f, 0.f },
-                                            {-0.67012691f,  1.91752954f,   0.39223917f, 0.f },
-                                            { 0.06557547f, -0.07983082f,   0.75036927f, 0.f } };
-    float DT_ALIGNED_ARRAY input_matrix[3][4];
-    mat3mul4((float *)input_matrix, (float *)XYZ_to_gradingRGB, (float *)RGB_to_XYZ);
 
-    // Test white point of the current space in grading RGB
-    const float white_pipe_RGB[4] = { 1.f, 1.f, 1.f };
-    float white_grading_RGB[4] = { 0.f };
-    dot_product(white_pipe_RGB, input_matrix, white_grading_RGB);
-    const float sum_white = white_grading_RGB[0] + white_grading_RGB[1] + white_grading_RGB[2];
-    for_four_channels(c) white_grading_RGB[c] /= sum_white;
+    // Premultiply both matrices to go from D50 pipeline RGB to D65 XYZ in a single matrix dot product
+    float DT_ALIGNED_ARRAY input_matrix[3][4];
+    mat3mul4((float *)input_matrix, (float *)XYZ_D50_to_D65_CAT16, (float *)RGB_to_XYZ);
 
     // make RGB values vary between [0; 1] in working space, convert to Ych and get the max(c(h)))
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
-      dt_omp_firstprivate(input_matrix, white_grading_RGB) schedule(static) dt_omp_sharedconst(LUT)
+      dt_omp_firstprivate(input_matrix) schedule(static) dt_omp_sharedconst(LUT) \
+      collapse(3)
 #endif
     for(size_t r = 0; r < STEPS; r++)
       for(size_t g = 0; g < STEPS; g++)
@@ -777,16 +1088,34 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
                                                   (float)g / (float)(STEPS - 1),
                                                   (float)b / (float)(STEPS - 1),
                                                   0.f };
+          float DT_ALIGNED_PIXEL XYZ[4] = { 0.f };
+          float DT_ALIGNED_PIXEL Jab[4] = { 0.f };
+          float DT_ALIGNED_PIXEL Jch[4] = { 0.f };
 
-          float DT_ALIGNED_PIXEL RGB[4] = { 0.f };
-          float DT_ALIGNED_PIXEL Ych[4] = { 0.f };
-          dot_product(rgb, input_matrix, RGB);
-          gradingRGB_to_Ych(RGB, Ych, white_grading_RGB);
-          const size_t index = CLAMP((size_t)(LUT_ELEM * (Ych[2] + M_PI_F) / (2.f * M_PI_F)), 0, LUT_ELEM - 1);
-          const float saturation = (Ych[0] > 0.f) ? Ych[1] / Ych[0] : 0.f;
-          if(LUT[index] < saturation) LUT[index] = saturation;
+          dot_product(rgb, input_matrix, XYZ); // Go to D50 pipeline RGB to D65 XYZ in one step
+          dt_XYZ_2_JzAzBz(XYZ, Jab);           // this one expects D65 XYZ
+          Jch[0] = Jab[0];
+          Jch[1] = hypotf(Jab[2], Jab[1]);
+          Jch[2] = atan2f(Jab[2], Jab[1]);
+
+          const size_t index = roundf((LUT_ELEM - 1) * (Jch[2] + M_PI_F) / (2.f * M_PI_F));
+          const float saturation = (Jch[0] > 0.f) ? Jch[1] / Jch[0] : 0.f;
+          LUT[index] = fmaxf(saturation, LUT[index]);
         }
 
+    // anti-aliasing on the LUT (simple 5-taps 1D box average)
+    for(size_t k = 2; k < LUT_ELEM - 2; k++)
+    {
+      d->gamut_LUT[k] = (LUT[k - 2] + LUT[k - 1] + LUT[k] + LUT[k + 1] + LUT[k + 2]) / 5.f;
+    }
+
+    // handle bounds
+    d->gamut_LUT[0] = (LUT[LUT_ELEM - 2] + LUT[LUT_ELEM - 1] + LUT[0] + LUT[1] + LUT[2]) / 5.f;
+    d->gamut_LUT[1] = (LUT[LUT_ELEM - 1] + LUT[0] + LUT[1] + LUT[2] + LUT[3]) / 5.f;
+    d->gamut_LUT[LUT_ELEM - 1] = (LUT[LUT_ELEM - 3] + LUT[LUT_ELEM - 2] + LUT[LUT_ELEM - 1] + LUT[0] + LUT[1]) / 5.f;
+    d->gamut_LUT[LUT_ELEM - 2] = (LUT[LUT_ELEM - 4] + LUT[LUT_ELEM - 3] + LUT[LUT_ELEM - 2] + LUT[LUT_ELEM - 1] + LUT[0]) / 5.f;
+
+    dt_free_align(LUT);
     d->lut_inited = TRUE;
   }
 }
@@ -814,14 +1143,14 @@ void pipe_RGB_to_Ych(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const
   const struct dt_iop_order_iccprofile_info_t *const work_profile = dt_ioppr_get_pipe_current_profile_info(self, piece->pipe);
   if(work_profile == NULL) return; // no point
 
-  float XYZ[4] = { 0.f };
-  float LMS[4] = { 0.f };
+  float DT_ALIGNED_ARRAY XYZ_D50[4] = { 0.f };
+  float DT_ALIGNED_ARRAY XYZ_D65[4] = { 0.f };
 
-  dt_ioppr_rgb_matrix_to_xyz(RGB, XYZ, work_profile->matrix_in, work_profile->lut_in,
+  dt_ioppr_rgb_matrix_to_xyz(RGB, XYZ_D50, work_profile->matrix_in, work_profile->lut_in,
                              work_profile->unbounded_coeffs_in, work_profile->lutsize,
                              work_profile->nonlinearlut);
-  XYZ_to_gradingRGB(XYZ, LMS);
-  gradingRGB_to_Ych(LMS, Ych, NULL);
+  XYZ_D50_to_D65(XYZ_D50, XYZ_D65);
+  XYZ_to_Ych(XYZ_D65, Ych);
 
   if(Ych[2] < 0.f)
     Ych[2] = 2.f * M_PI + Ych[2];
@@ -901,12 +1230,11 @@ static void paint_chroma_slider(GtkWidget *w, const float hue)
     const float x = x_min + stop * x_range;
     const float h = DEG_TO_RAD(hue);
 
-    float RGB[4] = { 0.f };
-    float Ych[4] = { 0.75f, x, h, 0.f };
-    float LMS[4] = { 0.f };
-    Ych_to_gradingRGB(Ych, LMS, NULL);
-    gradingRGB_to_XYZ(LMS, Ych);
-    dt_XYZ_to_Rec709_D65(Ych, RGB);
+    float DT_ALIGNED_PIXEL RGB[4] = { 0.f };
+    float DT_ALIGNED_PIXEL Ych[4] = { 0.75f, x, h, 0.f };
+    float DT_ALIGNED_PIXEL XYZ[4] = { 0.f };
+    Ych_to_XYZ(Ych, XYZ);
+    dt_XYZ_to_Rec709_D65(XYZ, RGB);
     const float max_RGB = fmaxf(fmaxf(RGB[0], RGB[1]), RGB[2]);
     for(size_t c = 0; c < 3; c++) RGB[c] = powf(RGB[c] / max_RGB, 1.f / 2.2f);
     dt_bauhaus_slider_set_stop(w, stop, RGB[0], RGB[1], RGB[2]);
@@ -1420,7 +1748,7 @@ void gui_init(dt_iop_module_t *self)
   gtk_widget_set_tooltip_text(g->global_H, _("hue of the global color offset"));
 
   g->global_C = dt_bauhaus_slider_from_params(self, "global_C");
-  dt_bauhaus_slider_set_soft_range(g->global_C, 0., 0.005);
+  dt_bauhaus_slider_set_soft_range(g->global_C, 0., 0.01);
   dt_bauhaus_slider_set_digits(g->global_C, 4);
   dt_bauhaus_slider_set_factor(g->global_C, 100.0f);
   dt_bauhaus_slider_set_format(g->global_C, "%.2f %%");
@@ -1429,7 +1757,7 @@ void gui_init(dt_iop_module_t *self)
   gtk_box_pack_start(GTK_BOX(self->widget), dt_ui_section_label_new(_("shadows lift")), FALSE, FALSE, 0);
 
   g->shadows_Y = dt_bauhaus_slider_from_params(self, "shadows_Y");
-  dt_bauhaus_slider_set_soft_range(g->shadows_Y, -0.5, 0.5);
+  dt_bauhaus_slider_set_soft_range(g->shadows_Y, -1.0, 1.0);
   dt_bauhaus_slider_set_factor(g->shadows_Y, 100.0f);
   dt_bauhaus_slider_set_digits(g->shadows_Y, 4);
   dt_bauhaus_slider_set_format(g->shadows_Y, "%.2f %%");
@@ -1443,7 +1771,7 @@ void gui_init(dt_iop_module_t *self)
   gtk_widget_set_tooltip_text(g->shadows_H, _("hue of the color gain in shadows"));
 
   g->shadows_C = dt_bauhaus_slider_from_params(self, "shadows_C");
-  dt_bauhaus_slider_set_soft_range(g->shadows_C, 0., 0.1);
+  dt_bauhaus_slider_set_soft_range(g->shadows_C, 0., 0.5);
   dt_bauhaus_slider_set_step(g->shadows_C, 0.01);
   dt_bauhaus_slider_set_digits(g->shadows_C, 4);
   dt_bauhaus_slider_set_factor(g->shadows_C, 100.0f);
@@ -1467,7 +1795,7 @@ void gui_init(dt_iop_module_t *self)
   gtk_widget_set_tooltip_text(g->highlights_H, _("hue of the color gain in highlights"));
 
   g->highlights_C = dt_bauhaus_slider_from_params(self, "highlights_C");
-  dt_bauhaus_slider_set_soft_range(g->highlights_C, 0., 0.05);
+  dt_bauhaus_slider_set_soft_range(g->highlights_C, 0., 0.2);
   dt_bauhaus_slider_set_step(g->shadows_C, 0.01);
   dt_bauhaus_slider_set_digits(g->highlights_C, 4);
   dt_bauhaus_slider_set_factor(g->highlights_C, 100.0f);
@@ -1491,7 +1819,7 @@ void gui_init(dt_iop_module_t *self)
   gtk_widget_set_tooltip_text(g->midtones_H, _("hue of the color exponent in midtones"));
 
   g->midtones_C = dt_bauhaus_slider_from_params(self, "midtones_C");
-  dt_bauhaus_slider_set_soft_range(g->midtones_C, 0., 0.02);
+  dt_bauhaus_slider_set_soft_range(g->midtones_C, 0., 0.1);
   dt_bauhaus_slider_set_step(g->midtones_C, 0.005);
   dt_bauhaus_slider_set_digits(g->midtones_C, 4);
   dt_bauhaus_slider_set_factor(g->midtones_C, 100.0f);
@@ -1526,7 +1854,7 @@ void gui_init(dt_iop_module_t *self)
   dt_bauhaus_slider_set_step(g->mask_grey_fulcrum, 0.01);
   dt_bauhaus_slider_set_format(g->mask_grey_fulcrum, "%.2f %%");
   dt_bauhaus_slider_set_factor(g->mask_grey_fulcrum, 100.0f);
-  gtk_widget_set_tooltip_text(g->mask_grey_fulcrum, _("position of the middle-grey reference for masking"));
+  gtk_widget_set_tooltip_text(g->mask_grey_fulcrum, _("position of the middle-gray reference for masking"));
   dt_bauhaus_widget_set_quad_paint(g->mask_grey_fulcrum, dtgtk_cairo_paint_showmask,
                                    CPF_STYLE_FLAT | CPF_DO_NOT_USE_BORDER, NULL);
   dt_bauhaus_widget_set_quad_toggle(g->mask_grey_fulcrum, TRUE);
@@ -1558,7 +1886,7 @@ void gui_init(dt_iop_module_t *self)
   dt_bauhaus_slider_set_step(g->grey_fulcrum, 0.01);
   dt_bauhaus_slider_set_digits(g->grey_fulcrum, 4);
   dt_bauhaus_slider_set_format(g->grey_fulcrum, "%.2f %%");
-  gtk_widget_set_tooltip_text(g->grey_fulcrum, _("peak white luminance value used to normalize the power function"));
+  gtk_widget_set_tooltip_text(g->grey_fulcrum, _("peak gray luminance value used to normalize the power function"));
 
   gtk_box_pack_start(GTK_BOX(self->widget), dt_ui_section_label_new(_("mask preview settings")), FALSE, FALSE, 0);
 
@@ -1609,12 +1937,11 @@ void gui_init(dt_iop_module_t *self)
   {
     const float stop = ((float)i / (float)(DT_BAUHAUS_SLIDER_MAX_STOPS - 1));
     const float h = DEG_TO_RAD(stop * (360.f));
-    float RGB[4] = { 0.f };
-    float Ych[4] = { 0.75f, 0.2f, h, 0.f };
-    float LMS[4] = { 0.f };
-    Ych_to_gradingRGB(Ych, LMS, NULL);
-    gradingRGB_to_XYZ(LMS, Ych);
-    dt_XYZ_to_Rec709_D65(Ych, RGB);
+    float DT_ALIGNED_PIXEL RGB[4] = { 0.f };
+    float DT_ALIGNED_PIXEL Ych[4] = { 0.75f, 0.2f, h, 0.f };
+    float DT_ALIGNED_PIXEL XYZ[4] = { 0.f };
+    Ych_to_XYZ(Ych, XYZ);
+    dt_XYZ_to_Rec709_D65(XYZ, RGB);
     const float max_RGB = fmaxf(fmaxf(RGB[0], RGB[1]), RGB[2]);
     for(size_t c = 0; c < 3; c++) RGB[c] = powf(RGB[c] / max_RGB, 1.f / 2.2f);
     dt_bauhaus_slider_set_stop(g->global_H, stop, RGB[0], RGB[1], RGB[2]);

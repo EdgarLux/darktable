@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2009-2020 darktable developers.
+    Copyright (C) 2009-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -210,7 +210,7 @@ typedef struct dt_image_t
   // common stuff
 
   // to understand this, look at comment for dt_histogram_roi_t
-  int32_t width, height, verified_size, final_width, final_height, p_width, p_height;
+  int32_t width, height, final_width, final_height, p_width, p_height;
   int32_t crop_x, crop_y, crop_width, crop_height;
   float aspect_ratio;
 
@@ -318,7 +318,7 @@ void dt_image_set_flip(const int32_t imgid, const dt_image_orientation_t user_fl
 dt_image_orientation_t dt_image_get_orientation(const int32_t imgid);
 /** get max width and height of the final processed image with its current hisotry stack */
 gboolean dt_image_get_final_size(const int32_t imgid, int *width, int *height);
-void dt_image_reset_final_size(const int32_t imgid);
+void dt_image_update_final_size(const int32_t imgid);
 /** set image location lon/lat/ele */
 void dt_image_set_location(const int32_t imgid, const dt_image_geoloc_t *geoloc,
                            const gboolean undo_on, const gboolean group_on);

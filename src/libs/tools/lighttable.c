@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2011-2020 darktable developers.
+    Copyright (C) 2011-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -227,10 +227,7 @@ static gboolean _lib_lighttable_layout_btn_release(GtkWidget *w, GdkEventButton 
   }
 
   _lib_lighttable_set_layout(self, new_layout);
-
-  // now we inverse the current button state to get the right state at the end
-  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(w), active);
-  return FALSE;
+  return TRUE;
 }
 
 void gui_init(dt_lib_module_t *self)
@@ -342,6 +339,7 @@ static void _set_zoom(dt_lib_module_t *self, int zoom)
   if(d->layout == DT_LIGHTTABLE_LAYOUT_CULLING)
   {
     dt_conf_set_int("plugins/lighttable/culling_num_images", zoom);
+    dt_control_queue_redraw_center();
   }
   else if(d->layout == DT_LIGHTTABLE_LAYOUT_FILEMANAGER || d->layout == DT_LIGHTTABLE_LAYOUT_ZOOMABLE)
   {
@@ -356,12 +354,11 @@ static void _lib_lighttable_zoom_slider_changed(GtkRange *range, gpointer user_d
   dt_lib_tool_lighttable_t *d = (dt_lib_tool_lighttable_t *)self->data;
 
   const int i = gtk_range_get_value(range);
-  _set_zoom(self, i);
   gchar *i_as_str = g_strdup_printf("%d", i);
   gtk_entry_set_text(GTK_ENTRY(d->zoom_entry), i_as_str);
+  _set_zoom(self, i);
   d->current_zoom = i;
   g_free(i_as_str);
-  dt_control_queue_redraw_center();
 }
 
 static gboolean _lib_lighttable_zoom_entry_changed(GtkWidget *entry, GdkEventKey *event, dt_lib_module_t *self)

@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2017-2020 darktable developers.
+    Copyright (C) 2017-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -259,7 +259,7 @@ static void _undo_do_undo_redo(dt_undo_t *self, uint32_t filter, dt_undo_action_
     dt_image_synch_xmps(imgs);
   }
 
-  dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, imgs);
+  dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, DT_COLLECTION_PROP_UNDEF, imgs);
 }
 
 void dt_undo_do_redo(dt_undo_t *self, uint32_t filter)

@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2011-2020 darktable developers.
+    Copyright (C) 2011-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -886,7 +886,8 @@ static gboolean _changes_tooltip_callback(GtkWidget *widget, gint x, gint y, gbo
 
     add_blend_history_change_enum(blend_cst, _("colorspace"), dt_develop_blend_colorspace_names);
     add_blend_history_change_enum(mask_mode, _("mask mode"), dt_develop_mask_mode_names);
-    add_blend_history_change_enum(blend_mode, _("blend mode"), dt_develop_blend_mode_names);
+    add_blend_history_change_enum(blend_mode & DEVELOP_BLEND_MODE_MASK, _("blend mode"), dt_develop_blend_mode_names);
+    add_blend_history_change_enum(blend_mode & DEVELOP_BLEND_REVERSE, _("blend operation"), dt_develop_blend_mode_flag_names);
     add_blend_history_change(blend_parameter, _("%.2f EV"), _("blend fulcrum"));
     add_blend_history_change(opacity, "%.4f", _("mask opacity"));
     add_blend_history_change_enum(mask_combine & (DEVELOP_COMBINE_INV | DEVELOP_COMBINE_INCL), _("combine masks"), dt_develop_combine_masks_names);

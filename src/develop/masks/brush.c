@@ -975,7 +975,7 @@ static void _brush_get_distance(float x, float y, float as, dt_masks_form_gui_t 
       const float dd = (sdx * sdx) + (sdy * sdy);
       *dist = fminf(*dist, dd);
 
-      if(dd < as2)
+      if(*dist == dd && dd < as2)
       {
         if(*inside == 0)
         {
@@ -1014,7 +1014,8 @@ static void _brush_get_distance(float x, float y, float as, dt_masks_form_gui_t 
     for(int i = corner_count * 3; i < gpt->points_count; i++)
     {
       // do we change of path segment ?
-      if(gpt->points[i * 2 + 1] == gpt->points[current_seg * 6 + 3] && gpt->points[i * 2] == gpt->points[current_seg * 6 + 2])
+      if(gpt->points[i * 2 + 1] == gpt->points[current_seg * 6 + 3]
+         && gpt->points[i * 2] == gpt->points[current_seg * 6 + 2])
       {
         current_seg = (current_seg + 1) % corner_count;
       }
@@ -1026,16 +1027,17 @@ static void _brush_get_distance(float x, float y, float as, dt_masks_form_gui_t 
       const float dy = y - yy;
       const float dd = (dx * dx) + (dy * dy);
       *dist = fminf(*dist, dd);
-
-      if(dd < as2)
+      if(*dist == dd && current_seg > 0 && dd < as2)
       {
-        if(current_seg == 0)
-          *near = corner_count - 1;
-        else
-          *near = current_seg - 1;
+        *near = current_seg - 1;
       }
     }
   }
+
+  // if inside border detected and not in a segment, then we are in range to allow
+  // moving the whole brush.
+  if(*inside && *inside_border && *near == -1)
+    *dist = 0.0f;
 }
 
 static int _brush_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count,
@@ -1113,7 +1115,7 @@ static int _brush_events_mouse_scrolled(struct dt_iop_module_t *module, float pz
       }
       dt_toast_log(_("hardness: %3.2f%%"), masks_hardness*100.0f);
     }
-    else if(state == 0)
+    else if(dt_modifier_is(state, 0))
     {
       const float amount = up ? 0.97f : 1.03f;
       float masks_border;
@@ -1311,8 +1313,8 @@ static int _brush_events_button_pressed(struct dt_iop_module_t *module, float pz
       if(!guipt) return 0;
       // we start the form dragging
       gui->source_dragging = TRUE;
-      gui->dx = guipt->source[2] - gui->posx;
-      gui->dy = guipt->source[3] - gui->posy;
+      gui->dx = guipt->source[0] - gui->posx;
+      gui->dy = guipt->source[1] - gui->posy;
       return 1;
     }
     else if(gui->form_selected && gui->edit_mode == DT_MASKS_EDIT_FULL)
@@ -1377,7 +1379,7 @@ static int _brush_events_button_pressed(struct dt_iop_module_t *module, float pz
     {
       const guint nb = g_list_length(form->points);
       gui->point_edited = -1;
-      if(dt_modifier_is(state, GDK_CONTROL_MASK))
+      if(dt_modifier_is(state, GDK_CONTROL_MASK) && gui->seg_selected < nb - 1)
       {
         // we add a new point to the brush
         dt_masks_point_brush_t *bzpt = (dt_masks_point_brush_t *)(malloc(sizeof(dt_masks_point_brush_t)));
@@ -1413,7 +1415,7 @@ static int _brush_events_button_pressed(struct dt_iop_module_t *module, float pz
         gui->seg_selected = -1;
         dt_control_queue_redraw_center();
       }
-      else if(gui->seg_selected >= 0 && gui->seg_selected < nb - 1)
+      else if(gui->seg_selected < nb - 1)
       {
         // we move the entire segment
         gui->seg_dragging = gui->seg_selected;
@@ -2103,7 +2105,8 @@ static int _brush_events_mouse_moved(struct dt_iop_module_t *module, float pzx, 
   {
     const int k = gui->point_edited;
     // we only select feather if the point is not "sharp"
-    if(gpt->points[k * 6 + 2] != gpt->points[k * 6 + 4] && gpt->points[k * 6 + 3] != gpt->points[k * 6 + 5])
+    if(gpt->points[k * 6 + 2] != gpt->points[k * 6 + 4]
+       && gpt->points[k * 6 + 3] != gpt->points[k * 6 + 5])
     {
       int ffx, ffy;
       _brush_ctrl2_to_feather(gpt->points[k * 6 + 2], gpt->points[k * 6 + 3], gpt->points[k * 6 + 4],
@@ -2116,8 +2119,10 @@ static int _brush_events_mouse_moved(struct dt_iop_module_t *module, float pzx, 
       }
     }
     // corner ??
-    if(pzx - gpt->points[k * 6 + 2] > -as && pzx - gpt->points[k * 6 + 2] < as
-       && pzy - gpt->points[k * 6 + 3] > -as && pzy - gpt->points[k * 6 + 3] < as)
+    if(pzx - gpt->points[k * 6 + 2] > -as
+       && pzx - gpt->points[k * 6 + 2] < as
+       && pzy - gpt->points[k * 6 + 3] > -as
+       && pzy - gpt->points[k * 6 + 3] < as)
     {
       gui->point_selected = k;
       dt_control_queue_redraw_center();
@@ -2128,8 +2133,10 @@ static int _brush_events_mouse_moved(struct dt_iop_module_t *module, float pzx, 
   for(int k = 0; k < nb; k++)
   {
     // corner ??
-    if(pzx - gpt->points[k * 6 + 2] > -as && pzx - gpt->points[k * 6 + 2] < as
-       && pzy - gpt->points[k * 6 + 3] > -as && pzy - gpt->points[k * 6 + 3] < as)
+    if(pzx - gpt->points[k * 6 + 2] > -as
+       && pzx - gpt->points[k * 6 + 2] < as
+       && pzy - gpt->points[k * 6 + 3] > -as
+       && pzy - gpt->points[k * 6 + 3] < as)
     {
       gui->point_selected = k;
       dt_control_queue_redraw_center();
@@ -2137,7 +2144,9 @@ static int _brush_events_mouse_moved(struct dt_iop_module_t *module, float pzx, 
     }
 
     // border corner ??
-    if(pzx - gpt->border[k * 6] > -as && pzx - gpt->border[k * 6] < as && pzy - gpt->border[k * 6 + 1] > -as
+    if(pzx - gpt->border[k * 6] > -as
+       && pzx - gpt->border[k * 6] < as
+       && pzy - gpt->border[k * 6 + 1] > -as
        && pzy - gpt->border[k * 6 + 1] < as)
     {
       gui->point_border_selected = k;
@@ -2149,7 +2158,7 @@ static int _brush_events_mouse_moved(struct dt_iop_module_t *module, float pzx, 
   // are we inside the form or the borders or near a segment ???
   int in, inb, near, ins;
   float dist;
-  _brush_get_distance(pzx, (int)pzy, as, gui, index, nb, &in, &inb, &near, &ins, &dist);
+  _brush_get_distance(pzx, pzy, as, gui, index, nb, &in, &inb, &near, &ins, &dist);
   gui->seg_selected = near;
   if(near < 0)
   {
@@ -2384,7 +2393,8 @@ static void _brush_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
     {
       cairo_line_to(cr, gpt->points[i * 2], gpt->points[i * 2 + 1]);
       // we decide to highlight the form segment by segment
-      if(gpt->points[i * 2 + 1] == gpt->points[seg * 6 + 3] && gpt->points[i * 2] == gpt->points[seg * 6 + 2])
+      if(gpt->points[i * 2 + 1] == gpt->points[seg * 6 + 3]
+         && gpt->points[i * 2] == gpt->points[seg * 6 + 2])
       {
         // this is the end of the last segment, so we have to draw it
         if((gui->group_selected == index)
@@ -2392,10 +2402,12 @@ static void _brush_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
           cairo_set_line_width(cr, 5.0 / zoom_scale);
         else
           cairo_set_line_width(cr, 3.0 / zoom_scale);
-        dt_draw_set_color_overlay(cr, 0.3, 0.8);
+        dt_draw_set_color_overlay(cr, 0.4, 0.8);
         cairo_stroke_preserve(cr);
-        if((gui->group_selected == index)
-           && (gui->form_selected || gui->form_dragging || gui->seg_selected == seg2))
+        if(gui->group_selected == index && gui->seg_selected == seg2)
+          cairo_set_line_width(cr, 5.0 / zoom_scale);
+        else if((gui->group_selected == index)
+           && (gui->form_selected || gui->form_dragging))
           cairo_set_line_width(cr, 2.0 / zoom_scale);
         else
           cairo_set_line_width(cr, 1.0 / zoom_scale);

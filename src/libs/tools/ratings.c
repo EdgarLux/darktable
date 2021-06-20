@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2011-2020 darktable developers.
+    Copyright (C) 2011-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -190,7 +190,7 @@ static gboolean _lib_ratings_button_press_callback(GtkWidget *widget, GdkEventBu
   {
     const GList *imgs = dt_view_get_images_to_act_on(FALSE, TRUE, FALSE);
     dt_ratings_apply_on_list(imgs, d->current, TRUE);
-    dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD,
+    dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, DT_COLLECTION_PROP_RATING,
                                g_list_copy((GList *)imgs));
 
     dt_control_queue_redraw_center();

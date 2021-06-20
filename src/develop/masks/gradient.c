@@ -100,7 +100,7 @@ static int _gradient_events_mouse_scrolled(struct dt_iop_module_t *module, float
       dt_conf_set_float("plugins/darkroom/masks/gradient/compression", compression);
       dt_toast_log(_("compression: %3.2f%%"), compression*100.0f);
     }
-    else
+    else if (dt_modifier_is(state, 0)) // simple scroll to adjust curvature, calling func adjusts opacity with Ctrl
     {
       float curvature = dt_conf_get_float("plugins/darkroom/masks/gradient/curvature");
       if(up)
@@ -653,9 +653,9 @@ static int _gradient_get_points(dt_develop_t *dev, float x, float y, float rotat
 
 //  gboolean in_frame = FALSE;
 #ifdef _OPENMP
-#pragma omp parallel for simd default(none) \
-  dt_omp_firstprivate(nthreads, pts, pts_count, count, cosv, sinv, xstart, xdelta, curvature, scale, x, y, wd, ht, c_padded_size) \
-  schedule(static) if(count > 100) aligned(points:64)
+#pragma omp parallel for simd default(none)                                                                       \
+    dt_omp_firstprivate(nthreads, pts, pts_count, count, cosv, sinv, xstart, xdelta, curvature, scale, x, y, wd,  \
+                        ht, c_padded_size, points) schedule(static) if(count > 100) aligned(points : 64)
 #endif
   for(int i = 3; i < count; i++)
   {

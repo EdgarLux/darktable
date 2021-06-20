@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2011-2020 darktable developers.
+    Copyright (C) 2011-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -2546,11 +2546,11 @@ void dt_database_show_error(const dt_database_t *db)
         int status = 0;
 
         char *lck_filename = g_strconcat(lck_dirname, "/data.db.lock", NULL);
-        if(access(lck_filename, F_OK) != -1)
+        if(g_access(lck_filename, F_OK) != -1)
           status += remove(lck_filename);
 
         lck_filename = g_strconcat(lck_dirname, "/library.db.lock", NULL);
-        if(access(lck_filename, F_OK) != -1)
+        if(g_access(lck_filename, F_OK) != -1)
           status += remove(lck_filename);
 
         if(status==0)
@@ -2731,7 +2731,7 @@ void ask_for_upgrade(const gchar *dbname, const gboolean has_gui)
   char *label_text = g_markup_printf_escaped(_("the database schema has to be upgraded for\n"
                                                "\n"
                                                "<span style='italic'>%s</span>\n"
-                                               "\n"
+                                               "\nthis might take a long time in case of a large database\n\n"
                                                "do you want to proceed or quit now to do a backup\n"),
                                                dbname);
 
@@ -3474,14 +3474,14 @@ static void _database_delete_mipmaps_files()
 
   snprintf(mipmapfilename, sizeof(mipmapfilename), "%s/mipmaps", cachedir);
 
-  if(access(mipmapfilename, F_OK) != -1)
+  if(g_access(mipmapfilename, F_OK) != -1)
   {
     fprintf(stderr, "[mipmap_cache] dropping old version file: %s\n", mipmapfilename);
     g_unlink(mipmapfilename);
 
     snprintf(mipmapfilename, sizeof(mipmapfilename), "%s/mipmaps.fallback", cachedir);
 
-    if(access(mipmapfilename, F_OK) != -1) g_unlink(mipmapfilename);
+    if(g_access(mipmapfilename, F_OK) != -1) g_unlink(mipmapfilename);
   }
 }
 

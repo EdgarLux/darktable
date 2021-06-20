@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2011-2020 darktable developers.
+    Copyright (C) 2011-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -249,7 +249,7 @@ static gboolean _lib_navigation_draw_callback(GtkWidget *widget, cairo_t *crf, g
       cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
 
       char zoomline[5];
-      snprintf(zoomline, sizeof(zoomline), "%.0f%%", cur_scale * 100);
+      snprintf(zoomline, sizeof(zoomline), "%.0f%%", cur_scale * 100 * darktable.gui->ppd);
 
       pango_layout_set_text(layout, zoomline, -1);
       pango_layout_get_pixel_extents(layout, &ink, NULL);
@@ -407,50 +407,68 @@ static void _zoom_preset_change(uint64_t val)
   zoom_y = dt_control_get_dev_zoom_y();
   dt_dev_get_processed_size(dev, &procw, &proch);
   float scale = 0;
+  const float ppd = darktable.gui->ppd;
+  const gboolean low_ppd = (darktable.gui->ppd == 1);
   closeup = 0;
   if(val == 0u)
   {
+    // small
     scale = 0.5 * dt_dev_get_zoom_scale(dev, DT_ZOOM_FIT, 1.0, 0);
     zoom = DT_ZOOM_FREE;
   }
   else if(val == 1u)
   {
+    // fit to screen
     zoom = DT_ZOOM_FIT;
     scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_FIT, 1.0, 0);
   }
   else if(val == 2u)
   {
-    scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
-    zoom = DT_ZOOM_1;
+    // 100%
+    if(low_ppd == 1)
+    {
+      scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+      zoom = DT_ZOOM_1;
+    }
+    else
+    {
+      scale = 1.0f / ppd;
+      zoom = DT_ZOOM_FREE;
+    }
   }
   else if(val == 3u)
   {
+    // 200%
     scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
     zoom = DT_ZOOM_1;
-    closeup = 1;
+    if(low_ppd) closeup = 1;
   }
   else if(val == 4u)
   {
-    scale = 0.5f;
+    // 50%
+    scale = 0.5f / ppd;
     zoom = DT_ZOOM_FREE;
   }
   else if(val == 5u)
   {
+    // 1600%
     scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
     zoom = DT_ZOOM_1;
-    closeup = 4;
+    closeup = (low_ppd) ? 4 : 3;
   }
   else if(val == 6u)
   {
+    // 400%
     scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
     zoom = DT_ZOOM_1;
-    closeup = 2;
+    closeup = (low_ppd) ? 2 : 1;
   }
   else if(val == 7u)
   {
+    // 800%
     scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
     zoom = DT_ZOOM_1;
-    closeup = 3;
+    closeup = (low_ppd) ? 3 : 2;
   }
 
   // zoom_x = (1.0/(scale*(1<<closeup)))*(zoom_x - .5f*dev->width )/procw;

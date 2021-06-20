@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2011-2020 darktable developers.
+    Copyright (C) 2011-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -65,8 +65,9 @@ typedef enum dt_signal_t
   /** \brief This signal is raised when collection changed. To avoid leaking the list,
     dt_collection_t is connected to this event and responsible of that.
     1 : dt_collection_change_t the reason why the collection has changed
-    2 : GList of imageids that have changed (can be null if it's a global change)
-    3 : next untouched imgid in the list (-1 if no list)
+    2 : dt_collection_properties_t the property that has changed
+    3 : GList of imageids that have changed (can be null if it's a global change)
+    4 : next untouched imgid in the list (-1 if no list)
     no returned value
     */
   /** image list not to be freed by the caller, automatically freed */

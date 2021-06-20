@@ -3070,7 +3070,7 @@ int scrolled(struct dt_iop_module_t *module, double x, double y, int up, uint32_
   {
     dt_liquify_warp_t *warp = &g->temp->warp;
     const float complex strength_v = warp->strength - warp->point;
-    if(state == 0)
+    if(dt_modifier_is(state, 0))
     {
       //  change size
       float radius = 0.0f, r = 0.0f, phi = 0.0f;
@@ -3292,7 +3292,7 @@ int button_released(struct dt_iop_module_t *module,
         _start_new_shape(module);
       else
         btn_make_radio_callback(g->btn_node_tool, NULL, module);
-      handled = dragged ? 2 : 1;
+      handled = 2;
     }
     else if(gtk_toggle_button_get_active(g->btn_line_tool))
     {
@@ -3479,8 +3479,8 @@ int button_released(struct dt_iop_module_t *module,
       }
     }
     if(which == 1
-        && dt_modifier_is(g->last_mouse_mods, GDK_MOD1_MASK | GDK_CONTROL_MASK)
-        && !dragged)
+       && dt_modifier_is(g->last_mouse_mods, GDK_MOD1_MASK | GDK_CONTROL_MASK)
+       && !dragged)
     {
       if(g->last_hit.layer == DT_LIQUIFY_LAYER_PATH)
       {

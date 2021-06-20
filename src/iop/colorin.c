@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2009-2020 darktable developers.
+    Copyright (C) 2009-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -705,7 +705,7 @@ static void process_cmatrix_bm(struct dt_iop_module_t *self, dt_dev_pixelpipe_io
 
       if(!clipping)
       {
-        float _xyz[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        float DT_ALIGNED_PIXEL _xyz[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
         for(int c = 0; c < 3; c++)
         {
@@ -720,7 +720,7 @@ static void process_cmatrix_bm(struct dt_iop_module_t *self, dt_dev_pixelpipe_io
       }
       else
       {
-        float nRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        float DT_ALIGNED_PIXEL nRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         for(int c = 0; c < 3; c++)
         {
           nRGB[c] = 0.0f;
@@ -730,13 +730,13 @@ static void process_cmatrix_bm(struct dt_iop_module_t *self, dt_dev_pixelpipe_io
           }
         }
 
-        float cRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        float DT_ALIGNED_PIXEL cRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         for(int c = 0; c < 3; c++)
         {
           cRGB[c] = CLAMP(nRGB[c], 0.0f, 1.0f);
         }
 
-        float XYZ[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        float DT_ALIGNED_PIXEL XYZ[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         for(int c = 0; c < 3; c++)
         {
           XYZ[c] = 0.0f;
@@ -771,7 +771,7 @@ static void process_cmatrix_fastpath_simple(struct dt_iop_module_t *self, dt_dev
     float *in = (float *)ivoid + (size_t)ch * k;
     float *out = (float *)ovoid + (size_t)ch * k;
 
-    float _xyz[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    float DT_ALIGNED_PIXEL _xyz[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
     for(int c = 0; c < 3; c++)
     {
@@ -805,7 +805,7 @@ static void process_cmatrix_fastpath_clipping(struct dt_iop_module_t *self, dt_d
     float *in = (float *)ivoid + (size_t)ch * k;
     float *out = (float *)ovoid + (size_t)ch * k;
 
-    float nRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    float DT_ALIGNED_PIXEL nRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     for(int c = 0; c < 3; c++)
     {
       nRGB[c] = 0.0f;
@@ -815,13 +815,13 @@ static void process_cmatrix_fastpath_clipping(struct dt_iop_module_t *self, dt_d
       }
     }
 
-    float cRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    float DT_ALIGNED_PIXEL cRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     for(int c = 0; c < 3; c++)
     {
       cRGB[c] = CLAMP(nRGB[c], 0.0f, 1.0f);
     }
 
-    float XYZ[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    float DT_ALIGNED_PIXEL XYZ[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     for(int c = 0; c < 3; c++)
     {
       XYZ[c] = 0.0f;
@@ -885,7 +885,7 @@ static void process_cmatrix_proper(struct dt_iop_module_t *self, dt_dev_pixelpip
 
       if(!clipping)
       {
-        float _xyz[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        float DT_ALIGNED_PIXEL _xyz[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
         for(int c = 0; c < 3; c++)
         {
@@ -900,7 +900,7 @@ static void process_cmatrix_proper(struct dt_iop_module_t *self, dt_dev_pixelpip
       }
       else
       {
-        float nRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        float DT_ALIGNED_PIXEL nRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         for(int c = 0; c < 3; c++)
         {
           nRGB[c] = 0.0f;
@@ -910,13 +910,13 @@ static void process_cmatrix_proper(struct dt_iop_module_t *self, dt_dev_pixelpip
           }
         }
 
-        float cRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        float DT_ALIGNED_PIXEL cRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         for(int c = 0; c < 3; c++)
         {
           cRGB[c] = CLAMP(nRGB[c], 0.0f, 1.0f);
         }
 
-        float XYZ[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        float DT_ALIGNED_PIXEL XYZ[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         for(int c = 0; c < 3; c++)
         {
           XYZ[c] = 0.0f;
@@ -1656,6 +1656,7 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
       input_format = TYPE_RGBA_FLT;
       break;
     case cmsSigXYZData:
+      // FIXME: even though this is allowed/works, dt_ioppr_generate_profile_info still complains about these profiles
       input_format = TYPE_XYZA_FLT;
       break;
     default:
@@ -1718,7 +1719,7 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
     d->nrgb = NULL;
   }
 
-  // user selected a non-supported output profile, check that:
+  // user selected a non-supported input profile, check that:
   if(!d->xform_cam_Lab && isnan(d->cmatrix[0]))
   {
     if(p->type == DT_COLORSPACE_FILE)

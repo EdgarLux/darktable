@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2013-2020 darktable developers.
+    Copyright (C) 2013-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1506,6 +1506,7 @@ static void _lib_masks_remove_item(dt_lib_module_t *self, int formid, int parent
       {
         gtk_tree_store_remove(GTK_TREE_STORE(model), &iter);
       }
+      gtk_tree_path_free(path);
     }
   }
 }

@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2011-2020 darktable developers.
+    Copyright (C) 2011-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -144,7 +144,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   {
     float *in = (float *)i + ch * k;
     float *out = (float *)o + ch * k;
-    float XYZ[3], XYZ_s[3];
+    float DT_ALIGNED_PIXEL XYZ[4], XYZ_s[4];
     float V;
     float w;
 

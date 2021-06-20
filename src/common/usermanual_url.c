@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2018-2020 darktable developers.
+    Copyright (C) 2018-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ dt_help_url urls_db[] =
   {"metadata",                   "module-reference/utility-modules/shared/metadata-editor/"},
   {"tagging",                    "module-reference/utility-modules/shared/tagging/"},
   {"geotagging",                 "module-reference/utility-modules/shared/geotagging/"},
-  {"collect",                    "module-reference/utility-modules/shared/collect-images/"},
+  {"collect",                    "module-reference/utility-modules/shared/collections/"},
   {"recentcollect",              "module-reference/utility-modules/shared/recent-collections/"},
   {"metadata_view",              "module-reference/utility-modules/shared/image-information/"},
   {"export",                     "module-reference/utility-modules/shared/export/"},

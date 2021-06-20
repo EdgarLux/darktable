@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2011-2020 darktable developers.
+    Copyright (C) 2011-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -344,6 +344,9 @@ int store(dt_imageio_module_storage_t *self, dt_imageio_module_data_t *sdata, co
            esc_relthumbfilename,
            num, num-1, title ? title : "&nbsp;", description ? description : "&nbsp;");
 
+  if(res_title) g_list_free_full(res_title, &g_free);
+  if(res_desc) g_list_free_full(res_desc, &g_free);
+
   // export image to file. need this to be able to access meaningful
   // fdata->width and height below.
   if(dt_imageio_export(imgid, filename, format, fdata, high_quality, upscale, TRUE, export_masks, icc_type,
@@ -370,8 +373,6 @@ int store(dt_imageio_module_storage_t *self, dt_imageio_module_data_t *sdata, co
   g_free(esc_relthumbfilename);
 
   pair->pos = num;
-  if(res_title) g_list_free_full(res_title, &g_free);
-  if(res_desc) g_list_free_full(res_desc, &g_free);
   d->l = g_list_insert_sorted(d->l, pair, (GCompareFunc)sort_pos);
 
   /* also export thumbnail: */

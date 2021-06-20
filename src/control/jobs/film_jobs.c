@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2010-2020 darktable developers.
+    Copyright (C) 2010-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -272,7 +272,8 @@ static void dt_film_import1(dt_job_t *job, dt_film_t *film)
     //   one, update the interface
     if(pending >= 4 && curr_time - last_update > 0.5)
     {
-      dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, g_list_copy(imgs));
+      dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, DT_COLLECTION_PROP_UNDEF,
+                                 g_list_copy(imgs));
       g_list_free(imgs);
       imgs = NULL;
       // restart the update count and timer

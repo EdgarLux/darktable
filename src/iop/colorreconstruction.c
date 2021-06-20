@@ -1,6 +1,6 @@
 /*
   This file is part of darktable,
-  Copyright (C) 2015-2020 darktable developers.
+  Copyright (C) 2015-2021 darktable developers.
 
   darktable is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -195,7 +195,9 @@ typedef struct dt_iop_colorreconstruct_bilateral_t
 
 static inline float hue_conversion(const float HSL_Hue)
 {
-  float rgb[3] = { 0 }, XYZ[3] = { 0 }, Lab[3] = { 0 };
+  float DT_ALIGNED_PIXEL rgb[4] = { 0 };
+  float DT_ALIGNED_PIXEL XYZ[4] = { 0 };
+  float DT_ALIGNED_PIXEL Lab[4] = { 0 };
 
   hsl2rgb(rgb, HSL_Hue, 1.0f, 0.5f);
 
@@ -596,7 +598,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   float *in = (float *)ivoid;
   float *out = (float *)ovoid;
 
-  const float scale = piece->iscale / roi_in->scale;
+  const float scale = fmaxf(piece->iscale / roi_in->scale, 1.f);
   const float sigma_r = fmax(data->range, 0.1f);
   const float sigma_s = fmax(data->spatial, 1.0f) / scale;
   const float hue = hue_conversion(data->hue); // convert to LCH hue which better fits to Lab colorspace

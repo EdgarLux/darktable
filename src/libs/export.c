@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2009-2020 darktable developers.
+    Copyright (C) 2009-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -198,8 +198,9 @@ static void _image_selection_changed_callback(gpointer instance, dt_lib_module_t
   _update(self);
 }
 
-static void _collection_updated_callback(gpointer instance, dt_collection_change_t query_change, gpointer imgs,
-                                        int next, dt_lib_module_t *self)
+static void _collection_updated_callback(gpointer instance, dt_collection_change_t query_change,
+                                         dt_collection_properties_t changed_property, gpointer imgs, int next,
+                                         dt_lib_module_t *self)
 {
   _update(self);
 }

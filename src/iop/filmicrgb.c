@@ -1,6 +1,6 @@
 /*
    This file is part of darktable,
-   Copyright (C) 2019-2020 darktable developers.
+   Copyright (C) 2019-2021 darktable developers.
 
    darktable is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -177,7 +177,7 @@ typedef struct dt_iop_filmicrgb_params_t
   float output_power;       // $MIN: 1 $MAX: 10 $DEFAULT: 4.0 $DESCRIPTION: "hardness"
   float latitude;           // $MIN: 0.01 $MAX: 100 $DEFAULT: 33.0
   float contrast;           // $MIN: 0 $MAX: 5 $DEFAULT: 1.35
-  float saturation;         // $MIN: -50 $MAX: 200 $DEFAULT: 10 $DESCRIPTION: "extreme luminance saturation"
+  float saturation;         // $MIN: -50 $MAX: 200 $DEFAULT: 0 $DESCRIPTION: "extreme luminance saturation"
   float balance;            // $MIN: -50 $MAX: 50 $DEFAULT: 0.0 $DESCRIPTION: "shadows/highlights balance"
   float noise_level;        // $MIN: 0.0 $MAX: 6.0 $DEFAULT: 0.2f $DESCRIPTION: "add noise in highlights"
   dt_iop_filmicrgb_methods_type_t preserve_color; // $DEFAULT: DT_FILMIC_METHOD_POWER_NORM $DESCRIPTION: "preserve chrominance"
@@ -502,7 +502,7 @@ int legacy_params(dt_iop_module_t *self, const void *const old_params, const int
       float output_power;       // $MIN: 1 $MAX: 10 $DEFAULT: 4.0 $DESCRIPTION: "hardness"
       float latitude;           // $MIN: 0.01 $MAX: 100 $DEFAULT: 33.0
       float contrast;           // $MIN: 0 $MAX: 5 $DEFAULT: 1.50
-      float saturation;         // $MIN: -50 $MAX: 200 $DEFAULT: 10 $DESCRIPTION: "extreme luminance saturation"
+      float saturation;         // $MIN: -50 $MAX: 200 $DEFAULT: 0 $DESCRIPTION: "extreme luminance saturation"
       float balance;            // $MIN: -50 $MAX: 50 $DEFAULT: 0.0 $DESCRIPTION: "shadows/highlights balance"
       float noise_level;        // $MIN: 0.0 $MAX: 6.0 $DEFAULT: 0.1f $DESCRIPTION: "add noise in highlights"
       dt_iop_filmicrgb_methods_type_t preserve_color; // $DEFAULT: DT_FILMIC_METHOD_POWER_NORM $DESCRIPTION:
@@ -861,7 +861,7 @@ inline static void inpaint_noise(const float *const in, const float *const mask,
 
       // add noise to input
       float *const restrict pix_out = __builtin_assume_aligned(inpainted + index, 16);
-      for(size_t c = 0; c < 3; c++) pix_out[c] = pix_in[c] * (1.0f - weight) + weight * noise[c];
+      for(size_t c = 0; c < 3; c++) pix_out[c] = fmaxf(pix_in[c] * (1.0f - weight) + weight * noise[c], 0.f);
     }
 }
 
@@ -889,7 +889,7 @@ inline static void sparse_scalar_product(const float *const buf, const size_t in
     float acc = 0.0f;
     for(size_t k = 0; k < FSIZE; ++k)
       acc += filter[k] * buf[indices[k] + c];
-    result[c] = acc;
+    result[c] = fmaxf(acc, 0.f);
   }
 }
 
@@ -1084,7 +1084,7 @@ static inline void init_reconstruct(const float *const restrict in, const float 
 #endif
   for(size_t k = 0; k < height * width * ch; k++)
   {
-    reconstructed[k] = in[k] * (1.f - mask[k / ch]);
+    reconstructed[k] = fmaxf(in[k] * (1.f - mask[k / ch]), 0.f);
   }
 }
 
@@ -3904,7 +3904,7 @@ void gui_init(dt_iop_module_t *self)
   dt_bauhaus_slider_set_digits(g->grey_point_target, 4);
   dt_bauhaus_slider_set_format(g->grey_point_target, "%.4f %%");
   gtk_widget_set_tooltip_text(g->grey_point_target,
-                              _("midde gray value of the target display or color space.\n"
+                              _("middle gray value of the target display or color space.\n"
                                 "you should never touch that unless you know what you are doing."));
 
   g->white_point_target = dt_bauhaus_slider_from_params(self, "white_point_target");

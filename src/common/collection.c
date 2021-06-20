@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2010-2020 darktable developers.
+    Copyright (C) 2010-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -492,7 +492,7 @@ void dt_collection_reset(const dt_collection_t *collection)
   params->sort = dt_conf_get_int("plugins/collection/sort");
   params->sort_second_order = dt_conf_get_int("plugins/collection/sort_second_order");
   params->descending = dt_conf_get_bool("plugins/collection/descending");
-  dt_collection_update_query(collection, DT_COLLECTION_CHANGE_NEW_QUERY, NULL);
+  dt_collection_update_query(collection, DT_COLLECTION_CHANGE_NEW_QUERY, DT_COLLECTION_PROP_UNDEF, NULL);
 }
 
 const gchar *dt_collection_get_query(const dt_collection_t *collection)
@@ -652,7 +652,8 @@ void dt_collection_set_sort(const dt_collection_t *collection, dt_collection_sor
 
   if(sort != DT_COLLECTION_SORT_NONE)
   {
-    if( sort != params->sort ) params->sort_second_order = params->sort;/*remember previous sorting criteria if new one is selected*/
+    if(sort != params->sort)
+      params->sort_second_order = params->sort;/*remember previous sorting criteria if new one is selected*/
     params->sort = sort;
   }
   if(reverse != -1) params->descending = reverse;
@@ -815,11 +816,11 @@ gchar *dt_collection_get_sort_query(const dt_collection_t *collection)
 
         switch(local_order)
         {
-          case DT_COLLECTION_SORT_DATETIME: colname = "datetime_taken" ; break ;
+          case DT_COLLECTION_SORT_DATETIME:         colname = "datetime_taken" ; break ;
           case DT_COLLECTION_SORT_IMPORT_TIMESTAMP: colname = "import_timestamp" ; break ;
           case DT_COLLECTION_SORT_CHANGE_TIMESTAMP: colname = "change_timestamp" ; break ;
           case DT_COLLECTION_SORT_EXPORT_TIMESTAMP: colname = "export_timestamp" ; break ;
-          case DT_COLLECTION_SORT_PRINT_TIMESTAMP: colname = "print_timestamp" ; break ;
+          case DT_COLLECTION_SORT_PRINT_TIMESTAMP:  colname = "print_timestamp" ; break ;
           default: colname = "";
         }
         sq = dt_util_dstrcat(sq, "ORDER BY %s DESC, %s, filename DESC, version DESC", colname, second_order);
@@ -1609,9 +1610,8 @@ static gchar *get_query_string(const dt_collection_properties_t property, const 
 
       if(!strcmp(escaped_text, _("not tagged")))
       {
-        query = g_strdup_printf("(id NOT IN (SELECT DISTINCT imgid FROM main.tagged_images AS a "
-                                       "JOIN data.tags AS b ON a.tagid = b.id "
-                                       "AND SUBSTR(name, 1, 10) <> 'darktable|'))");
+        query = g_strdup_printf("(id NOT IN (SELECT DISTINCT imgid FROM main.tagged_images "
+                                            "WHERE tagid NOT IN memory.darktable_tags))");
       }
       else if(is_insensitive)
       {
@@ -1620,16 +1620,15 @@ static gchar *get_query_string(const dt_collection_properties_t property, const 
           // shift-click adds an asterix * to include items in and under this hierarchy
           // without using a wildcard % which also would include similar named items
           escaped_text[escaped_length-1] = '\0';
-          query = g_strdup_printf("(id IN (SELECT imgid FROM main.tagged_images AS a "
-                                         "JOIN data.tags AS b ON a.tagid = b.id "
-                                         "WHERE name LIKE '%s' OR name LIKE '%s|%%'))",
+          query = g_strdup_printf("(id IN (SELECT imgid FROM main.tagged_images WHERE tagid IN "
+                                         "(SELECT id FROM data.tags WHERE name LIKE '%s' OR name LIKE '%s|%%')))",
                                   escaped_text, escaped_text);
         }
         else
         {
           // default
-          query = g_strdup_printf("(id IN (SELECT imgid FROM main.tagged_images AS a JOIN "
-                                       "data.tags AS b ON a.tagid = b.id WHERE name LIKE '%s'))",
+          query = g_strdup_printf("(id IN (SELECT imgid FROM main.tagged_images WHERE tagid IN "
+                                       "(SELECT id FROM data.tags WHERE name LIKE '%s')))",
                                   escaped_text);
         }
       }
@@ -1640,26 +1639,25 @@ static gchar *get_query_string(const dt_collection_properties_t property, const 
           // shift-click adds an asterix * to include items in and under this hierarchy
           // without using a wildcard % which also would include similar named items
           escaped_text[escaped_length-1] = '\0';
-          query = g_strdup_printf("(id IN (SELECT imgid FROM main.tagged_images AS a "
-                                         "JOIN data.tags AS b ON a.tagid = b.id "
+          query = g_strdup_printf("(id IN (SELECT imgid FROM main.tagged_images WHERE tagid IN "
+                                         "(SELECT id FROM data.tags "
                                          "WHERE name = '%s'"
-                                         "  OR SUBSTR(name, 1, LENGTH('%s') + 1) = '%s|'))",
+                                         "  OR SUBSTR(name, 1, LENGTH('%s') + 1) = '%s|')))",
                                   escaped_text, escaped_text, escaped_text);
         }
         else if ((escaped_length > 0) && (escaped_text[escaped_length-1] == '%'))
         {
           // ends with % or |%
           escaped_text[escaped_length-1] = '\0';
-          query = g_strdup_printf("(id IN (SELECT imgid FROM main.tagged_images AS a "
-                                         "JOIN data.tags AS b ON a.tagid = b.id "
-                                         "WHERE SUBSTR(name, 1, LENGTH('%s')) = '%s'))",
+          query = g_strdup_printf("(id IN (SELECT imgid FROM main.tagged_images WHERE tagid IN "
+                                         "(SELECT id FROM data.tags WHERE SUBSTR(name, 1, LENGTH('%s')) = '%s')))",
                                   escaped_text, escaped_text);
         }
         else
         {
           // default
-          query = g_strdup_printf("(id IN (SELECT imgid FROM main.tagged_images AS a JOIN "
-                                       "data.tags AS b ON a.tagid = b.id WHERE name = '%s'))",
+          query = g_strdup_printf("(id IN (SELECT imgid FROM main.tagged_images WHERE tagid IN "
+                                       "(SELECT id FROM data.tags WHERE name = '%s')))",
                                   escaped_text);
         }
       }
@@ -1988,10 +1986,11 @@ void dt_collection_deserialize(char *buf)
       if(buf[0] == '$') buf++;
     }
   }
-  dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_NEW_QUERY, NULL);
+  dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_NEW_QUERY, DT_COLLECTION_PROP_UNDEF, NULL);
 }
 
-void dt_collection_update_query(const dt_collection_t *collection, dt_collection_change_t query_change, GList *list)
+void dt_collection_update_query(const dt_collection_t *collection, dt_collection_change_t query_change,
+                                dt_collection_properties_t changed_property, GList *list)
 {
   int next = -1;
   if(!collection->clone && query_change == DT_COLLECTION_CHANGE_NEW_QUERY && darktable.gui)
@@ -2127,6 +2126,11 @@ void dt_collection_update_query(const dt_collection_t *collection, dt_collection
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, -1);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
+    // if we have remove something from selection, we need to raise a signal
+    if(sqlite3_changes(dt_database_get(darktable.db)) > 0)
+    {
+      DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_SELECTION_CHANGED);
+    }
 
     /* free allocated strings */
     g_free(complete_query);
@@ -2136,7 +2140,8 @@ void dt_collection_update_query(const dt_collection_t *collection, dt_collection
   if(!collection->clone)
   {
     dt_collection_memory_update();
-    DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_COLLECTION_CHANGED, query_change, list, next);
+    DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_COLLECTION_CHANGED, query_change, changed_property,
+                                  list, next);
   }
 }
 
@@ -2149,25 +2154,25 @@ gboolean dt_collection_hint_message_internal(void *message)
 
 void dt_collection_hint_message(const dt_collection_t *collection)
 {
-  /* if relevant, determine offset of selection */
-  GList *selected_imgids = dt_collection_get_selected(collection, 1);
-  int selected = -1;
-
-  if(selected_imgids)
-  {
-    selected = GPOINTER_TO_INT(selected_imgids->data);
-    selected = dt_collection_image_offset_with_collection(collection, selected);
-    selected++;
-  }
   /* collection hinting */
   gchar *message;
 
   const int c = dt_collection_get_count_no_group(collection);
   const int cs = dt_collection_get_selected_count(collection);
-  g_list_free(selected_imgids);
 
   if(cs == 1)
   {
+    /* determine offset of the single selected image */
+    GList *selected_imgids = dt_collection_get_selected(collection, 1);
+    int selected = -1;
+
+    if(selected_imgids)
+    {
+      selected = GPOINTER_TO_INT(selected_imgids->data);
+      selected = dt_collection_image_offset_with_collection(collection, selected);
+      selected++;
+    }
+    g_list_free(selected_imgids);
     message = g_strdup_printf(_("%d image of %d (#%d) in current collection is selected"), cs, c, selected);
   }
   else
@@ -2235,7 +2240,8 @@ static void _dt_collection_recount_callback_1(gpointer instance, gpointer user_d
   if(!collection->clone)
   {
     if(old_count != collection->count) dt_collection_hint_message(collection);
-    DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_COLLECTION_CHANGED, DT_COLLECTION_CHANGE_RELOAD, NULL, -1);
+    DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_COLLECTION_CHANGED, DT_COLLECTION_CHANGE_RELOAD,
+                                  DT_COLLECTION_PROP_UNDEF, NULL, -1);
   }
 }
 
@@ -2252,7 +2258,7 @@ static void _dt_collection_filmroll_imported_callback(gpointer instance, uint8_t
   if(!collection->clone)
   {
     if(old_count != collection->count) dt_collection_hint_message(collection);
-    dt_collection_update_query(collection, DT_COLLECTION_CHANGE_NEW_QUERY, NULL);
+    dt_collection_update_query(collection, DT_COLLECTION_CHANGE_NEW_QUERY, DT_COLLECTION_PROP_UNDEF, NULL);
   }
 }
 

@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2010-2020 darktable developers.
+    Copyright (C) 2010-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1159,7 +1159,9 @@ gboolean accel_search_children(dt_gui_accel_search_t *search_data, GtkTreeIter *
 
   GtkTreePath *childpath = gtk_tree_model_get_path(tvmodel, parent);
 
-  if(strstr(row_data, search_term))
+  const gboolean match = strstr(row_data, search_term) != NULL;
+  g_free(row_data);
+  if(match)
   {
     search_data->curr_found_count++;
     if(search_data->curr_found_count > search_data->last_found_count)

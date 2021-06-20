@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2009-2020 darktable developers.
+    Copyright (C) 2009-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -189,7 +189,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   }
 
   // second step: blur filter contribution:
-  const float scale = piece->iscale / roi_in->scale;
+  const float scale = fmaxf(piece->iscale / roi_in->scale, 1.f);
   const float sigma_r = 250.0f; // does not depend on scale
   const float sigma_s = 20.0f / scale;
   const float detail = -1.0f; // bilateral base layer

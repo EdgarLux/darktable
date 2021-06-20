@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2010-2020 darktable developers.
+    Copyright (C) 2010-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -105,7 +105,7 @@ static void _group_helper_function(void)
     darktable.gui->expanded_group_id = new_group_id;
   else
     darktable.gui->expanded_group_id = -1;
-  dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, imgs);
+  dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, DT_COLLECTION_PROP_GROUPING, imgs);
   dt_control_queue_redraw_center();
 }
 
@@ -130,7 +130,8 @@ static void _ungroup_helper_function(void)
   if(imgs != NULL)
   {
     darktable.gui->expanded_group_id = -1;
-    dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, g_list_reverse(imgs));
+    dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, DT_COLLECTION_PROP_GROUPING,
+                               g_list_reverse(imgs));
     dt_control_queue_redraw_center();
   }
 }
@@ -274,8 +275,9 @@ static void _image_selection_changed_callback(gpointer instance, dt_lib_module_t
   _update(self);
 }
 
-static void _collection_updated_callback(gpointer instance, dt_collection_change_t query_change, gpointer imgs,
-                                        int next, dt_lib_module_t *self)
+static void _collection_updated_callback(gpointer instance, dt_collection_change_t query_change,
+                                         dt_collection_properties_t changed_property, gpointer imgs, int next,
+                                         dt_lib_module_t *self)
 {
   _update(self);
 }
@@ -371,7 +373,7 @@ static void _execute_metadata(dt_lib_module_t *self, const int action)
     {
       dt_undo_end_group(darktable.undo);
       dt_image_synch_xmps(imgs);
-      dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD,
+      dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, DT_COLLECTION_PROP_METADATA,
                                  g_list_copy((GList *)imgs));
       dt_control_queue_redraw_center();
     }
@@ -471,7 +473,7 @@ void gui_init(dt_lib_module_t *self)
   int line = 0;
 
 
-  d->remove_button = dt_ui_button_new(_("remove"), _("only remove from darktable, don't delete file on disk"), NULL);
+  d->remove_button = dt_ui_button_new(_("remove"), _("remove images from the image library, without deleting"), NULL);
   gtk_grid_attach(grid, d->remove_button, 0, line, 2, 1);
   g_signal_connect(G_OBJECT(d->remove_button), "clicked", G_CALLBACK(button_clicked), GINT_TO_POINTER(0));
 
@@ -491,7 +493,7 @@ void gui_init(dt_lib_module_t *self)
   gtk_grid_attach(grid, d->create_hdr_button, 0, line, 2, 1);
   g_signal_connect(G_OBJECT(d->create_hdr_button), "clicked", G_CALLBACK(button_clicked), GINT_TO_POINTER(7));
 
-  d->duplicate_button = dt_ui_button_new(_("duplicate"), _("add a duplicate to the collection, including its history stack"), NULL);
+  d->duplicate_button = dt_ui_button_new(_("duplicate"), _("add a duplicate to the image library, including its history stack"), NULL);
   gtk_grid_attach(grid, d->duplicate_button, 2, line++, 2, 1);
   g_signal_connect(G_OBJECT(d->duplicate_button), "clicked", G_CALLBACK(button_clicked), GINT_TO_POINTER(3));
 

@@ -124,6 +124,8 @@ static gboolean _compute_sizes(dt_culling_t *table, gboolean force)
     dt_thumbnail_t *th = (dt_thumbnail_t *)table->list->data;
     if(th->imgid != table->offset_imgid || th->display_focus != table->focus) ret = TRUE;
   }
+  else if(table->offset_imgid > 0)
+    ret = TRUE;
 
   if(table->mode == DT_CULLING_MODE_CULLING)
   {
@@ -351,9 +353,9 @@ static gboolean _zoom_and_shift(dt_thumbnail_t *th, const int x_offset, const in
     posy -= (gtk_widget_get_allocated_height(th->w_image_box) - ih) / 2;
   }
 
-  // we change the value and sanitize them
-  th->zoomx = fmaxf(iw - th->img_width * z_ratio, fminf(0.0f, posx - (posx - th->zoomx) * z_ratio));
-  th->zoomy = fmaxf(ih - th->img_height * z_ratio, fminf(0.0f, posy - (posy - th->zoomy) * z_ratio));
+  // we change the value. Values will be sanitized in the drawing event
+  th->zoomx = posx - (posx - th->zoomx) * z_ratio;
+  th->zoomy = posy - (posy - th->zoomy) * z_ratio;
 
   dt_thumbnail_image_refresh(th);
 
@@ -981,6 +983,7 @@ void dt_culling_init(dt_culling_t *table, int offset)
     if(sel_count == 0)
     {
       dt_control_log(_("no image selected !"));
+      first_id = -1;
     }
     table->navigate_inside_selection = TRUE;
     table->offset = _thumb_get_rowid(first_id);

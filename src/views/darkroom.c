@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2009-2020 darktable developers.
+    Copyright (C) 2009-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -484,8 +484,10 @@ void expose(
       load_txt = dt_util_dstrcat(
           NULL,
           _("darktable could not load `%s', switching to lighttable now.\n\n"
-            "please check the image (use exiv2 or exiftool) for corrupted data. if the image seems to\n"
-            "be intact, please consider opening an issue at https://github.com/darktable-org/darktable."),
+            "please check that the camera model that produced the image is supported in darktable\n"
+            "(list of supported cameras is at https://www.darktable.org/resources/camera-support/).\n"
+            "if you are sure that the camera model is supported, please consider opening an issue\n"
+            "at https://github.com/darktable-org/darktable"),
           dev->image_storage.filename);
       if(dev->image_invalid_cnt > 400)
       {
@@ -907,7 +909,7 @@ static void dt_dev_change_image(dt_develop_t *dev, const int32_t imgid)
   if (!dt_history_hash_is_mipmap_synced(dev->image_storage.id))
   {
     dt_mipmap_cache_remove(darktable.mipmap_cache, dev->image_storage.id);
-    dt_image_reset_final_size(dev->image_storage.id);
+    dt_image_update_final_size(dev->image_storage.id);
     dt_image_synch_xmp(dev->image_storage.id);
     dt_history_hash_set_mipmap(dev->image_storage.id);
   }
@@ -1266,7 +1268,7 @@ static void _darkroom_ui_apply_style_activate_callback(gchar *name)
   dt_dev_undo_start_record(darktable.develop);
 
   /* apply style on image and reload*/
-  dt_styles_apply_to_image(name, FALSE, darktable.develop->image_storage.id);
+  dt_styles_apply_to_image(name, FALSE, FALSE, darktable.develop->image_storage.id);
   dt_dev_reload_image(darktable.develop, darktable.develop->image_storage.id);
 
   DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_TAG_CHANGED);
@@ -3100,7 +3102,7 @@ void leave(dt_view_t *self)
   if (!dt_history_hash_is_mipmap_synced(dev->image_storage.id))
   {
     dt_mipmap_cache_remove(darktable.mipmap_cache, dev->image_storage.id);
-    dt_image_reset_final_size(dev->image_storage.id);
+    dt_image_update_final_size(dev->image_storage.id);
     // dump new xmp data
     dt_image_synch_xmp(dev->image_storage.id);
     dt_history_hash_set_mipmap(dev->image_storage.id);
@@ -3178,7 +3180,7 @@ void leave(dt_view_t *self)
   dt_ui_scrollbars_show(darktable.gui->ui, FALSE);
 
   // darkroom development could have changed a collection, so update that before being back in lighttable
-  dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD,
+  dt_collection_update_query(darktable.collection, DT_COLLECTION_CHANGE_RELOAD, DT_COLLECTION_PROP_UNDEF,
                              g_list_prepend(NULL, GINT_TO_POINTER(darktable.develop->image_storage.id)));
 
   darktable.develop->image_storage.id = -1;
@@ -3451,33 +3453,52 @@ int button_pressed(dt_view_t *self, double x, double y, double pressure, int whi
   if(which == 2)
   {
     // zoom to 1:1 2:1 and back
-    dt_dev_zoom_t zoom;
-    int closeup, procw, proch;
-    float zoom_x, zoom_y;
-    zoom = dt_control_get_dev_zoom();
-    closeup = dt_control_get_dev_closeup();
-    zoom_x = dt_control_get_dev_zoom_x();
-    zoom_y = dt_control_get_dev_zoom_y();
+    int procw, proch;
+    dt_dev_zoom_t zoom = dt_control_get_dev_zoom();
+    int closeup = dt_control_get_dev_closeup();
+    float zoom_x = dt_control_get_dev_zoom_x();
+    float zoom_y = dt_control_get_dev_zoom_y();
     dt_dev_get_processed_size(dev, &procw, &proch);
-    const float scale = dt_dev_get_zoom_scale(dev, zoom, 1<<closeup, 0);
-    zoom_x += (1.0 / scale) * (x - .5f * dev->width) / procw;
-    zoom_y += (1.0 / scale) * (y - .5f * dev->height) / proch;
-    if(zoom == DT_ZOOM_1)
+    float scale = dt_dev_get_zoom_scale(dev, zoom, 1<<closeup, 0);
+    const float ppd = darktable.gui->ppd;
+    const gboolean low_ppd = (darktable.gui->ppd == 1);
+    const float mouse_off_x = x - 0.5f * dev->width;
+    const float mouse_off_y = y - 0.5f * dev->height;
+    zoom_x += mouse_off_x / (procw * scale);
+    zoom_y += mouse_off_y / (proch * scale);
+    const float tscale = scale * ppd;
+    closeup = 0;
+    if((tscale > 0.95f) && (tscale < 1.05f)) // we are at 100% and switch to 200%
     {
-      if(!closeup)
-        closeup = 1;
+      zoom = DT_ZOOM_1;
+      scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+      if(low_ppd) closeup = 1;
+    }
+    else if((tscale > 1.95f) && (tscale < 2.05f)) // at 200% so switch to zoomfit           
+    {
+      zoom = DT_ZOOM_FIT;
+      scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_FIT, 1.0, 0);
+    }
+    else // other than 100 or 200% so zoom to 100 %
+    {
+      if(low_ppd)
+      {
+        zoom = DT_ZOOM_1;
+        scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+      }
       else
       {
-        zoom = DT_ZOOM_FIT;
-        zoom_x = zoom_y = 0.0f;
-        closeup = 0;
+        zoom = DT_ZOOM_FREE;
+        scale = 1.0f / ppd;
       }
     }
-    else
-      zoom = DT_ZOOM_1;
+    dt_control_set_dev_zoom_scale(scale);
+    dt_control_set_dev_closeup(closeup);
+    scale = dt_dev_get_zoom_scale(dev, zoom, 1<<closeup, 0);
+    zoom_x -= mouse_off_x / (procw * scale);
+    zoom_y -= mouse_off_y / (proch * scale);
     dt_dev_check_zoom_bounds(dev, &zoom_x, &zoom_y, zoom, closeup, NULL, NULL);
     dt_control_set_dev_zoom(zoom);
-    dt_control_set_dev_closeup(closeup);
     dt_control_set_dev_zoom_x(zoom_x);
     dt_control_set_dev_zoom_y(zoom_y);
     dt_dev_invalidate(dev);
@@ -3561,98 +3582,109 @@ void scrolled(dt_view_t *self, double x, double y, int up, int state)
     handled = dev->gui_module->scrolled(dev->gui_module, x, y, up, state);
   if(handled) return;
   // free zoom
-  dt_dev_zoom_t zoom;
-  int closeup, procw, proch;
-  float zoom_x, zoom_y;
-  zoom = dt_control_get_dev_zoom();
-  closeup = dt_control_get_dev_closeup();
-  zoom_x = dt_control_get_dev_zoom_x();
-  zoom_y = dt_control_get_dev_zoom_y();
+  int procw, proch;
+  dt_dev_zoom_t zoom = dt_control_get_dev_zoom();
+  int closeup = dt_control_get_dev_closeup();
+  float zoom_x = dt_control_get_dev_zoom_x();
+  float zoom_y = dt_control_get_dev_zoom_y();
   dt_dev_get_processed_size(dev, &procw, &proch);
   float scale = dt_dev_get_zoom_scale(dev, zoom, 1<<closeup, 0);
+  const float ppd = darktable.gui->ppd;
   const float fitscale = dt_dev_get_zoom_scale(dev, DT_ZOOM_FIT, 1.0, 0);
-  float oldscale = scale;
+  const float oldscale = scale;
 
   // offset from center now (current zoom_{x,y} points there)
-  float mouse_off_x = x - .5 * dev->width, mouse_off_y = y - .5 * dev->height;
+  const float mouse_off_x = x - 0.5f * dev->width;
+  const float mouse_off_y = y - 0.5f * dev->height;
   zoom_x += mouse_off_x / (procw * scale);
   zoom_y += mouse_off_y / (proch * scale);
   zoom = DT_ZOOM_FREE;
   closeup = 0;
 
   const gboolean constrained = !dt_modifier_is(state, GDK_CONTROL_MASK);
+  const gboolean low_ppd = (darktable.gui->ppd == 1);
+  const float stepup = 0.1f * fabsf(1.0f - fitscale) / ppd;
+
   if(up)
   {
-    if(fitscale <= 1.0f && (scale == 1.0f || scale == 2.0f) && constrained) return; // for large image size
-    else if(fitscale > 1.0f && fitscale <= 2.0f && scale == 2.0f && constrained) return; // for medium image size
+    if(fitscale <= 1.0f && (scale == (1.0f / ppd) || scale == (2.0f / ppd)) && constrained) return; // for large image size
+    else if(fitscale > 1.0f && fitscale <= 2.0f && scale == (2.0f / ppd) && constrained) return; // for medium image size
 
+    if((oldscale <= 1.0f / ppd) && constrained && (scale + stepup >= 1.0f / ppd))
+      scale = 1.0f / ppd;
+    else if((oldscale <= 2.0f / ppd) && constrained && (scale + stepup >= 2.0f / ppd))
+      scale = 2.0f / ppd;
     // calculate new scale
-    if(scale >= 16.0f)
+    else if(scale >= 16.0f / ppd)
       return;
-    else if(scale >= 8.0f)
-      scale = 16.0;
-    else if(scale >= 4.0f)
-      scale = 8.0;
-    else if(scale >= 2.0f)
-      scale = 4.0;
+    else if(scale >= 8.0f / ppd)
+      scale = 16.0f / ppd;
+    else if(scale >= 4.0f / ppd)
+      scale = 8.0f / ppd;
+    else if(scale >= 2.0f / ppd)
+      scale = 4.0f / ppd;
     else if(scale >= fitscale)
-      scale += .1f * fabsf(1.0f - fitscale);
+      scale += stepup;
     else
-      scale += .05f * fabsf(1.0f - fitscale);
+      scale += 0.5f * stepup;
   }
   else
   {
     if(fitscale <= 2.0f && ((scale == fitscale && constrained) || scale < 0.5 * fitscale)) return; // for large and medium image size
-    else if(fitscale > 2.0f && scale < 1.0f) return; // for small image size
+    else if(fitscale > 2.0f && scale < 1.0f / ppd) return; // for small image size
 
     // calculate new scale
     if(scale <= fitscale)
-      scale -= .05f * fabsf(1.0f - fitscale);
-    else if(scale <= 2.0f)
-      scale -= .1f * fabsf(1.0f - fitscale);
-    else if(scale <= 4.0f)
-      scale = 2.0f;
-    else if(scale <= 8.0f)
-      scale = 4.0f;
+      scale -= 0.5f * stepup;
+    else if(scale <= 2.0f / ppd)
+      scale -= stepup;
+    else if(scale <= 4.0f / ppd)
+      scale = 2.0f / ppd;
+    else if(scale <= 8.0f / ppd)
+      scale = 4.0f / ppd;
     else
-      scale = 8.0f;
+      scale = 8.0f / ppd;
   }
 
   if (fitscale <= 1.0f) // for large image size, stop at 1:1 and FIT levels, minimum at 0.5 * FIT
   {
-    if((scale - 1.0) * (oldscale - 1.0) < 0) scale = 1.0f;
+    if((scale - 1.0) * (oldscale - 1.0) < 0) scale = 1.0f / ppd;
     if((scale - fitscale) * (oldscale - fitscale) < 0) scale = fitscale;
     scale = fmaxf(scale, 0.5 * fitscale);
   }
   else if (fitscale > 1.0f && fitscale <= 2.0f) // for medium image size, stop at 2:1 and FIT levels, minimum at 0.5 * FIT
   {
-    if((scale - 2.0) * (oldscale - 2.0) < 0) scale = 2.0f;
+    if((scale - 2.0) * (oldscale - 2.0) < 0) scale = 2.0f / ppd;
     if((scale - fitscale) * (oldscale - fitscale) < 0) scale = fitscale;
     scale = fmaxf(scale, 0.5 * fitscale);
   }
-  else scale = fmaxf(scale, 1.0f); // for small image size, minimum at 1:1
-  scale = fminf(scale, 16.0f);
+  else scale = fmaxf(scale, 1.0f / ppd); // for small image size, minimum at 1:1
+  scale = fminf(scale, 16.0f / ppd);
 
-  // for 200% zoom we want pixel doubling instead of interpolation
-  if(scale > 15.9999f)
+  // for 200% zoom or more we want pixel doubling instead of interpolation
+  if(scale > 15.9999f / ppd)
   {
-    scale = 1.0f; // don't interpolate
-    closeup = 4;  // enable closeup mode (pixel doubling)
+    scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+    zoom = DT_ZOOM_1;
+    closeup = low_ppd ? 4 : 3;
   }
-  else if(scale > 7.9999f)
+  else if(scale > 7.9999f / ppd)
   {
-    scale = 1.0f; // don't interpolate
-    closeup = 3;  // enable closeup mode (pixel doubling)
+    scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+    zoom = DT_ZOOM_1;
+    closeup = low_ppd ? 3 : 2;
   }
-  else if(scale > 3.9999f)
+  else if(scale > 3.9999f / ppd)
   {
-    scale = 1.0f; // don't interpolate
-    closeup = 2;  // enable closeup mode (pixel doubling)
+    scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+    zoom = DT_ZOOM_1;
+    closeup = low_ppd ? 2 : 1;
   }
-  else if(scale > 1.9999f)
+  else if(scale > 1.9999f / ppd)
   {
-    scale = 1.0f; // don't interpolate
-    closeup = 1;  // enable closeup mode (pixel doubling)
+    scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+    zoom = DT_ZOOM_1;
+    if(low_ppd) closeup = 1;
   }
 
   if(fabsf(scale - 1.0f) < 0.001f) zoom = DT_ZOOM_1;
@@ -4101,7 +4133,9 @@ static void second_window_expose(GtkWidget *widget, dt_develop_t *dev, cairo_t *
     image_surface_width = width;
     image_surface_height = height;
     if(image_surface) cairo_surface_destroy(image_surface);
-    image_surface = dt_cairo_image_surface_create(CAIRO_FORMAT_RGB24, width, height);
+    image_surface = cairo_image_surface_create(CAIRO_FORMAT_RGB24, width * dev->second_window.ppd, height * dev->second_window.ppd);
+    cairo_surface_set_device_scale(image_surface, dev->second_window.ppd, dev->second_window.ppd);
+
     image_surface_imgid = -1; // invalidate old stuff
   }
   cairo_surface_t *surface;
@@ -4117,8 +4151,8 @@ static void second_window_expose(GtkWidget *widget, dt_develop_t *dev, cairo_t *
     float wd = dev->preview2_pipe->output_backbuf_width;
     float ht = dev->preview2_pipe->output_backbuf_height;
     const int stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24, wd);
-    surface
-        = dt_cairo_image_surface_create_for_data(dev->preview2_pipe->output_backbuf, CAIRO_FORMAT_RGB24, wd, ht, stride);
+    surface = cairo_image_surface_create_for_data(dev->preview2_pipe->output_backbuf, CAIRO_FORMAT_RGB24, wd, ht, stride);
+    cairo_surface_set_device_scale(surface, dev->second_window.ppd, dev->second_window.ppd);
     wd /= dev->second_window.ppd;
     ht /= dev->second_window.ppd;
     dt_gui_gtk_set_source_rgb(cr, DT_GUI_COLOR_DARKROOM_BG);
@@ -4140,7 +4174,7 @@ static void second_window_expose(GtkWidget *widget, dt_develop_t *dev, cairo_t *
     if(darktable.gui->show_focus_peaking)
     {
       cairo_save(cr);
-      cairo_scale(cr, 1./ darktable.gui->ppd, 1. / darktable.gui->ppd);
+      cairo_scale(cr, 1.0f / dev->second_window.ppd, 1.0f / dev->second_window.ppd);
       dt_focuspeaking(cr, wd, ht, cairo_image_surface_get_data(surface),
                                   cairo_image_surface_get_width(surface),
                                   cairo_image_surface_get_height(surface));
@@ -4202,81 +4236,107 @@ static void second_window_scrolled(GtkWidget *widget, dt_develop_t *dev, double 
   if(height_i > capht) y += (capht - height_i) * .5f;
 
   // free zoom
-  int procw, proch;
-
   dt_dev_zoom_t zoom = dt_second_window_get_dev_zoom(dev);
+  int procw, proch;
   int closeup = dt_second_window_get_dev_closeup(dev);
   float zoom_x = dt_second_window_get_dev_zoom_x(dev);
   float zoom_y = dt_second_window_get_dev_zoom_y(dev);
   dt_second_window_get_processed_size(dev, &procw, &proch);
   float scale = dt_second_window_get_zoom_scale(dev, zoom, 1 << closeup, 0);
+  const float ppd = dev->second_window.ppd;
   const float fitscale = dt_second_window_get_zoom_scale(dev, DT_ZOOM_FIT, 1.0, 0);
-  float oldscale = scale;
+  const float oldscale = scale;
 
   // offset from center now (current zoom_{x,y} points there)
-  float mouse_off_x = x - .5 * dev->second_window.width, mouse_off_y = y - .5 * dev->second_window.height;
+  const float mouse_off_x = x - 0.5f * dev->second_window.width;
+  const float mouse_off_y = y - 0.5f * dev->second_window.height;
   zoom_x += mouse_off_x / (procw * scale);
   zoom_y += mouse_off_y / (proch * scale);
   zoom = DT_ZOOM_FREE;
   closeup = 0;
+
+  const gboolean constrained = !dt_modifier_is(state, GDK_CONTROL_MASK);
+  const gboolean low_ppd = (dev->second_window.ppd == 1);
+  const float stepup = 0.1f * fabsf(1.0f - fitscale) / ppd;
   if(up)
   {
-    if((scale == 1.0f || scale == 2.0f) && !dt_modifier_is(state, GDK_CONTROL_MASK)) return;
-    if(scale >= 16.0f)
+    if(fitscale <= 1.0f && (scale == (1.0f / ppd) || scale == (2.0f / ppd)) && constrained) return; // for large image size
+    else if(fitscale > 1.0f && fitscale <= 2.0f && scale == (2.0f / ppd) && constrained) return; // for medium image size
+
+    if((oldscale <= 1.0f / ppd) && constrained && (scale + stepup >= 1.0f / ppd))
+      scale = 1.0f / ppd;
+    else if((oldscale <= 2.0f / ppd) && constrained && (scale + stepup >= 2.0f / ppd))
+      scale = 2.0f / ppd;
+    // calculate new scale
+    else if(scale >= 16.0f / ppd)
       return;
-    else if(scale >= 8.0f)
-      scale = 16.0;
-    else if(scale >= 4.0f)
-      scale = 8.0;
-    else if(scale >= 2.0f)
-      scale = 4.0;
-    else if(scale < fitscale)
-      scale += .05f * (1.0f - fitscale);
+    else if(scale >= 8.0f / ppd)
+      scale = 16.0f / ppd;
+    else if(scale >= 4.0f / ppd)
+      scale = 8.0f / ppd;
+    else if(scale >= 2.0f / ppd)
+      scale = 4.0f / ppd;
+    else if(scale >= fitscale)
+      scale += stepup;
     else
-      scale += .1f * (1.0f - fitscale);
+      scale += 0.5f * stepup;
   }
   else
   {
-    if(scale == fitscale && !dt_modifier_is(state, GDK_CONTROL_MASK))
-      return;
-    else if(scale < 0.5 * fitscale)
-      return;
-    else if(scale <= fitscale)
-      scale -= .05f * (1.0f - fitscale);
-    else if(scale <= 2.0f)
-      scale -= .1f * (1.0f - fitscale);
-    else if(scale <= 4.0f)
-      scale = 2.0f;
-    else if(scale <= 8.0f)
-      scale = 4.0f;
-    else
-      scale = 8.0f;
-  }
-  // we want to be sure to stop at 1:1 and FIT levels
-  if((scale - 1.0) * (oldscale - 1.0) < 0) scale = 1.0f;
-  if((scale - fitscale) * (oldscale - fitscale) < 0) scale = fitscale;
-  scale = fmaxf(fminf(scale, 16.0f), 0.5 * fitscale);
+    if(fitscale <= 2.0f && ((scale == fitscale && constrained) || scale < 0.5 * fitscale)) return; // for large and medium image size
+    else if(fitscale > 2.0f && scale < 1.0f / ppd) return; // for small image size
 
-  // for 200% zoom we want pixel doubling instead of interpolation
-  if(scale > 15.9999f)
-  {
-    scale = 1.0f; // don't interpolate
-    closeup = 4;  // enable closeup mode (pixel doubling)
+    // calculate new scale
+    if(scale <= fitscale)
+      scale -= 0.5f * stepup;
+    else if(scale <= 2.0f / ppd)
+      scale -= stepup;
+    else if(scale <= 4.0f / ppd)
+      scale = 2.0f / ppd;
+    else if(scale <= 8.0f / ppd)
+      scale = 4.0f / ppd;
+    else
+      scale = 8.0f / ppd;
   }
-  else if(scale > 7.9999f)
+  if (fitscale <= 1.0f) // for large image size, stop at 1:1 and FIT levels, minimum at 0.5 * FIT
   {
-    scale = 1.0f; // don't interpolate
-    closeup = 3;  // enable closeup mode (pixel doubling)
+    if((scale - 1.0) * (oldscale - 1.0) < 0) scale = 1.0f / ppd;
+    if((scale - fitscale) * (oldscale - fitscale) < 0) scale = fitscale;
+    scale = fmaxf(scale, 0.5 * fitscale);
   }
-  else if(scale > 3.9999f)
+  else if (fitscale > 1.0f && fitscale <= 2.0f) // for medium image size, stop at 2:1 and FIT levels, minimum at 0.5 * FIT
   {
-    scale = 1.0f; // don't interpolate
-    closeup = 2;  // enable closeup mode (pixel doubling)
+    if((scale - 2.0) * (oldscale - 2.0) < 0) scale = 2.0f / ppd;
+    if((scale - fitscale) * (oldscale - fitscale) < 0) scale = fitscale;
+    scale = fmaxf(scale, 0.5 * fitscale);
   }
-  else if(scale > 1.9999f)
+  else scale = fmaxf(scale, 1.0f / ppd); // for small image size, minimum at 1:1
+  scale = fminf(scale, 16.0f / ppd);
+
+  // for 200% zoom or more we want pixel doubling instead of interpolation
+  if(scale > 15.9999f / ppd)
   {
-    scale = 1.0f; // don't interpolate
-    closeup = 1;  // enable closeup mode (pixel doubling)
+    scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+    zoom = DT_ZOOM_1;
+    closeup = low_ppd ? 4 : 3;
+  }
+  else if(scale > 7.9999f / ppd)
+  {
+    scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+    zoom = DT_ZOOM_1;
+    closeup = low_ppd ? 3 : 2;
+  }
+  else if(scale > 3.9999f / ppd)
+  {
+    scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+    zoom = DT_ZOOM_1;
+    closeup = low_ppd ? 2 : 1;
+  }
+  else if(scale > 1.9999f / ppd)
+  {
+   scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+   zoom = DT_ZOOM_1;
+   if(low_ppd) closeup = 1;
   }
 
   if(fabsf(scale - 1.0f) < 0.001f) zoom = DT_ZOOM_1;
@@ -4328,34 +4388,53 @@ static int second_window_button_pressed(GtkWidget *widget, dt_develop_t *dev, do
   {
     // zoom to 1:1 2:1 and back
     int procw, proch;
-
     dt_dev_zoom_t zoom = dt_second_window_get_dev_zoom(dev);
     int closeup = dt_second_window_get_dev_closeup(dev);
     float zoom_x = dt_second_window_get_dev_zoom_x(dev);
     float zoom_y = dt_second_window_get_dev_zoom_y(dev);
     dt_second_window_get_processed_size(dev, &procw, &proch);
-    const float scale = dt_second_window_get_zoom_scale(dev, zoom, 1 << closeup, 0);
+    float scale = dt_second_window_get_zoom_scale(dev, zoom, 1 << closeup, 0);
+    const float ppd = dev->second_window.ppd;
+    const gboolean low_ppd = dev->second_window.ppd == 1;
 
-    zoom_x += (1.0 / scale) * (x - .5f * dev->second_window.width) / procw;
-    zoom_y += (1.0 / scale) * (y - .5f * dev->second_window.height) / proch;
+    const float mouse_off_x = x - 0.5f * dev->second_window.width;
+    const float mouse_off_y = y - 0.5f * dev->second_window.height;
+    zoom_x += mouse_off_x / (procw * scale);
+    zoom_y += mouse_off_y / (proch * scale);
+    const float tscale = scale * ppd;
+    closeup = 0;
 
-    if(zoom == DT_ZOOM_1)
+    if((tscale > 0.95f) && (tscale < 1.05f)) // we are at 100% and switch to 200%
     {
-      if(!closeup)
-        closeup = 1;
+      zoom = DT_ZOOM_1;
+      scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+      if(low_ppd) closeup = 1;
+    }
+    else if((tscale > 1.95f) && (tscale < 2.05f)) // at 200% so switch to zoomfit           
+    {
+      zoom = DT_ZOOM_FIT;
+      scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_FIT, 1.0, 0);
+    }
+    else // other than 100 or 200% so zoom to 100 %
+    {
+      if(low_ppd)
+      {
+        zoom = DT_ZOOM_1;
+        scale = dt_dev_get_zoom_scale(dev, DT_ZOOM_1, 1.0, 0);
+      }
       else
       {
-        zoom = DT_ZOOM_FIT;
-        zoom_x = zoom_y = 0.0f;
-        closeup = 0;
+        zoom = DT_ZOOM_FREE;
+        scale = 1.0f / ppd;
       }
     }
-    else
-      zoom = DT_ZOOM_1;
-
+    dt_second_window_set_zoom_scale(dev, scale);
+    dt_second_window_set_dev_closeup(dev, closeup);
+    scale = dt_second_window_get_zoom_scale(dev, zoom, 1 << closeup, 0);
+    zoom_x -= mouse_off_x / (procw * scale);
+    zoom_y -= mouse_off_y / (proch * scale);
     dt_second_window_check_zoom_bounds(dev, &zoom_x, &zoom_y, zoom, closeup, NULL, NULL);
     dt_second_window_set_dev_zoom(dev, zoom);
-    dt_second_window_set_dev_closeup(dev, closeup);
     dt_second_window_set_dev_zoom_x(dev, zoom_x);
     dt_second_window_set_dev_zoom_y(dev, zoom_y);
 

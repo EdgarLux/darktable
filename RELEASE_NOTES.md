@@ -16,7 +16,7 @@ $ sha256sum darktable-3.6.0.exe
 
 When updating from the currently stable 3.4.x series, please bear in
 mind that your edits will be preserved during this process, but the new
-library and configuration will not be usable with 3.4.x any more. 
+library and configuration will not be usable with 3.4.x any more.
 
 You are strongly advised to take a backup first.
 
@@ -28,12 +28,12 @@ You are strongly advised to take a backup first.
 
 ## The Big Ones
 
-- Full rework of the import module. The new module allows you to see 
-  thumbnails of your images before import and makes it easier to handle 
-  multiple import tasks. The same dialog is now used for importing 
+- Full rework of the import module. The new module allows you to see
+  thumbnails of your images before import and makes it easier to handle
+  multiple import tasks. The same dialog is now used for importing
   from disk, card or camera.
 
-  When importing "in-place", images that are already present in darktable 
+  When importing "in-place", images that are already present in darktable
   are flagged and can be automatically excluded from the import.
 
   Importing from a local drive won't use gphoto and so should work more
@@ -47,16 +47,16 @@ You are strongly advised to take a backup first.
   of AMaZE. the order of the demosaic algorithms has also been adjusted for clarity.
 
 - Support for "dual demosaic" has also been added, allowing you to combine
-  "RCD + VNG4" and "AMaZE + VNG4". This allows you to use higher quality algorithms
-  (RCD/AMaZE) on high frequency parts of the image and lower quality algorithms on 
-  low frequency parts and can be helpful in better controlling noise.
+  "RCD + VNG4" and "AMaZE + VNG4" for bayer sensors, for xtrans sensors there is
+  "Markesteijn 3-pass + VNG". This allows you to use an algorithm better resolving
+  fine detail and another one delivering smoother output depending on local image content.
 
 - You can now create an opacity mask based on the sharpness of the image. This uses
   a similar algorithm to that used in dual demosaic.
 
 - Drawn shapes are drawn on the original RAW image and then distorted through
   the pixelpipe. This previously led to, for example, circles becoming ellipses
-  (due to lens distortion) after being placed on the image. All drawn shapes can 
+  (due to lens distortion) after being placed on the image. All drawn shapes can
   now be pre-visualized and moved prior to placement, with full deformation
   applied. This makes the editing of masks easier fully WYSIWYG.
 
@@ -76,24 +76,24 @@ You are strongly advised to take a backup first.
 - The map module has been enhanced in a number of ways:
   - When importing a GPX the trace can be displayed.
   - Location can be set using polygons and directly created from information
-    reported by Open Street Map. As a reminder, all locations 
+    reported by Open Street Map. As a reminder, all locations
     create tags automatically for images placed into the area.
 
-- The basic adjustments module has been replaced with the quick access panel, which 
+- The basic adjustments module has been replaced with the quick access panel, which
   can be used to group controls from multiple different modules in one place. Currently,
   only non-graphical controls (sliders, comboboxes etc.) can be used.
 
 ## Other New Features And Changes
 
-- The various lighttable modes can now be accessed via clear and descriptive icons 
-  at the bottom of the screen. These should be easier to use than the existing drop-down 
+- The various lighttable modes can now be accessed via clear and descriptive icons
+  at the bottom of the screen. These should be easier to use than the existing drop-down
   selection.
 
 - The export module is now also accessible on the left-hand panel of the
   darkroom view.
 
 - The mix control in the contrast equalizer module is now retained as
-  module parameter. This means that no data is lost when using this slider and 
+  module parameter. This means that no data is lost when using this slider and
   you can always change the mix later with full precision.
 
 - The following modules have been deprecated:
@@ -130,7 +130,7 @@ You are strongly advised to take a backup first.
   go to the development version of the manual. So more links have been
   added, for example, for the lighttable layout and the timeline.
 
-  As a reminder, the new documentation is available in the following location 
+  As a reminder, the new documentation is available in the following location
   (viewable online or in pdf and epub formats):
 
   https://www.darktable.org/usermanual/en/
@@ -170,7 +170,7 @@ You are strongly advised to take a backup first.
   as mouse collision detection has been reworked.
 
 - The preferences, "manage module groups" and import dialogs will remember and
-  restore their size after closing. Their default size is designed to support 
+  restore their size after closing. Their default size is designed to support
   smaller screens and it is recommended that you resize them as appropriate.
 
 - A huge number of internal optimizations have been made throughout the code.
@@ -197,7 +197,7 @@ You are strongly advised to take a backup first.
   but can also be useful to quickly compare versions of an image.
 
 - Module group presets can now be auto-applied based on the image being edited.
-  This make it possible to create groups specifically to develop color, 
+  This make it possible to create groups specifically to develop color,
   monochrome, RAW or Jpeg images, for example.
 
 - Different interpolation algorithms are advised for warping and scaling modules.
@@ -205,7 +205,7 @@ You are strongly advised to take a backup first.
 
 - RGB scene blending mode is now used for the denoise (profiled) presets.
 
-- Parametric masks are now handled better when being reset. Some parametric masks 
+- Parametric masks are now handled better when being reset. Some parametric masks
   may need to be inverted in order to be considered as a no-operation.
 
 - The GUI of the blending section has been rewored to be more compact.
@@ -225,8 +225,8 @@ You are strongly advised to take a backup first.
 - Non-matrix-based color profiles have been filtered out of the histogram profile
   menu.
 
-- The timeline/filmstrip keyboard shortcut has been changed to <kbd>Ctrl-B</kbd>. 
-  This is more consistent with <kbd>Ctrl+Shift+B</kbd> (used to toggle the bottom 
+- The timeline/filmstrip keyboard shortcut has been changed to <kbd>Ctrl-B</kbd>.
+  This is more consistent with <kbd>Ctrl+Shift+B</kbd> (used to toggle the bottom
   panel) and avoids a conflict with sticky preview shortcut.
 
 - Some preferences have been moved to a sub-menu in the module preset
@@ -236,8 +236,8 @@ You are strongly advised to take a backup first.
 - Jpeg-2000 files are now decoded faster (using multiple threads).
 
 - The lighttable has been enhanced to use the embedded Jpeg preview
-  depending on the size of the thumbnails being displayed. 
-  Setting such a preference to use embedded preview for small thumbnails may speed-up 
+  depending on the size of the thumbnails being displayed.
+  Setting such a preference to use embedded preview for small thumbnails may speed-up
   the handling of large collections during import, for example.
 
 - Added support for removing multiple styles at once.
@@ -256,6 +256,12 @@ You are strongly advised to take a backup first.
 - Modules can now be removed from a group by right-clicking on the group icon.
 
 - Many improvements have been made to the TIFF export module.
+
+- In the lighttable, when several images are selected, the image information module
+  now displays the information only if every image share the same data. If data are
+  different, a \<various values\> text is displayed.
+
+- In the export module, the last visited Piwigo album is now remembered between sessions.
 
 ## Bug Fixes
 
@@ -283,7 +289,7 @@ You are strongly advised to take a backup first.
 
 - Fix use of sources in spot and retouch when distortion is used. The
   source area was not always correctly distorted and was actually
-  giving different results depending on whether distorting modules 
+  giving different results depending on whether distorting modules
   were present in the pipe.
 
 - In the default watermark simple-text we now preserve the spaces.
@@ -311,14 +317,14 @@ You are strongly advised to take a backup first.
 - Fix live-view display scaling on large screens (especially for HiDPI
   ones).
 
-- Fix migration of legacy parameters for denoise (profiled). A 
+- Fix migration of legacy parameters for denoise (profiled). A
   copy/paste error was copying the shadow parameter as the new bias.
 
 - Fix possible loss of masks where a module is disabled just before
   switching to another module.
 
 - A new module instance can now be created by right-clicking on
-  the multi-instance menu or on a preset. This replaces middle-click, 
+  the multi-instance menu or on a preset. This replaces middle-click,
   which is not available on all mice.
 
 - Fix zoom in the lighttable full preview to keep the mouse position.
@@ -337,11 +343,14 @@ You are strongly advised to take a backup first.
 
 - Fix style undo in overwrite mode.
 
+- Fix possible issue with CUPS printer margins computation when
+  computer is not using the English locale.
+
 ## Notes
 
 - The database upgrade can be slow.
 
-  This new version modifies quite a lot the database structure by adding 
+  This new version modifies quite a lot the database structure by adding
   foreign keys and cascade support. This will avoid dangling data in the
   database and will enforce a better consistency.
 
@@ -389,6 +398,8 @@ You are strongly advised to take a backup first.
 
 - Storage removal - add darktable.destroy_storage() to remove a storage from the exporter
 
+- Widget visibility - add visible member to widgets for visibility control
+
 - Change API to 7.0.0 for darktable 3.6.0 due to all of the breaking changes this development cycle
 
 ## Changed Dependencies
@@ -400,24 +411,58 @@ You are strongly advised to take a backup first.
 
 ### Base Support
 
+- Fujifilm GFX100S (compressed)
+- Fujifilm X-E4 (compressed)
+- Fujifilm X-S10 (compressed)
+- Leica D-Lux 7 (4:3, 1:1, 16:9, 3:2)
+- Nikon Z 6_2 (14bit-compressed, 14bit-uncompressed, 12bit-compressed, 12bit-uncompressed)
+- Nikon Z 7_2 (14bit-compressed, 14bit-uncompressed, 12bit-compressed, 12bit-uncompressed)
+- Panasonic DC-G100 (4:3)
+- Panasonic DC-G110 (4:3)
+- Panasonic DC-GF10 (4:3)
+- Panasonic GF90 (4:3)
+- Pentax K-3 Mark III
+- Ricoh GR III (dng)
+- Sony ILCE-1
+- Sony ILCE-7SM3
+- Sony ILCE-QX1
+
 ### White Balance Presets
+
+- Fujifilm GFX100S
+- Fujifilm X-E4
+- Nikon D780
+- Panasonic DC-FZ10002
+- Panasonic DMC-G8
+- Panasonic DMC-G80
+- Panasonic DMC-G81
+- Panasonic DMC-G85
+- Ricoh GR III
+- Samsung GX20
 
 ### Noise Profiles
 
+- Canon PowerShot S110
+- Nikon COOLPIX P950
+- Nikon Z 7_2
+- Olympus E-M10 Mark IV
+- Pentax K-3 Mark III
+- Samsung GX10
+- Samsung GX20
+- Sony ILCE-1
+- Sony ILCE-7C
+
+### Custom Color matrices
+
+- Samsung GX20
+
 ## Translations
 
-- Catalan
-- Czech
-- Danish
+- Afrikaans
 - German
-- European Spanish
+- Esperanto
 - French
-- Hebrew
-- Hungarian
-- Italian
-- Japanese
-- Norwegian Bokmål
 - Dutch
-- Polish
-- Russian
+- Brazilian Portuguese
 - Slovenian
+- Ukrainian

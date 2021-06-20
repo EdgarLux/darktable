@@ -1,6 +1,6 @@
 /*
  *    This file is part of darktable,
- *    Copyright (C) 2018-2020 darktable developers.
+ *    Copyright (C) 2018-2021 darktable developers.
  *
  *    darktable is free software: you can redistribute it and/or modify
  *    it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <math.h>
 #include <stdint.h>
 #ifdef __SSE__
@@ -166,6 +167,38 @@ static inline void mul_mat_vec_2(const float *m, const float *p, float *o)
   o[0] = p[0] * m[0] + p[1] * m[1];
   o[1] = p[0] * m[2] + p[1] * m[3];
 }
+
+#ifdef _OPENMP
+#pragma omp declare simd uniform(v_2) aligned(v_1, v_2:16)
+#endif
+static inline float scalar_product(const float v_1[4], const float v_2[4])
+{
+  // specialized 3×1 dot products 2 4×1 RGB-alpha pixels.
+  // v_2 needs to be uniform along loop increments, e.g. independent from current pixel values
+  // we force an order of computation similar to SSE4 _mm_dp_ps() hoping the compiler will get the clue
+  float acc = 0.f;
+
+#ifdef _OPENMP
+#pragma omp simd aligned(v_1, v_2:16) reduction(+:acc)
+#endif
+  for(size_t c = 0; c < 3; c++) acc += v_1[c] * v_2[c];
+
+  return acc;
+}
+
+
+#ifdef _OPENMP
+#pragma omp declare simd uniform(M) aligned(M:64) aligned(v_in, v_out:16)
+#endif
+static inline void dot_product(const float v_in[4], const float M[3][4], float v_out[4])
+{
+  // specialized 3×4 dot products of 4×1 RGB-alpha pixels
+  #ifdef _OPENMP
+  #pragma omp simd aligned(M:64) aligned(v_in, v_out:16)
+  #endif
+  for(size_t i = 0; i < 3; ++i) v_out[i] = scalar_product(v_in, M[i]);
+}
+
 
 #ifdef _OPENMP
 #pragma omp declare simd

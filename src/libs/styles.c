@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2010-2020 darktable developers.
+    Copyright (C) 2010-2021 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -119,12 +119,13 @@ static gboolean _get_node_for_name(GtkTreeModel *model, gboolean root, GtkTreeIt
   }
 
   // here we have iter to be on the right level, let's check if we can find parent_name
-  gchar *name;
-
   do
   {
+    gchar *name;
     gtk_tree_model_get(model, iter, DT_STYLES_COL_NAME, &name, -1);
-    if(!g_strcmp0(name, parent_name))
+    const gboolean match = !g_strcmp0(name, parent_name);
+    g_free(name);
+    if(match)
     {
       return TRUE;
     }
@@ -218,7 +219,11 @@ static void _styles_row_activated_callback(GtkTreeView *view, GtkTreePath *path,
   gtk_tree_model_get(model, &iter, DT_STYLES_COL_FULLNAME, &name, -1);
 
   const GList *list = dt_view_get_images_to_act_on(TRUE, TRUE, FALSE);
-  if(name) dt_styles_apply_to_list(name, list, gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(d->duplicate)));
+  if(name)
+  {
+    dt_styles_apply_to_list(name, list, gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(d->duplicate)));
+    g_free(name);
+  }
 }
 
 // get list of style names from selection
@@ -562,7 +567,16 @@ static void import_clicked(GtkWidget *w, gpointer user_data)
       /* extract name from xml file */
       gchar *bname = "";
       xmlDoc *document = xmlReadFile((char*)filename->data, NULL, 0);
-      xmlNode *root = xmlDocGetRootElement(document);
+      xmlNode *root = NULL;
+      if(document != NULL)
+        root = xmlDocGetRootElement(document);
+
+      if(document == NULL || root == NULL)
+      {
+        dt_print(DT_DEBUG_CONTROL,
+                 "[styles] file %s is not a style file\n", (char*)filename->data);
+        continue;
+      }
 
       for(xmlNode *node = root->children->children; node; node = node->next)
       {
@@ -763,8 +777,9 @@ static void _image_selection_changed_callback(gpointer instance, dt_lib_module_t
   _update(self);
 }
 
-static void _collection_updated_callback(gpointer instance, dt_collection_change_t query_change, gpointer imgs,
-                                        int next, dt_lib_module_t *self)
+static void _collection_updated_callback(gpointer instance, dt_collection_change_t query_change,
+                                         dt_collection_properties_t changed_property, gpointer imgs, int next,
+                                         dt_lib_module_t *self)
 {
   _update(self);
 }
