@@ -151,7 +151,6 @@ static gchar *_get_active_preset_name(dt_iop_module_t *module, int *writeprotect
 
 static void _menuitem_delete_preset(GtkMenuItem *menuitem, dt_iop_module_t *module)
 {
-  sqlite3_stmt *stmt;
   int writeprotect = -1;
   gchar *name = _get_active_preset_name(module, &writeprotect);
   if(name == NULL) return;
@@ -181,18 +180,9 @@ static void _menuitem_delete_preset(GtkMenuItem *menuitem, dt_iop_module_t *modu
 
   if(res == GTK_RESPONSE_YES)
   {
-    char tmp_path[1024];
-    snprintf(tmp_path, sizeof(tmp_path), "%s`%s", N_("preset"), name);
-    dt_accel_deregister_iop(module, tmp_path);
-    DT_DEBUG_SQLITE3_PREPARE_V2(
-        dt_database_get(darktable.db),
-        "DELETE FROM data.presets WHERE name=?1 AND operation=?2 AND op_version=?3 AND writeprotect=0", -1, &stmt,
-        NULL);
-    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 1, name, -1, SQLITE_TRANSIENT);
-    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 2, module->op, -1, SQLITE_TRANSIENT);
-    DT_DEBUG_SQLITE3_BIND_INT(stmt, 3, module->version());
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
+    dt_action_rename_preset(&module->so->actions, name, NULL);
+
+    dt_lib_presets_remove(name, module->op, module->version());
   }
   g_free(name);
 }
@@ -263,16 +253,9 @@ static void _edit_preset_response(GtkDialog *dialog, gint response_id, dt_gui_pr
         if(dlg_ret == GTK_RESPONSE_YES)
         {
           // we remove the preset that will be overwrite
-          DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
-                                      "DELETE FROM data.presets"
-                                      " WHERE name=?1 AND operation=?2 AND op_version=?3",
-                                      -1, &stmt, NULL);
-          DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 1, name, -1, SQLITE_TRANSIENT);
-          DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 2, g->operation, -1, SQLITE_TRANSIENT);
-          DT_DEBUG_SQLITE3_BIND_INT(stmt, 3, g->op_version);
+          dt_lib_presets_remove(name, g->operation, g->op_version);
 
-          sqlite3_step(stmt);
-          sqlite3_finalize(stmt);
+          if(g->iop) dt_action_rename_preset(&g->iop->so->actions, name, NULL);
         }
         else
           return;
@@ -281,9 +264,6 @@ static void _edit_preset_response(GtkDialog *dialog, gint response_id, dt_gui_pr
       {
         sqlite3_finalize(stmt);
       }
-
-      // rename accelerators
-      if(g->iop) dt_accel_rename_preset_iop(g->iop, g->original_name, name);
     }
 
     gchar *query = NULL;
@@ -315,6 +295,9 @@ static void _edit_preset_response(GtkDialog *dialog, gint response_id, dt_gui_pr
                               " (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, 0, 0, ?17,"
                               "  ?18, ?19, ?20, ?21, ?22, 0, '')");
     }
+
+    // rename accelerators
+    if(g->iop) dt_action_rename_preset(&g->iop->so->actions, g->original_name, name);
 
     // commit all the user input fields
     DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);
@@ -385,12 +368,7 @@ static void _edit_preset_response(GtkDialog *dialog, gint response_id, dt_gui_pr
 #ifdef GDK_WINDOWING_QUARTZ
     dt_osx_disallow_fullscreen(filechooser);
 #endif
-    gchar *import_path = dt_conf_get_string("ui_last/export_path");
-    if(import_path != NULL)
-    {
-      gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(filechooser), import_path);
-      g_free(import_path);
-    }
+    dt_conf_get_folder_to_file_chooser("ui_last/export_path", filechooser);
 
     // save if accepted
     if(gtk_dialog_run(GTK_DIALOG(filechooser)) == GTK_RESPONSE_ACCEPT)
@@ -399,9 +377,7 @@ static void _edit_preset_response(GtkDialog *dialog, gint response_id, dt_gui_pr
       dt_presets_save_to_file(g->old_id, name, filedir);
       dt_control_log(_("preset %s was successfully exported"), name);
       g_free(filedir);
-      gchar *folder = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(filechooser));
-      dt_conf_set_string("ui_last/export_path", folder);
-      g_free(folder);
+      dt_conf_set_folder_from_file_chooser("ui_last/export_path", filechooser);
     }
 
     gtk_widget_destroy(GTK_WIDGET(filechooser));
@@ -409,39 +385,7 @@ static void _edit_preset_response(GtkDialog *dialog, gint response_id, dt_gui_pr
   }
   else if(response_id == GTK_RESPONSE_REJECT && g->old_id)
   {
-    // This means with want to remove the preset
-    GtkWidget *win = gtk_message_dialog_new(GTK_WINDOW(dialog), GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
-                                            GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
-                                            _("do you really want to delete the preset `%s'?"), g->original_name);
-#ifdef GDK_WINDOWING_QUARTZ
-    dt_osx_disallow_fullscreen(win);
-#endif
-    gtk_window_set_title(GTK_WINDOW(win), _("delete preset?"));
-    if(gtk_dialog_run(GTK_DIALOG(win)) == GTK_RESPONSE_YES)
-    {
-      // deregistering accel...
-      gchar accel[256];
-      gchar datadir[PATH_MAX] = { 0 };
-      gchar accelpath[PATH_MAX] = { 0 };
-
-      dt_loc_get_user_config_dir(datadir, sizeof(datadir));
-      snprintf(accelpath, sizeof(accelpath), "%s/keyboardrc", datadir);
-      gchar *preset_name = g_strdup_printf("%s`%s", N_("preset"), g->original_name);
-      dt_accel_path_iop(accel, sizeof(accel), g->operation, preset_name);
-      g_free(preset_name);
-      gtk_accel_map_change_entry(accel, 0, 0, TRUE);
-      // Saving the changed bindings
-      gtk_accel_map_save(accelpath);
-
-      // remove the preset from the database
-      sqlite3_stmt *stmt;
-      DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
-                                  "DELETE FROM data.presets WHERE rowid=?1 AND writeprotect=0", -1, &stmt, NULL);
-      DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, g->old_id);
-      sqlite3_step(stmt);
-      sqlite3_finalize(stmt);
-    }
-    gtk_widget_destroy(win);
+    dt_gui_presets_confirm_and_delete(GTK_WIDGET(dialog), g->original_name, g->operation, g->old_id);
 
     if(g->callback) ((void (*)(dt_gui_presets_edit_dialog_t *))g->callback)(g);
   }
@@ -451,6 +395,54 @@ static void _edit_preset_response(GtkDialog *dialog, gint response_id, dt_gui_pr
   g_free(g->module_name);
   g_free(g->operation);
   free(g);
+}
+
+void dt_gui_presets_confirm_and_delete(GtkWidget *parent_dialog, const char *name, const char *module_name, int rowid)
+{
+  if(!module_name) return;
+
+  // This means with want to remove the preset
+  GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(parent_dialog), GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+                                             GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
+                                             _("do you really want to delete the preset `%s'?"), name);
+#ifdef GDK_WINDOWING_QUARTZ
+  dt_osx_disallow_fullscreen(dialog);
+#endif
+
+  gtk_window_set_title(GTK_WINDOW(dialog), _("delete preset?"));
+  if(gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_YES)
+  {
+    // deregistering accel...
+    for(GList *modules = darktable.iop; modules; modules = modules->next)
+    {
+      dt_iop_module_so_t *mod = modules->data;
+
+      if(!strcmp(mod->op, module_name))
+      {
+        dt_action_rename_preset(&mod->actions, name, NULL);
+        break;
+      }
+    }
+    for(GList *libs = darktable.lib->plugins; libs; libs = g_list_next(libs))
+    {
+      dt_lib_module_t *lib = libs->data;
+
+      if(!strcmp(lib->plugin_name, module_name))
+      {
+        dt_action_rename_preset(&lib->actions, name, NULL);
+        break;
+      }
+    }
+
+    // remove the preset from the database
+    sqlite3_stmt *stmt;
+    DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
+                                "DELETE FROM data.presets WHERE rowid=?1 AND writeprotect=0", -1, &stmt, NULL);
+    DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, rowid);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+  }
+  gtk_widget_destroy(dialog);
 }
 
 static void _check_buttons_activated(GtkCheckButton *button, dt_gui_presets_edit_dialog_t *g)
@@ -717,7 +709,7 @@ static void _presets_show_edit_dialog(dt_gui_presets_edit_dialog_t *g, gboolean 
     if(w) gtk_widget_set_sensitive(w, FALSE);
   }
 
-  // put focus on cancel button if 2 first entry desactivated
+  // put focus on cancel button if 2 first entries deactivated
   if(!allow_desc_change && !allow_name_change)
   {
     GtkWidget *w = gtk_dialog_get_widget_for_response(GTK_DIALOG(dialog), GTK_RESPONSE_CANCEL);
@@ -851,27 +843,16 @@ static void _menuitem_update_preset(GtkMenuItem *menuitem, dt_iop_module_t *modu
 static void _menuitem_new_preset(GtkMenuItem *menuitem, dt_iop_module_t *module)
 {
   // add new preset
-  sqlite3_stmt *stmt;
-  DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
-                              "DELETE FROM data.presets"
-                              " WHERE name=?1 AND operation=?2 AND op_version=?3", -1,
-                              &stmt, NULL);
-  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 1, _("new preset"), -1, SQLITE_STATIC);
-  DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 2, module->op, -1, SQLITE_TRANSIENT);
-  DT_DEBUG_SQLITE3_BIND_INT(stmt, 3, module->version());
-  sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  dt_lib_presets_remove(_("new preset"), module->op, module->version());
+
   // create a shortcut for the new entry
-  char path[1024];
-  snprintf(path, sizeof(path), "%s`%s", N_("preset"), _("new preset"));
-  dt_accel_register_iop(module->so, FALSE, path, 0, 0);
-  dt_accel_connect_preset_iop(module, _("new preset"));
-  dt_accel_connect_instance_iop(module);
+  dt_action_define_preset(&module->so->actions, "new preset");
+
   // then show edit dialog
   _edit_preset(_("new preset"), module);
 }
 
-static void _apply_preset(const gchar *name, dt_iop_module_t *module)
+void dt_gui_presets_apply_preset(const gchar* name, dt_iop_module_t *module)
 {
   sqlite3_stmt *stmt;
   DT_DEBUG_SQLITE3_PREPARE_V2
@@ -931,7 +912,7 @@ static void _apply_preset(const gchar *name, dt_iop_module_t *module)
 static void _menuitem_pick_preset(GtkMenuItem *menuitem, dt_iop_module_t *module)
 {
   gchar *name = g_object_get_data(G_OBJECT(menuitem), "dt-preset-name");
-  _apply_preset(name, module);
+  dt_gui_presets_apply_preset(name, module);
 }
 
 gboolean dt_gui_presets_autoapply_for_module(dt_iop_module_t *module)
@@ -997,7 +978,7 @@ gboolean dt_gui_presets_autoapply_for_module(dt_iop_module_t *module)
   while(sqlite3_step(stmt) == SQLITE_ROW)
   {
     const char *name = (const char *)sqlite3_column_text(stmt, 0);
-    _apply_preset(name, module);
+    dt_gui_presets_apply_preset(name, module);
     applied = TRUE;
   }
   sqlite3_finalize(stmt);

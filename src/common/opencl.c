@@ -323,6 +323,7 @@ static int dt_opencl_device_init(dt_opencl_t *cl, const int dev, cl_device_id *d
   if(darktable.unmuted & DT_DEBUG_OPENCL)
   {
     printf("[opencl_init] device %d: %s \n", k, infostr);
+    printf("     CANONICAL_NAME:           %s\n", cname);
     printf("     GLOBAL_MEM_SIZE:          %.0fMB\n", (double)cl->dev[dev].max_global_mem / 1024.0 / 1024.0);
     (cl->dlocl->symbols->dt_clGetDeviceInfo)(devid, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(infoint), &infoint, NULL);
     printf("     MAX_WORK_GROUP_SIZE:      %zu\n", infoint);
@@ -2250,6 +2251,8 @@ void *dt_opencl_alloc_device(const int devid, const int width, const int height,
     fmt = (cl_image_format){ CL_R, CL_FLOAT };
   else if(bpp == sizeof(uint16_t))
     fmt = (cl_image_format){ CL_R, CL_UNSIGNED_INT16 };
+  else if(bpp == sizeof(uint8_t))
+    fmt = (cl_image_format){ CL_R, CL_UNSIGNED_INT8 };
   else
     return NULL;
 

@@ -1116,13 +1116,7 @@ void dt_dev_reload_history_items(dt_develop_t *dev)
     else if(!dt_iop_is_hidden(module) && module->expander)
     {
       // we have to ensure that the name of the widget is correct
-      GtkWidget *child = dt_gui_container_first_child(GTK_CONTAINER(module->expander));
-      GtkWidget *header = gtk_bin_get_child(GTK_BIN(child));
-
-      GtkWidget *wlabel = dt_gui_container_nth_child(GTK_CONTAINER(header), IOP_MODULE_LABEL);
-      gchar *label = dt_history_item_get_name_html(module);
-      gtk_label_set_markup(GTK_LABEL(wlabel), label);
-      g_free(label);
+      dt_iop_gui_update_header(module);
     }
   }
 
@@ -1392,7 +1386,7 @@ static gboolean _dev_auto_apply_presets(dt_develop_t *dev)
     // Next section is to recover old edits where all modules with default parameters were not
     // recorded in the db nor in the .XMP.
     //
-    // One crutial point is the white-balance which has automatic default based on the camera
+    // One crucial point is the white-balance which has automatic default based on the camera
     // and depends on the chroma-adaptation. In modern mode the default won't be the same used
     // in legacy mode and if the white-balance is not found on the history one will be added by
     // default using current defaults. But if we are in modern chromatic adaptation the default
@@ -2346,6 +2340,13 @@ gboolean dt_dev_modulegroups_is_visible(dt_develop_t *dev, gchar *module)
   if(dev->proxy.modulegroups.module && dev->proxy.modulegroups.test_visible)
     return dev->proxy.modulegroups.test_visible(dev->proxy.modulegroups.module, module);
   return FALSE;
+}
+
+int dt_dev_modulegroups_basics_module_toggle(dt_develop_t *dev, GtkWidget *widget, gboolean doit)
+{
+  if(dev->proxy.modulegroups.module && dev->proxy.modulegroups.basics_module_toggle)
+    return dev->proxy.modulegroups.basics_module_toggle(dev->proxy.modulegroups.module, widget, doit);
+  return 0;
 }
 
 void dt_dev_masks_list_change(dt_develop_t *dev)
