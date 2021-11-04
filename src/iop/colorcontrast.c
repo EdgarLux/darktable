@@ -141,8 +141,8 @@ int legacy_params(dt_iop_module_t *self, const void *const old_params, const int
 #pragma omp declare simd aligned(in,out:64) aligned(slope,offset,low,high)
 #endif
 static inline void clamped_scaling(float *const restrict out, const float *const restrict in,
-                                   const float slope[4], const float offset[4],
-                                   const float low[4], const float high[4])
+                                   const dt_aligned_pixel_t slope, const dt_aligned_pixel_t offset,
+                                   const dt_aligned_pixel_t low, const dt_aligned_pixel_t high)
 {
   for_each_channel(c,dt_omp_nontemporal(out))
     out[c] = CLAMPS(in[c] * slope[c] + offset[c], low[c], high[c]);
@@ -165,10 +165,10 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   float *const restrict out = DT_IS_ALIGNED((float *const)ovoid);
   const size_t npixels = (size_t)roi_out->width * roi_out->height;
 
-  const float DT_ALIGNED_PIXEL slope[4] = { 1.0f, d->a_steepness, d->b_steepness, 1.0f };
-  const float DT_ALIGNED_PIXEL offset[4] = { 0.0f, d->a_offset, d->b_offset, 0.0f };
-  const float DT_ALIGNED_PIXEL lowlimit[4] = { -INFINITY, -128.0f, -128.0f, -INFINITY };
-  const float DT_ALIGNED_PIXEL highlimit[4] = { INFINITY, 128.0f, 128.0f, INFINITY };
+  const dt_aligned_pixel_t slope = { 1.0f, d->a_steepness, d->b_steepness, 1.0f };
+  const dt_aligned_pixel_t offset = { 0.0f, d->a_offset, d->b_offset, 0.0f };
+  const dt_aligned_pixel_t lowlimit = { -INFINITY, -128.0f, -128.0f, -INFINITY };
+  const dt_aligned_pixel_t highlimit = { INFINITY, 128.0f, 128.0f, INFINITY };
 
   if(d->unbound)
   {
@@ -230,9 +230,8 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
   if (d->unbound)
   {
 #ifdef _OPENMP
-#pragma omp parallel for simd default(none) \
+#pragma omp parallel for default(none) \
   dt_omp_firstprivate(in, out, offset, npixels, scale) \
-  aligned(in, out : 64) \
   schedule(static)
 #endif
     for(int j = 0; j < 4 * npixels; j += 4)
@@ -243,9 +242,8 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
   else
   {
 #ifdef _OPENMP
-#pragma omp parallel for simd default(none) \
+#pragma omp parallel for default(none) \
   dt_omp_firstprivate(in, out, max, min, offset, npixels, scale) \
-  aligned(in, out : 64) \
   schedule(static)
 #endif
     for(int j = 0; j < 4 * npixels; j += 4)

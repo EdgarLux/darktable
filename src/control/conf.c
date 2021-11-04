@@ -123,7 +123,7 @@ void dt_conf_set_float(const char *name, float val)
 
 void dt_conf_set_bool(const char *name, int val)
 {
-  char *str = g_strdup_printf("%s", val ? "TRUE" : "FALSE");
+  char *str = g_strdup(val ? "TRUE" : "FALSE");
   if(dt_conf_set_if_not_overridden(name, str)) g_free(str);
 }
 
@@ -133,9 +133,26 @@ void dt_conf_set_string(const char *name, const char *val)
   if(dt_conf_set_if_not_overridden(name, str)) g_free(str);
 }
 
-void dt_conf_set_folder_from_file_chooser(const char *name, GtkWidget *chooser)
+void dt_conf_set_folder_from_file_chooser(const char *name, GtkFileChooser *chooser)
 {
-  gchar *folder = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(chooser));
+
+#ifdef WIN32
+  // for Windows native file chooser, gtk_file_chooser_get_current_folder()
+  // does not work, so we workaround
+  if(GTK_IS_FILE_CHOOSER_NATIVE(chooser))
+  {
+    gchar *pathname = gtk_file_chooser_get_filename(chooser);
+    if(pathname)
+    {
+      gchar *folder = g_path_get_dirname(pathname);
+      if(dt_conf_set_if_not_overridden(name, folder)) g_free(folder);
+      g_free(pathname);
+    }
+    return;
+  }
+#endif
+
+  gchar *folder = gtk_file_chooser_get_current_folder(chooser);
   if(dt_conf_set_if_not_overridden(name, folder)) g_free(folder);
 }
 
@@ -305,13 +322,17 @@ gchar *dt_conf_get_string(const char *name)
   return g_strdup(str);
 }
 
-gboolean dt_conf_get_folder_to_file_chooser(const char *name, GtkWidget *chooser)
+const char *dt_conf_get_string_const(const char *name)
 {
-  gchar *folder = dt_conf_get_string(name);
+  return dt_conf_get_var(name);
+}
+
+gboolean dt_conf_get_folder_to_file_chooser(const char *name, GtkFileChooser *chooser)
+{
+  const gchar *folder = dt_conf_get_string_const(name);
   if (folder)
   {
-    gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(chooser),folder);
-    g_free(folder);
+    gtk_file_chooser_set_current_folder(chooser, folder);
     return TRUE;
   }
   return FALSE;
@@ -369,7 +390,7 @@ static char *_sanitize_confgen(const char *name, const char *value)
     case DT_BOOL:
     {
       if(strcasecmp(value, "true") && strcasecmp(value, "false"))
-        result = g_strdup_printf("%s", dt_confgen_get(name, DT_DEFAULT));
+        result = g_strdup(dt_confgen_get(name, DT_DEFAULT));
       else
         result = g_strdup(value);
     }
@@ -378,7 +399,7 @@ static char *_sanitize_confgen(const char *name, const char *value)
     {
       char *v = g_strdup_printf("[%s]", value);
       if(!strstr(item->enum_values, v))
-        result = g_strdup_printf("%s", dt_confgen_get(name, DT_DEFAULT));
+        result = g_strdup(dt_confgen_get(name, DT_DEFAULT));
       else
         result = g_strdup(value);
       g_free(v);
@@ -773,6 +794,7 @@ gboolean dt_conf_is_default(const char *name)
   case DT_BOOL:
     return dt_conf_get_bool(name) == dt_confgen_get_bool(name, DT_DEFAULT);
     break;
+  case DT_PATH:
   case DT_STRING:
   case DT_ENUM:
   default:
@@ -784,6 +806,34 @@ gboolean dt_conf_is_default(const char *name)
     }
   }
 }
+
+gchar* dt_conf_expand_default_dir(const char *dir)
+{
+  // expand special dirs
+#define CONFIG_DIR "$(config)"
+#define HOME_DIR   "$(home)"
+
+  gchar *path = NULL;
+  if(g_str_has_prefix(dir, CONFIG_DIR))
+  {
+    gchar configdir[PATH_MAX] = { 0 };
+    dt_loc_get_user_config_dir(configdir, sizeof(configdir));
+    path = g_strdup_printf("%s%s", configdir, dir + strlen(CONFIG_DIR));
+  }
+  else if(g_str_has_prefix(dir, HOME_DIR))
+  {
+    gchar *homedir = dt_loc_get_home_dir(NULL);
+    path = g_strdup_printf("%s%s", homedir, dir + strlen(HOME_DIR));
+    g_free(homedir);
+  }
+  else path = g_strdup(dir);
+
+  gchar *normalized_path = dt_util_normalize_path(path);
+  g_free(path);
+
+  return normalized_path;
+}
+
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent

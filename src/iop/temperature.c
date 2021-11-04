@@ -447,6 +447,16 @@ static void dt_wb_preset_interpolate(const wb_data *const p1, // the smaller tun
   }
 }
 
+#ifdef _OPENMP
+#pragma omp declare simd aligned(inp,outp)
+#endif
+static inline void scaled_copy_4wide(float *const outp, const float *const inp, const float *const coeffs)
+{
+  // this needs to be in a separate function to make GCC8 vectorize it at -O2 as well as -O3
+  for_four_channels(c, aligned(inp, coeffs, outp))
+    outp[c] = inp[c] * coeffs[c];
+}
+
 void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
              void *const ovoid, const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
@@ -456,44 +466,84 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
 
   const float *const in = (const float *const)ivoid;
   float *const out = (float *const)ovoid;
+  const float *const d_coeffs = d->coeffs;
 
   if(filters == 9u)
   { // xtrans float mosaiced
 #ifdef _OPENMP
-#pragma omp parallel for SIMD() default(none) \
-    dt_omp_firstprivate(d, in, out, roi_out, xtrans) \
-    schedule(static) \
-    collapse(2)
+#pragma omp parallel for default(none) \
+    dt_omp_firstprivate(d_coeffs, in, out, roi_out, xtrans) \
+    schedule(static)
 #endif
     for(int j = 0; j < roi_out->height; j++)
     {
-      for(int i = 0; i < roi_out->width; i++)
+      const float DT_ALIGNED_PIXEL coeffs[3][4] =
+      {
+        { d_coeffs[FCxtrans(j, 0, roi_out, xtrans)], d_coeffs[FCxtrans(j, 1, roi_out, xtrans)],
+          d_coeffs[FCxtrans(j, 2, roi_out, xtrans)], d_coeffs[FCxtrans(j, 3, roi_out, xtrans)] },
+        { d_coeffs[FCxtrans(j, 4, roi_out, xtrans)], d_coeffs[FCxtrans(j, 5, roi_out, xtrans)],
+          d_coeffs[FCxtrans(j, 6, roi_out, xtrans)], d_coeffs[FCxtrans(j, 7, roi_out, xtrans)] },
+        { d_coeffs[FCxtrans(j, 8, roi_out, xtrans)], d_coeffs[FCxtrans(j, 9, roi_out, xtrans)],
+          d_coeffs[FCxtrans(j, 10, roi_out, xtrans)], d_coeffs[FCxtrans(j, 11, roi_out, xtrans)] },
+      };
+      // process sensels four at a time
+      //(note that attempting to ensure alignment for this main loop actually slowed things down marginally)
+      int i = 0;
+      for(int coeff = 0; i + 4 < roi_out->width; i += 4, coeff = (coeff+1)%3)
       {
         const size_t p = (size_t)j * roi_out->width + i;
-        out[p] = in[p] * d->coeffs[FCxtrans(j, i, roi_out, xtrans)];
+        for_four_channels(c) // in and out are NOT aligned when width is not a multiple of 4
+          out[p+c] = in[p+c] * coeffs[coeff][c];
+      }
+      // process the leftover sensels
+      for(; i < roi_out->width; i++)
+      {
+        const size_t p = (size_t)j * roi_out->width + i;
+        out[p] = in[p] * d_coeffs[FCxtrans(j, i, roi_out, xtrans)];
       }
     }
   }
   else if(filters)
   { // bayer float mosaiced
+    const int width = roi_out->width;
 #ifdef _OPENMP
-#pragma omp parallel for SIMD() default(none) \
-    dt_omp_firstprivate(d, filters, in, out, roi_out) \
-    schedule(static) \
-    collapse(2)
+#pragma omp parallel for default(none) \
+    dt_omp_firstprivate(d_coeffs, filters, in, out, roi_out, width)       \
+    schedule(static)
 #endif
     for(int j = 0; j < roi_out->height; j++)
     {
-      for(int i = 0; i < roi_out->width; i++)
+      int i = 0;
+      const int alignment = ((4 - (j * width & (4 - 1))) & (4 - 1));
+      const int offset_j = j + roi_out->y;
+
+      // process the unaligned sensels at the start of the row (when width is not a multiple of 4)
+      for( ; i < alignment; i++)
       {
-        const size_t p = (size_t)j * roi_out->width + i;
-        out[p] = in[p] * d->coeffs[FC(j + roi_out->y, i + roi_out->x, filters)];
+        const size_t p = (size_t)j * width + i;
+        out[p] = in[p] * d_coeffs[FC(offset_j, i + roi_out->x, filters)];
+      }
+      const dt_aligned_pixel_t coeffs = { d_coeffs[FC(offset_j, i + roi_out->x, filters)],
+                                          d_coeffs[FC(offset_j, i + roi_out->x + 1,filters)],
+                                          d_coeffs[FC(offset_j, i + roi_out->x + 2, filters)],
+                                          d_coeffs[FC(offset_j, i + roi_out->x + 3, filters)] };
+      // process sensels four at a time
+      for(; i < (width & ~3); i += 4)
+      {
+        const size_t p = (size_t)j * width + i;
+        scaled_copy_4wide(out + p,in + p, coeffs);
+      }
+      // process the leftover sensels
+      for(i = width & ~3; i < width; i++)
+      {
+        const size_t p = (size_t)j * width + i;
+        out[p] = in[p] * d_coeffs[FC(j + roi_out->y, i + roi_out->x, filters)];
       }
     }
   }
   else
   { // non-mosaiced
-    const int ch = piece->colors;
+    const size_t ch = piece->colors;
 
 #ifdef _OPENMP
 #pragma omp parallel for SIMD() default(none) \
@@ -501,16 +551,17 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
     schedule(static) \
     collapse(2)
 #endif
-    for(size_t k = 0; k < (size_t)ch * roi_out->width * roi_out->height; k += ch)
+    for(size_t k = 0; k < ch * roi_out->width * roi_out->height; k += ch)
     {
-      for(int c = 0; c < 3; c++)
+      for(ptrdiff_t c = 0; c < 3; c++)
       {
-        const size_t p = (size_t)k + c;
+        const size_t p = k + c;
         out[p] = in[p] * d->coeffs[c];
       }
     }
 
-    if(piece->pipe->mask_display & DT_DEV_PIXELPIPE_DISPLAY_MASK) dt_iop_alpha_copy(ivoid, ovoid, roi_out->width, roi_out->height);
+    if(piece->pipe->mask_display & DT_DEV_PIXELPIPE_DISPLAY_MASK)
+      dt_iop_alpha_copy(ivoid, ovoid, roi_out->width, roi_out->height);
   }
 
   piece->pipe->dsc.temperature.enabled = 1;
@@ -526,96 +577,16 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
                   void *const ovoid, const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
   const uint32_t filters = piece->pipe->dsc.filters;
-  const uint8_t(*const xtrans)[6] = (const uint8_t(*const)[6])piece->pipe->dsc.xtrans;
   dt_iop_temperature_data_t *d = (dt_iop_temperature_data_t *)piece->data;
-  if(filters == 9u)
-  { // xtrans float mosaiced
-#ifdef _OPENMP
-#pragma omp parallel for default(none) \
-    dt_omp_firstprivate(ivoid, ovoid, roi_out, xtrans) \
-    shared(d) \
-    schedule(static)
-#endif
-    for(int j = 0; j < roi_out->height; j++)
-    {
-      const float *in = ((float *)ivoid) + (size_t)j * roi_out->width;
-      float *out = ((float *)ovoid) + (size_t)j * roi_out->width;
-
-      int i = 0;
-      const int alignment = ((4 - (j * roi_out->width & (4 - 1))) & (4 - 1));
-
-      // process unaligned pixels
-      for(; i < alignment && i < roi_out->width; i++, out++, in++)
-        *out = *in * d->coeffs[FCxtrans(j, i, roi_out, xtrans)];
-
-      const __m128 coeffs[3] = {
-        _mm_set_ps(d->coeffs[FCxtrans(j, i + 3, roi_out, xtrans)], d->coeffs[FCxtrans(j, i + 2, roi_out, xtrans)],
-                   d->coeffs[FCxtrans(j, i + 1, roi_out, xtrans)], d->coeffs[FCxtrans(j, i + 0, roi_out, xtrans)]),
-        _mm_set_ps(d->coeffs[FCxtrans(j, i + 7, roi_out, xtrans)], d->coeffs[FCxtrans(j, i + 6, roi_out, xtrans)],
-                   d->coeffs[FCxtrans(j, i + 5, roi_out, xtrans)], d->coeffs[FCxtrans(j, i + 4, roi_out, xtrans)]),
-        _mm_set_ps(d->coeffs[FCxtrans(j, i + 11, roi_out, xtrans)], d->coeffs[FCxtrans(j, i + 10, roi_out, xtrans)],
-                   d->coeffs[FCxtrans(j, i + 9, roi_out, xtrans)], d->coeffs[FCxtrans(j, i + 8, roi_out, xtrans)])
-      };
-
-      // process aligned pixels with SSE
-      for(int c = 0; c < 3 && i < roi_out->width - (4 - 1); c++, i += 4, in += 4, out += 4)
-      {
-        __m128 v;
-
-        v = _mm_load_ps(in);
-        v = _mm_mul_ps(v, coeffs[c]);
-        _mm_stream_ps(out, v);
-      }
-
-      // process the rest
-      for(; i < roi_out->width; i++, out++, in++) *out = *in * d->coeffs[FCxtrans(j, i, roi_out, xtrans)];
-    }
-    _mm_sfence();
-  }
-  else if(filters)
-  { // bayer float mosaiced
-#ifdef _OPENMP
-#pragma omp parallel for default(none) \
-    dt_omp_firstprivate(filters, ivoid, ovoid, roi_out) \
-    shared(d) \
-    schedule(static)
-#endif
-    for(int j = 0; j < roi_out->height; j++)
-    {
-      const float *in = ((float *)ivoid) + (size_t)j * roi_out->width;
-      float *out = ((float *)ovoid) + (size_t)j * roi_out->width;
-
-      int i = 0;
-      const int alignment = ((4 - (j * roi_out->width & (4 - 1))) & (4 - 1));
-
-      // process unaligned pixels
-      for(; i < alignment && i < roi_out->width; i++, out++, in++)
-        *out = *in * d->coeffs[FC(j + roi_out->y, i + roi_out->x, filters)];
-
-      const __m128 coeffs = _mm_set_ps(d->coeffs[FC(j + roi_out->y, roi_out->x + i + 3, filters)],
-                                       d->coeffs[FC(j + roi_out->y, roi_out->x + i + 2, filters)],
-                                       d->coeffs[FC(j + roi_out->y, roi_out->x + i + 1, filters)],
-                                       d->coeffs[FC(j + roi_out->y, roi_out->x + i, filters)]);
-
-      // process aligned pixels with SSE
-      for(; i < roi_out->width - (4 - 1); i += 4, in += 4, out += 4)
-      {
-        const __m128 input = _mm_load_ps(in);
-
-        const __m128 multiplied = _mm_mul_ps(input, coeffs);
-
-        _mm_stream_ps(out, multiplied);
-      }
-
-      // process the rest
-      for(; i < roi_out->width; i++, out++, in++)
-        *out = *in * d->coeffs[FC(j + roi_out->y, i + roi_out->x, filters)];
-    }
-    _mm_sfence();
+  if(filters)
+  { // xtrans float mosaiced or bayer float mosaiced
+    // plain C version is same speed for Bayer and actually a bit faster for Xtrans, so use it instead
+    process(self,piece,ivoid,ovoid,roi_in,roi_out);
+    return;
   }
   else
   { // non-mosaiced
-    const int ch = piece->colors;
+    const size_t ch = piece->colors;
 
     const __m128 coeffs = _mm_set_ps(1.0f, d->coeffs[2], d->coeffs[1], d->coeffs[0]);
 
@@ -627,8 +598,8 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
 #endif
     for(int k = 0; k < roi_out->height; k++)
     {
-      const float *in = ((float *)ivoid) + (size_t)ch * k * roi_out->width;
-      float *out = ((float *)ovoid) + (size_t)ch * k * roi_out->width;
+      const float *in = ((float *)ivoid) + ch * k * roi_out->width;
+      float *out = ((float *)ovoid) + ch * k * roi_out->width;
       for(int j = 0; j < roi_out->width; j++, in += ch, out += ch)
       {
         const __m128 input = _mm_load_ps(in);
@@ -638,7 +609,8 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
     }
     _mm_sfence();
 
-    if(piece->pipe->mask_display & DT_DEV_PIXELPIPE_DISPLAY_MASK) dt_iop_alpha_copy(ivoid, ovoid, roi_out->width, roi_out->height);
+    if(piece->pipe->mask_display & DT_DEV_PIXELPIPE_DISPLAY_MASK)
+      dt_iop_alpha_copy(ivoid, ovoid, roi_out->width, roi_out->height);
   }
 
   piece->pipe->dsc.temperature.enabled = 1;
@@ -1056,8 +1028,10 @@ void color_temptint_sliders(struct dt_iop_module_t *self)
       coeffs_tint[3] /= coeffs_tint[1];
       coeffs_tint[1] = 1.0;
 
-      float sRGB_K[3] = { dayligh_white[0]*coeffs_K[0], dayligh_white[1]*coeffs_K[1], dayligh_white[2]*coeffs_K[2] };
-      float sRGB_tint[3] = {cur_white[0]*coeffs_tint[0], cur_white[1]*coeffs_tint[1], cur_white[2]*coeffs_tint[2]};
+      dt_aligned_pixel_t sRGB_K = { dayligh_white[0]*coeffs_K[0], dayligh_white[1]*coeffs_K[1],
+                                    dayligh_white[2]*coeffs_K[2] };
+      dt_aligned_pixel_t sRGB_tint = {cur_white[0]*coeffs_tint[0], cur_white[1]*coeffs_tint[1],
+                                      cur_white[2]*coeffs_tint[2]};
       const float maxsRGB_K = fmaxf(fmaxf(sRGB_K[0], sRGB_K[1]), sRGB_K[2]);
       const float maxsRGB_tint = fmaxf(fmaxf(sRGB_tint[0], sRGB_tint[1]),sRGB_tint[2]);
 
@@ -1090,10 +1064,10 @@ void color_temptint_sliders(struct dt_iop_module_t *self)
 
       const cmsCIEXYZ cmsXYZ_temp = temperature_tint_to_XYZ(K,cur_tint);
       const cmsCIEXYZ cmsXYZ_tint = temperature_tint_to_XYZ(cur_temp, tint);
-      float DT_ALIGNED_PIXEL XYZ_temp[4] = {cmsXYZ_temp.X, cmsXYZ_temp.Y, cmsXYZ_temp.Z};
-      float DT_ALIGNED_PIXEL XYZ_tint[4] = {cmsXYZ_tint.X, cmsXYZ_tint.Y, cmsXYZ_tint.Z};
-      float DT_ALIGNED_PIXEL sRGB_temp[4];
-      float DT_ALIGNED_PIXEL sRGB_tint[4];
+      dt_aligned_pixel_t XYZ_temp = {cmsXYZ_temp.X, cmsXYZ_temp.Y, cmsXYZ_temp.Z};
+      dt_aligned_pixel_t XYZ_tint = {cmsXYZ_tint.X, cmsXYZ_tint.Y, cmsXYZ_tint.Z};
+      dt_aligned_pixel_t sRGB_temp;
+      dt_aligned_pixel_t sRGB_tint;
 
       dt_XYZ_to_Rec709_D65(XYZ_temp, sRGB_temp);
       dt_XYZ_to_Rec709_D65(XYZ_tint, sRGB_tint);
@@ -1911,10 +1885,9 @@ static void _preference_changed(gpointer instance, gpointer user_data)
   dt_iop_module_t *self = (dt_iop_module_t *)user_data;
   dt_iop_temperature_gui_data_t *g = (dt_iop_temperature_gui_data_t *)self->gui_data;
 
-  gchar *config = dt_conf_get_string("plugins/darkroom/temperature/colored_sliders");
+  const char *config = dt_conf_get_string_const("plugins/darkroom/temperature/colored_sliders");
   g->colored_sliders = g_strcmp0(config, "no color"); // true if config != "no color"
   g->blackbody_is_confusing = g->colored_sliders && g_strcmp0(config, "illuminant color"); // true if config != "illuminant color"
-  g_free(config);
 
   g->button_bar_visible = dt_conf_get_bool("plugins/darkroom/temperature/button_bar");
   gtk_widget_set_visible(g->buttonbar, g->button_bar_visible);
@@ -1938,11 +1911,10 @@ void gui_init(struct dt_iop_module_t *self)
   DT_DEBUG_CONTROL_SIGNAL_CONNECT(darktable.signals, DT_SIGNAL_DEVELOP_UI_PIPE_FINISHED,
                             G_CALLBACK(_develop_ui_pipe_finished_callback), self);
 
-  gchar *config = dt_conf_get_string("plugins/darkroom/temperature/colored_sliders");
+  const char *config = dt_conf_get_string_const("plugins/darkroom/temperature/colored_sliders");
   g->colored_sliders = g_strcmp0(config, "no color"); // true if config != "no color"
   g->blackbody_is_confusing = g->colored_sliders && g_strcmp0(config, "illuminant color"); // true if config != "illuminant color"
   g->expand_coeffs = dt_conf_get_bool("plugins/darkroom/temperature/expand_coefficients");
-  g_free(config);
 
   const int feedback = g->colored_sliders ? 0 : 1;
   g->button_bar_visible = dt_conf_get_bool("plugins/darkroom/temperature/button_bar");

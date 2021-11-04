@@ -307,7 +307,7 @@ int default_group()
 
 int flags()
 {
-  return IOP_FLAGS_SUPPORTS_BLENDING;
+  return IOP_FLAGS_SUPPORTS_BLENDING | IOP_FLAGS_GUIDES_WIDGET;
 }
 
 int operation_tags()
@@ -691,10 +691,29 @@ static void mix_warps(dt_liquify_warp_t *result,
   const float radius = mix(cabsf(warp1->radius - warp1->point), cabsf(warp2->radius - warp2->point), t);
   result->radius     = pt + radius;
 
-  const float r    = mix(cabsf(warp1->strength - warp1->point), cabsf(warp2->strength - warp2->point), t);
-  const float phi  = mix(cargf(warp1->strength - warp1->point), cargf(warp2->strength - warp2->point), t);
-  result->strength = pt + r * cexpf(phi * I);
+  const complex float p1 = warp1->strength - warp1->point;
+  const complex float p2 = warp2->strength - warp2->point;
+  float arg1 = cargf(p1);
+  float arg2 = cargf(p2);
+  gboolean invert = FALSE;
 
+  if(arg1 > .0f && arg2 < -(M_PI_F / 2.f))
+  {
+    invert = TRUE;
+    arg1 = M_PI_F - arg1;
+    arg2 = -M_PI_F - arg2;
+  }
+  else if(arg1 < -(M_PI_F / 2.f) && arg2 > .0f)
+  {
+    invert = TRUE;
+    arg1 = -M_PI_F - arg1;
+    arg2 = M_PI_F - arg2;
+  }
+
+  const float r    = mix(cabsf(p1), cabsf(p2), t);
+  const float phi  = invert ? M_PI_F - mix(arg1, arg2, t) : mix(arg1, arg2, t);
+
+  result->strength = pt + r * cexpf(phi * I);
   result->point    = pt;
 }
 
@@ -1288,9 +1307,9 @@ static int _distort_xtransform(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *pi
   float xmin = FLT_MAX, xmax = FLT_MIN, ymin = FLT_MAX, ymax = FLT_MIN;
 
 #ifdef _OPENMP
-#pragma omp parallel for simd default(none) \
+#pragma omp parallel for default(none) \
     dt_omp_firstprivate(points_count, points, scale) \
-    schedule(static) if(points_count > 100) aligned(points:64) \
+    schedule(simd:static) if(points_count > 100)          \
     reduction(min:xmin, ymin) reduction(max:xmax, ymax)
 #endif
   for(size_t i = 0; i < points_count * 2; i += 2)
@@ -1336,9 +1355,9 @@ static int _distort_xtransform(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *pi
 
     // apply distortion to all points (this is a simple displacement given by a vector at this same point in the map)
 #ifdef _OPENMP
-#pragma omp parallel for simd default(none) \
+#pragma omp parallel for default(none) \
     dt_omp_firstprivate(points_count, points, scale, extent, map, map_size, y_last, x_last) \
-    schedule(static) if(points_count > 100) aligned(points:64)
+    schedule(static) if(points_count > 100)
 #endif
     for(size_t i = 0; i < points_count; i++)
     {
@@ -1835,8 +1854,9 @@ static GList *interpolate_paths(dt_iop_liquify_params_t *p)
       while(arc_length < total_length)
       {
         dt_liquify_warp_t *w = malloc(sizeof(dt_liquify_warp_t));
+        const float t = arc_length / total_length;
         const float complex pt = point_at_arc_length(buffer, INTERPOLATION_POINTS, arc_length, &restart);
-        mix_warps(w, warp1, warp2, pt, arc_length / total_length);
+        mix_warps(w, warp1, warp2, pt, t);
         w->status = DT_LIQUIFY_STATUS_INTERPOLATED;
         arc_length += cabsf(w->radius - w->point) * STAMP_RELOCATION;
         l = g_list_append(l, w);
@@ -3065,6 +3085,7 @@ int scrolled(struct dt_iop_module_t *module, double x, double y, int up, uint32_
 
   // add an option to allow skip mouse events while editing masks
   if(darktable.develop->darkroom_skip_mouse_events) return 0;
+  const gboolean incr = dt_mask_scroll_increases(up);
 
   if(g->temp)
   {
@@ -3077,10 +3098,10 @@ int scrolled(struct dt_iop_module_t *module, double x, double y, int up, uint32_
       get_stamp_params(module, &radius, &r, &phi);
 
       float factor = 1.0f;
-      if(up && cabsf(warp->radius - warp->point) > 10.0f)
-        factor *= 0.97f;
-      else if(!up)
+      if(incr)
         factor *= 1.0f / 0.97f;
+      else if(!incr && cabsf(warp->radius - warp->point) > 10.0f)
+        factor *= 0.97f;
 
       r *= factor;
       radius *= factor;
@@ -3098,7 +3119,7 @@ int scrolled(struct dt_iop_module_t *module, double x, double y, int up, uint32_
       float phi = cargf(strength_v);
       const float r = cabsf(strength_v);
 
-      if(up)
+      if(incr)
         phi += DT_M_PI_F / 16.0f;
       else
         phi -= DT_M_PI_F / 16.0f;
@@ -3114,10 +3135,10 @@ int scrolled(struct dt_iop_module_t *module, double x, double y, int up, uint32_
       const float phi = cargf(strength_v);
       float r = cabsf(strength_v);
 
-      if(up)
-        r *= 0.97f;
-      else
+      if(incr)
         r *= 1.0f / 0.97f;
+      else
+        r *= 0.97f;
 
       warp->strength = warp->point + r * cexpf(phi * I);
       dt_conf_set_float(CONF_STRENGTH, r);

@@ -137,7 +137,6 @@ void gui_init(dt_lib_module_t *self)
 
   /* add search box */
   lib->search = GTK_ENTRY(gtk_entry_new());
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(lib->search));
   gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(lib->search), FALSE, FALSE, 0);
 
   g_signal_connect(G_OBJECT(lib->search), "activate", G_CALLBACK(_lib_location_entry_activated),
@@ -150,8 +149,6 @@ void gui_init(dt_lib_module_t *self)
 
 void gui_cleanup(dt_lib_module_t *self)
 {
-  dt_lib_location_t *lib = self->data;
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(lib->search));
   free(self->data);
   self->data = NULL;
 }
@@ -352,7 +349,7 @@ static gboolean _lib_location_search(gpointer user_data)
 
   dt_lib_module_t *self = (dt_lib_module_t *)user_data;
   dt_lib_location_t *lib = (dt_lib_location_t *)self->data;
-  gchar *query = NULL, *text = NULL, *search_url = NULL;
+  gchar *query = NULL, *text = NULL;
 
   /* get escaped search text */
   text = g_uri_escape_string(gtk_entry_get_text(lib->search), NULL, FALSE);
@@ -363,8 +360,8 @@ static gboolean _lib_location_search(gpointer user_data)
   clear_search(lib);
 
   /* build the query url */
-  search_url = dt_conf_get_string("plugins/map/geotagging_search_url");
-  query = dt_util_dstrcat(query, search_url, text, LIMIT_RESULT);
+  const char *search_url = dt_conf_get_string_const("plugins/map/geotagging_search_url");
+  query = g_strdup_printf(search_url, text, LIMIT_RESULT);
   /* load url */
   curl = curl_easy_init();
   if(!curl) goto bail_out;
@@ -410,7 +407,6 @@ bail_out:
 
   g_free(text);
   g_free(query);
-  g_free(search_url);
 
   if(ctx) g_markup_parse_context_free(ctx);
 

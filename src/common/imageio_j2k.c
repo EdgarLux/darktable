@@ -306,6 +306,7 @@ dt_imageio_retval_t dt_imageio_open_j2k(dt_image_t *img, const char *filename, d
         buf[i * 4 + k] = (float)(image->comps[k].data[i] + signed_offsets[k]) / float_divs[k];
   }
 
+  img->loader = LOADER_J2K;
   ret = DT_IMAGEIO_OK;
 
 end_of_the_world:
@@ -327,7 +328,6 @@ int dt_imageio_j2k_read_profile(const char *filename, uint8_t **out)
   opj_codec_t *d_codec = NULL;
   OPJ_CODEC_FORMAT codec;
   opj_stream_t *d_stream = NULL; /* Stream */
-  gboolean res = FALSE;
   unsigned int length = 0;
   *out = NULL;
 
@@ -429,14 +429,11 @@ int dt_imageio_j2k_read_profile(const char *filename, uint8_t **out)
     goto another_end_of_the_world;
   }
 
-  if(image->icc_profile_buf)
+  if(image->icc_profile_len > 0 && image->icc_profile_buf)
   {
-    res = TRUE;
     length = image->icc_profile_len;
-    *out = image->icc_profile_buf;
-
-    image->icc_profile_buf = NULL;
-    image->icc_profile_len = 0;
+    *out = (uint8_t *)g_malloc(image->icc_profile_len);
+    memcpy(*out, image->icc_profile_buf, image->icc_profile_len);
   }
 
 another_end_of_the_world:
@@ -446,7 +443,7 @@ another_end_of_the_world:
   /* free image data structure */
   opj_image_destroy(image);
 
-  return res ? length : 0;
+  return length;
 }
 
 

@@ -580,13 +580,11 @@ void gui_init(dt_imageio_module_format_t *self)
   gtk_entry_set_width_chars(d->title, 5);
   gtk_widget_set_hexpand(GTK_WIDGET(d->title), TRUE);
   gtk_grid_attach(grid, GTK_WIDGET(d->title), 1, line, 1, 1);
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->title));
   gtk_widget_set_tooltip_text(GTK_WIDGET(d->title), _("enter the title of the pdf"));
-  gchar *str = dt_conf_get_string("plugins/imageio/format/pdf/title");
+  const char *str = dt_conf_get_string_const("plugins/imageio/format/pdf/title");
   if(str)
   {
     gtk_entry_set_text(GTK_ENTRY(d->title), str);
-    g_free(str);
   }
   g_signal_connect(G_OBJECT(d->title), "changed", G_CALLBACK(title_changed_callback), self);
 
@@ -602,9 +600,9 @@ void gui_init(dt_imageio_module_format_t *self)
   gtk_widget_set_tooltip_text(d->size, _("paper size of the pdf\neither one from the list or "
                                          "\"<width> [unit] x <height> <unit>\n"
                                          "example: 210 mm x 2.97 cm"));
-  str = dt_conf_get_string("plugins/imageio/format/pdf/size");
-  _set_paper_size(self, str);
-  g_free(str);
+  gchar *size_str = dt_conf_get_string("plugins/imageio/format/pdf/size");
+  _set_paper_size(self, size_str);
+  g_free(size_str);
 
   // orientation
 
@@ -626,14 +624,12 @@ void gui_init(dt_imageio_module_format_t *self)
   gtk_entry_set_max_length(d->border, sizeof(((dt_imageio_pdf_params_t *)NULL)->border) - 1);
   gtk_entry_set_placeholder_text(d->border, "0 mm");
   gtk_grid_attach(grid, GTK_WIDGET(d->border), 1, line, 1, 1);
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->border));
   gtk_widget_set_tooltip_text(GTK_WIDGET(d->border), _("empty space around the pdf\n"
                                                        "format: size + unit\nexamples: 10 mm, 1 inch"));
-  str = dt_conf_get_string("plugins/imageio/format/pdf/border");
+  str = dt_conf_get_string_const("plugins/imageio/format/pdf/border");
   if(str)
   {
     gtk_entry_set_text(GTK_ENTRY(d->border), str);
-    g_free(str);
   }
   g_signal_connect(G_OBJECT(d->border), "changed", G_CALLBACK(border_changed_callback), self);
 
@@ -643,7 +639,6 @@ void gui_init(dt_imageio_module_format_t *self)
 
   d->dpi = GTK_SPIN_BUTTON(gtk_spin_button_new_with_range(1, 5000, 1));
   gtk_grid_attach(grid, GTK_WIDGET(d->dpi), 1, line, 1, 1);
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->dpi));
   gtk_widget_set_tooltip_text(GTK_WIDGET(d->dpi), _("dpi of the images inside the pdf"));
   gtk_spin_button_set_value(d->dpi, dt_conf_get_float("plugins/imageio/format/pdf/dpi"));
   g_signal_connect(G_OBJECT(d->dpi), "value-changed", G_CALLBACK(dpi_changed_callback), self);
@@ -730,9 +725,6 @@ void gui_init(dt_imageio_module_format_t *self)
 
 void gui_cleanup(dt_imageio_module_format_t *self)
 {
-  pdf_t *d = (pdf_t *)self->gui_data;
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(d->title));
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(d->dpi));
   free(self->gui_data);
 }
 
@@ -763,17 +755,14 @@ void *get_params(dt_imageio_module_format_t *self)
 
   if(d)
   {
-    gchar *text = dt_conf_get_string("plugins/imageio/format/pdf/title");
+    const char *text = dt_conf_get_string_const("plugins/imageio/format/pdf/title");
     g_strlcpy(d->params.title, text, sizeof(d->params.title));
-    g_free(text);
 
-    text = dt_conf_get_string("plugins/imageio/format/pdf/border");
+    text = dt_conf_get_string_const("plugins/imageio/format/pdf/border");
     g_strlcpy(d->params.border, text, sizeof(d->params.border));
-    g_free(text);
 
-    text = dt_conf_get_string("plugins/imageio/format/pdf/size");
+    text = dt_conf_get_string_const("plugins/imageio/format/pdf/size");
     g_strlcpy(d->params.size, text, sizeof(d->params.size));
-    g_free(text);
 
     d->params.bpp = dt_conf_get_int("plugins/imageio/format/pdf/bpp");
     d->params.compression = dt_conf_get_int("plugins/imageio/format/pdf/compression");

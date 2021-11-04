@@ -719,10 +719,9 @@ static void _default_process_tiling_ptp(struct dt_iop_module_t *self, struct dt_
   }
 
   /* store processed_maximum to be re-used and aggregated */
-  float processed_maximum_saved[4];
-  float processed_maximum_new[4] = { 1.0f };
-  for(int k = 0; k < 4; k++) processed_maximum_saved[k] = piece->pipe->dsc.processed_maximum[k];
-
+  dt_aligned_pixel_t processed_maximum_saved;
+  dt_aligned_pixel_t processed_maximum_new = { 1.0f };
+  for_four_channels(k) processed_maximum_saved[k] = piece->pipe->dsc.processed_maximum[k];
 
   /* iterate over tiles */
   for(size_t tx = 0; tx < tiles_x; tx++)
@@ -989,9 +988,9 @@ static void _default_process_tiling_roi(struct dt_iop_module_t *self, struct dt_
 
 
   /* store processed_maximum to be re-used and aggregated */
-  float processed_maximum_saved[4];
-  float processed_maximum_new[4] = { 1.0f };
-  for(int k = 0; k < 4; k++) processed_maximum_saved[k] = piece->pipe->dsc.processed_maximum[k];
+  dt_aligned_pixel_t processed_maximum_saved;
+  dt_aligned_pixel_t processed_maximum_new = { 1.0f };
+  for_four_channels(k) processed_maximum_saved[k] = piece->pipe->dsc.processed_maximum[k];
 
   /* iterate over tiles */
   for(size_t tx = 0; tx < tiles_x; tx++)
@@ -1000,8 +999,8 @@ static void _default_process_tiling_roi(struct dt_iop_module_t *self, struct dt_
       piece->pipe->tiling = 1;
 
       /* the output dimensions of the good part of this specific tile */
-      size_t wd = (tx + 1) * tile_wd > roi_out->width ? roi_out->width - tx * tile_wd : tile_wd;
-      size_t ht = (ty + 1) * tile_ht > roi_out->height ? roi_out->height - ty * tile_ht : tile_ht;
+      const size_t wd = (tx + 1) * tile_wd > roi_out->width ? (size_t)roi_out->width - tx * tile_wd : tile_wd;
+      const size_t ht = (ty + 1) * tile_ht > roi_out->height ? (size_t)roi_out->height - ty * tile_ht : tile_ht;
 
       /* roi_in and roi_out of good part: oroi_good easy to calculate based on number and dimension of tile.
          iroi_good is calculated by modify_roi_in() of respective module */
@@ -1328,9 +1327,9 @@ static int _default_process_tiling_cl_ptp(struct dt_iop_module_t *self, struct d
            tiles_x, tiles_y, width, height, overlap);
 
   /* store processed_maximum to be re-used and aggregated */
-  float processed_maximum_saved[4];
-  float processed_maximum_new[4] = { 1.0f };
-  for(int k = 0; k < 4; k++) processed_maximum_saved[k] = piece->pipe->dsc.processed_maximum[k];
+  dt_aligned_pixel_t processed_maximum_saved;
+  dt_aligned_pixel_t processed_maximum_new = { 1.0f };
+  for_four_channels(k) processed_maximum_saved[k] = piece->pipe->dsc.processed_maximum[k];
 
   /* reserve pinned input and output memory for host<->device data transfer */
   if(use_pinned_memory)
@@ -1710,9 +1709,9 @@ static int _default_process_tiling_cl_roi(struct dt_iop_module_t *self, struct d
 
 
   /* store processed_maximum to be re-used and aggregated */
-  float processed_maximum_saved[4];
-  float processed_maximum_new[4] = { 1.0f };
-  for(int k = 0; k < 4; k++) processed_maximum_saved[k] = piece->pipe->dsc.processed_maximum[k];
+  dt_aligned_pixel_t processed_maximum_saved;
+  dt_aligned_pixel_t processed_maximum_new = { 1.0f };
+  for_four_channels(k) processed_maximum_saved[k] = piece->pipe->dsc.processed_maximum[k];
 
   /* reserve pinned input and output memory for host<->device data transfer */
   if(use_pinned_memory)
@@ -1778,8 +1777,8 @@ static int _default_process_tiling_cl_roi(struct dt_iop_module_t *self, struct d
       piece->pipe->tiling = 1;
 
       /* the output dimensions of the good part of this specific tile */
-      const size_t wd = (tx + 1) * tile_wd > roi_out->width ? roi_out->width - tx * tile_wd : tile_wd;
-      const size_t ht = (ty + 1) * tile_ht > roi_out->height ? roi_out->height - ty * tile_ht : tile_ht;
+      const size_t wd = (tx + 1) * tile_wd > roi_out->width ? (size_t)roi_out->width - tx * tile_wd : tile_wd;
+      const size_t ht = (ty + 1) * tile_ht > roi_out->height ? (size_t)roi_out->height - ty * tile_ht : tile_ht;
 
       /* roi_in and roi_out of good part: oroi_good easy to calculate based on number and dimension of tile.
          iroi_good is calculated by modify_roi_in() of respective module */

@@ -128,6 +128,8 @@ void init_key_accels(dt_lib_module_t *self)
   dt_accel_register_lib(self, NC_("accel", "attach"), 0, 0);
   dt_accel_register_lib(self, NC_("accel", "detach"), 0, 0);
   dt_accel_register_lib(self, NC_("accel", "new"), 0, 0);
+  dt_accel_register_lib(self, NC_("accel", "import..."), 0, 0);
+  dt_accel_register_lib(self, NC_("accel", "export..."), 0, 0);
   dt_accel_register_lib(self, NC_("accel", "tag"), GDK_KEY_t, GDK_CONTROL_MASK);
   dt_accel_register_lib(self, NC_("accel", "redo last tag"), GDK_KEY_t, GDK_MOD1_MASK);
 }
@@ -139,6 +141,8 @@ void connect_key_accels(dt_lib_module_t *self)
   dt_accel_connect_button_lib(self, "attach", d->attach_button);
   dt_accel_connect_button_lib(self, "detach", d->detach_button);
   dt_accel_connect_button_lib(self, "new", d->new_button);
+  dt_accel_connect_button_lib(self, "import...", d->import_button);
+  dt_accel_connect_button_lib(self, "export...", d->export_button);
   dt_accel_connect_lib(self, "tag", g_cclosure_new(G_CALLBACK(_lib_tagging_tag_show), self, NULL));
   dt_accel_connect_lib(self, "redo last tag", g_cclosure_new(G_CALLBACK(_lib_tagging_tag_redo), self, NULL));
 }
@@ -148,7 +152,7 @@ static void _update_atdetach_buttons(dt_lib_module_t *self)
   dt_lib_cancel_postponed_update(self);
   dt_lib_tagging_t *d = (dt_lib_tagging_t *)self->data;
 
-  const GList *imgs = dt_view_get_images_to_act_on(TRUE, FALSE, FALSE);
+  const GList *imgs = dt_view_get_images_to_act_on(FALSE, FALSE, FALSE);
   const gboolean has_act_on = imgs != NULL;
 
   const gint dict_tags_sel_cnt =
@@ -979,7 +983,7 @@ int set_params(dt_lib_module_t *self, const void *params, int size)
       }
       g_strfreev(tokens);
       GList *tags_r = dt_tag_get_tags(-1, TRUE);
-      const GList *imgs = dt_view_get_images_to_act_on(TRUE, FALSE, FALSE);
+      const GList *imgs = dt_view_get_images_to_act_on(FALSE, FALSE, FALSE);
       dt_tag_set_tags(tags, imgs, TRUE, TRUE, TRUE);
       gboolean change = FALSE;
       for(GList *tag = tags; tag; tag = g_list_next(tag))
@@ -1212,14 +1216,7 @@ static void _pop_menu_attached(GtkWidget *treeview, GdkEventButton *event, dt_li
 
   gtk_widget_show_all(GTK_WIDGET(menu));
 
-#if GTK_CHECK_VERSION(3, 22, 0)
   gtk_menu_popup_at_pointer(GTK_MENU(menu), (GdkEvent *)event);
-#else
-  /* Note: event can be NULL here when called from view_onPopupMenu;
-   *  gdk_event_get_time() accepts a NULL argument */
-  gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, (event != NULL) ? event->button : 0,
-                 gdk_event_get_time((GdkEvent *)event));
-#endif
 }
 
 static gboolean _click_on_view_attached(GtkWidget *view, GdkEventButton *event, dt_lib_module_t *self)
@@ -1458,12 +1455,12 @@ static void _pop_menu_dictionary_delete_node(GtkWidget *menuitem, dt_lib_module_
 
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
   gtk_box_pack_start(GTK_BOX(vbox), box, FALSE, TRUE, 0);
-  text = g_strdup_printf(ngettext("<u>%d</u> tag will be deleted.", "<u>%d</u> tags will be deleted.", tag_count), tag_count);
+  text = g_strdup_printf(ngettext("<u>%d</u> tag will be deleted", "<u>%d</u> tags will be deleted", tag_count), tag_count);
   label = gtk_label_new(NULL);
   gtk_label_set_markup(GTK_LABEL(label), text);
   gtk_box_pack_start(GTK_BOX(box), label, FALSE, TRUE, 0);
   g_free(text);
-  text = g_strdup_printf(ngettext("<u>%d</u> image will be updated", "<u>%d</u> images will be updated ", img_count), img_count);
+  text = g_strdup_printf(ngettext("<u>%d</u> image will be updated", "<u>%d</u> images will be updated", img_count), img_count);
   label = gtk_label_new(NULL);
   gtk_label_set_markup(GTK_LABEL(label), text);
   gtk_box_pack_start(GTK_BOX(box), label, FALSE, TRUE, 0);
@@ -1669,12 +1666,12 @@ static void _pop_menu_dictionary_edit_tag(GtkWidget *menuitem, dt_lib_module_t *
 
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
   gtk_box_pack_start(GTK_BOX(vbox), box, FALSE, TRUE, 0);
-  text = g_strdup_printf(ngettext("<u>%d</u> tag will be updated.", "<u>%d</u> tags will be updated.", tag_count), tag_count);
+  text = g_strdup_printf(ngettext("<u>%d</u> tag will be updated", "<u>%d</u> tags will be updated", tag_count), tag_count);
   label = gtk_label_new(NULL);
   gtk_label_set_markup(GTK_LABEL(label), text);
   gtk_box_pack_start(GTK_BOX(box), label, FALSE, TRUE, 0);
   g_free(text);
-  text = g_strdup_printf(ngettext("<u>%d</u> image will be updated", "<u>%d</u> images will be updated ", img_count), img_count);
+  text = g_strdup_printf(ngettext("<u>%d</u> image will be updated", "<u>%d</u> images will be updated", img_count), img_count);
   label = gtk_label_new(NULL);
   gtk_label_set_markup(GTK_LABEL(label), text);
   gtk_box_pack_start(GTK_BOX(box), label, FALSE, TRUE, 0);
@@ -1944,12 +1941,12 @@ static void _pop_menu_dictionary_change_path(GtkWidget *menuitem, dt_lib_module_
 
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
   gtk_box_pack_start(GTK_BOX(vbox), box, FALSE, TRUE, 0);
-  text = g_strdup_printf(ngettext("<u>%d</u> tag will be updated.", "<u>%d</u> tags will be updated.", tag_count), tag_count);
+  text = g_strdup_printf(ngettext("<u>%d</u> tag will be updated", "<u>%d</u> tags will be updated", tag_count), tag_count);
   label = gtk_label_new(NULL);
   gtk_label_set_markup(GTK_LABEL(label), text);
   gtk_box_pack_start(GTK_BOX(box), label, FALSE, TRUE, 0);
   g_free(text);
-  text = g_strdup_printf(ngettext("<u>%d</u> image will be updated", "<u>%d</u> images will be updated ", img_count), img_count);
+  text = g_strdup_printf(ngettext("<u>%d</u> image will be updated", "<u>%d</u> images will be updated", img_count), img_count);
   label = gtk_label_new(NULL);
   gtk_label_set_markup(GTK_LABEL(label), text);
   gtk_box_pack_start(GTK_BOX(box), label, FALSE, TRUE, 0);
@@ -2004,8 +2001,7 @@ static void _pop_menu_dictionary_goto_tag_collection(GtkWidget *menuitem, dt_lib
     if (count)
     {
       if (!d->collection[0]) dt_collection_serialize(d->collection, 4096);
-      char *tag_collection = NULL;
-      tag_collection = dt_util_dstrcat(tag_collection, "1:0:%d:%s$", DT_COLLECTION_PROP_TAG, path);
+      gchar *tag_collection = g_strdup_printf("1:0:%d:%s$", DT_COLLECTION_PROP_TAG, path);
       dt_control_signal_block_by_func(darktable.signals, G_CALLBACK(_collection_updated_callback), self);
       dt_collection_deserialize(tag_collection);
       dt_control_signal_unblock_by_func(darktable.signals, G_CALLBACK(_collection_updated_callback), self);
@@ -2150,8 +2146,11 @@ static void _pop_menu_dictionary(GtkWidget *treeview, GdkEventButton *event, dt_
       g_signal_connect(menuitem, "activate", (GCallback)_pop_menu_dictionary_set_as_tag, self);
     }
 
-    menuitem = gtk_separator_menu_item_new();
-    gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
+    if (!d->suggestion_flag)
+    {
+      menuitem = gtk_separator_menu_item_new();
+      gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
+    }
 
     menuitem = gtk_menu_item_new_with_label(_("copy to entry"));
     g_signal_connect(menuitem, "activate", (GCallback)_pop_menu_dictionary_copy_tag, self);
@@ -2183,14 +2182,7 @@ static void _pop_menu_dictionary(GtkWidget *treeview, GdkEventButton *event, dt_
     }
     gtk_widget_show_all(GTK_WIDGET(menu));
 
-#if GTK_CHECK_VERSION(3, 22, 0)
     gtk_menu_popup_at_pointer(GTK_MENU(menu), (GdkEvent *)event);
-#else
-    /* Note: event can be NULL here when called from view_onPopupMenu;
-     *  gdk_event_get_time() accepts a NULL argument */
-    gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, (event != NULL) ? event->button : 0,
-                   gdk_event_get_time((GdkEvent *)event));
-#endif
   }
 }
 
@@ -2277,7 +2269,7 @@ static gboolean _row_tooltip_setup(GtkWidget *treeview, gint x, gint y, gboolean
       {
         if ((flags & DT_TF_PRIVATE) || (synonyms && synonyms[0]))
         {
-          char *text = dt_util_dstrcat(NULL, _("%s"), tagname);
+          gchar *text = g_strdup_printf(_("%s"), tagname);
           text = dt_util_dstrcat(text, " %s\n", (flags & DT_TF_PRIVATE) ? _("(private)") : "");
           text = dt_util_dstrcat(text, "synonyms: %s", (synonyms && synonyms[0]) ? synonyms : " - ");
           gtk_tooltip_set_text(tooltip, text);
@@ -2296,25 +2288,21 @@ static gboolean _row_tooltip_setup(GtkWidget *treeview, gint x, gint y, gboolean
 
 static void _import_button_clicked(GtkButton *button, dt_lib_module_t *self)
 {
-  char *last_dirname = dt_conf_get_string("plugins/lighttable/tagging/last_import_export_location");
+  const char *last_dirname = dt_conf_get_string_const("plugins/lighttable/tagging/last_import_export_location");
   if(!last_dirname || !*last_dirname)
   {
-    g_free(last_dirname);
-    last_dirname = g_strdup(g_get_home_dir());
+    last_dirname = g_get_home_dir();
   }
 
   GtkWidget *win = dt_ui_main_window(darktable.gui->ui);
-  GtkWidget *filechooser = gtk_file_chooser_dialog_new(_("Select a keyword file"), GTK_WINDOW(win),
-                                                       GTK_FILE_CHOOSER_ACTION_OPEN,
-                                                       _("_cancel"), GTK_RESPONSE_CANCEL,
-                                                       _("_import"), GTK_RESPONSE_ACCEPT, (char *)NULL);
-#ifdef GDK_WINDOWING_QUARTZ
-  dt_osx_disallow_fullscreen(filechooser);
-#endif
+  GtkFileChooserNative *filechooser = gtk_file_chooser_native_new(
+        _("select a keyword file"), GTK_WINDOW(win), GTK_FILE_CHOOSER_ACTION_OPEN,
+        _("_import"), _("_cancel"));
+
   gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(filechooser), last_dirname);
   gtk_file_chooser_set_select_multiple(GTK_FILE_CHOOSER(filechooser), FALSE);
 
-  if(gtk_dialog_run(GTK_DIALOG(filechooser)) == GTK_RESPONSE_ACCEPT)
+  if(gtk_native_dialog_run(GTK_NATIVE_DIALOG(filechooser)) == GTK_RESPONSE_ACCEPT)
   {
     char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(filechooser));
     char *dirname = g_path_get_dirname(filename);
@@ -2328,8 +2316,7 @@ static void _import_button_clicked(GtkButton *button, dt_lib_module_t *self)
     g_free(dirname);
   }
 
-  g_free(last_dirname);
-  gtk_widget_destroy(filechooser);
+  g_object_unref(filechooser);
   _init_treeview(self, 1);
 }
 
@@ -2337,26 +2324,22 @@ static void _export_button_clicked(GtkButton *button, dt_lib_module_t *self)
 {
   GDateTime *now = g_date_time_new_now_local();
   char *export_filename = g_date_time_format(now, "darktable_tags_%F_%R.txt");
-  char *last_dirname = dt_conf_get_string("plugins/lighttable/tagging/last_import_export_location");
+  const char *last_dirname = dt_conf_get_string_const("plugins/lighttable/tagging/last_import_export_location");
   if(!last_dirname || !*last_dirname)
   {
-    g_free(last_dirname);
-    last_dirname = g_strdup(g_get_home_dir());
+    last_dirname = g_get_home_dir();
   }
 
   GtkWidget *win = dt_ui_main_window(darktable.gui->ui);
-  GtkWidget *filechooser = gtk_file_chooser_dialog_new(_("Select file to export to"), GTK_WINDOW(win),
-                                                       GTK_FILE_CHOOSER_ACTION_SAVE,
-                                                       _("_cancel"), GTK_RESPONSE_CANCEL,
-                                                       _("_export"), GTK_RESPONSE_ACCEPT, (char *)NULL);
-#ifdef GDK_WINDOWING_QUARTZ
-  dt_osx_disallow_fullscreen(filechooser);
-#endif
+  GtkFileChooserNative *filechooser = gtk_file_chooser_native_new(
+        _("select file to export to"), GTK_WINDOW(win), GTK_FILE_CHOOSER_ACTION_SAVE,
+        _("_export"), _("_cancel"));
+
   gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(filechooser), TRUE);
   gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(filechooser), last_dirname);
   gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(filechooser), export_filename);
 
-  if(gtk_dialog_run(GTK_DIALOG(filechooser)) == GTK_RESPONSE_ACCEPT)
+  if(gtk_native_dialog_run(GTK_NATIVE_DIALOG(filechooser)) == GTK_RESPONSE_ACCEPT)
   {
     char *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(filechooser));
     char *dirname = g_path_get_dirname(filename);
@@ -2371,9 +2354,8 @@ static void _export_button_clicked(GtkButton *button, dt_lib_module_t *self)
   }
 
   g_date_time_unref(now);
-  g_free(last_dirname);
   g_free(export_filename);
-  gtk_widget_destroy(filechooser);
+  g_object_unref(filechooser);
 }
 
 static void _update_layout(dt_lib_module_t *self)
@@ -2728,7 +2710,7 @@ static void _event_dnd_received(GtkWidget *widget, GdkDragContext *context, gint
 {
   dt_lib_tagging_t *d = (dt_lib_tagging_t *)self->data;
   GtkTreeView *tree = GTK_TREE_VIEW(widget);
-  // disable the deault handler
+  // disable the default handler
   g_signal_stop_emission_by_name(tree, "drag-data-received");
   gboolean success = FALSE;
 
@@ -3009,7 +2991,6 @@ void gui_init(dt_lib_module_t *self)
   gtk_widget_add_events(GTK_WIDGET(w), GDK_KEY_RELEASE_MASK);
   g_signal_connect(G_OBJECT(w), "changed", G_CALLBACK(_tag_name_changed), (gpointer)self);
   d->entry = GTK_ENTRY(w);
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->entry));
 
   button = dtgtk_button_new(dtgtk_cairo_paint_multiply_small, CPF_STYLE_FLAT, NULL);
   gtk_widget_set_tooltip_text(button, _("clear entry"));
@@ -3161,7 +3142,6 @@ void gui_cleanup(dt_lib_module_t *self)
   dt_lib_cancel_postponed_update(self);
   dt_lib_tagging_t *d = (dt_lib_tagging_t *)self->data;
 
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(d->entry));
   DT_DEBUG_CONTROL_SIGNAL_DISCONNECT(darktable.signals, G_CALLBACK(_lib_tagging_redraw_callback), self);
   DT_DEBUG_CONTROL_SIGNAL_DISCONNECT(darktable.signals, G_CALLBACK(_lib_tagging_tags_changed_callback), self);
   DT_DEBUG_CONTROL_SIGNAL_DISCONNECT(darktable.signals, G_CALLBACK(_lib_selection_changed_callback), self);
@@ -3223,7 +3203,7 @@ static gboolean _lib_tagging_tag_redo(GtkAccelGroup *accel_group, GObject *accel
 
   if(d->last_tag)
   {
-    const GList *imgs = dt_view_get_images_to_act_on(TRUE, TRUE, FALSE);
+    const GList *imgs = dt_view_get_images_to_act_on(FALSE, TRUE, FALSE);
     const gboolean res = dt_tag_attach_string_list(d->last_tag, imgs, TRUE);
     if(res) dt_image_synch_xmps(imgs);
     _init_treeview(self, 0);

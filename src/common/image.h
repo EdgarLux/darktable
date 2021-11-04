@@ -22,7 +22,7 @@
 #include "config.h"
 #endif
 
-#include "common/darktable.h"
+#include "common/colorspaces.h"
 #include "common/dtpthread.h"
 #include "develop/format.h"
 #include <glib.h>
@@ -36,6 +36,13 @@ typedef enum dt_imageio_retval_t
   DT_IMAGEIO_FILE_CORRUPTED, // file contains garbage
   DT_IMAGEIO_CACHE_FULL      // dt's caches are full :(
 } dt_imageio_retval_t;
+
+typedef enum dt_imageio_write_xmp_t
+{
+  DT_WRITE_XMP_NEVER = 0,
+  DT_WRITE_XMP_LAZY = 1,
+  DT_WRITE_XMP_ALWAYS = 2
+} dt_imageio_write_xmp_t;
 
 typedef enum
 {
@@ -147,7 +154,8 @@ typedef enum dt_image_loader_t
   LOADER_PNM      = 10,
   LOADER_AVIF     = 11,
   LOADER_IM       = 12,
-  LOADER_COUNT    = 13, // keep last
+  LOADER_HEIF     = 13,
+  LOADER_COUNT    = 14, // keep last
 } dt_image_loader_t;
 
 static const struct
@@ -168,7 +176,8 @@ static const struct
   { N_("rawspeed"),        'r'},
   { N_("netpnm"),          'n'},
   { N_("avif"),            'a'},
-  { N_("ImageMagick"),     'i'}
+  { N_("ImageMagick"),     'i'},
+  { N_("heif"),            'h'}
 };
 
 typedef struct dt_image_geoloc_t
@@ -244,10 +253,10 @@ typedef struct dt_image_t
   float pixel_aspect_ratio;
 
   /* White balance coeffs from the raw */
-  float wb_coeffs[4];
+  dt_aligned_pixel_t wb_coeffs;
 
   /* DefaultUserCrop */
-  float usercrop[4];
+  dt_boundingbox_t usercrop;
   /* convenience pointer back into the image cache, so we can return dt_image_t* there directly. */
   struct dt_cache_entry_t *cache_entry;
 } dt_image_t;
@@ -398,10 +407,12 @@ gboolean dt_image_safe_remove(const int32_t imgid);
 /* try to sync .xmp for all local copies */
 void dt_image_local_copy_synch(void);
 // xmp functions:
-void dt_image_write_sidecar_file(const int32_t imgid);
+int dt_image_write_sidecar_file(const int32_t imgid);
 void dt_image_synch_xmp(const int selected);
 void dt_image_synch_xmps(const GList *img);
 void dt_image_synch_all_xmp(const gchar *pathname);
+/** get the mode xmp sidecars are written */
+dt_imageio_write_xmp_t dt_image_get_xmp_mode();
 
 // add an offset to the exif_datetime_taken field
 void dt_image_add_time_offset(const int32_t imgid, const long int offset);

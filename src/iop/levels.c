@@ -35,11 +35,11 @@
 #include "develop/openmp_maths.h"
 #include "dtgtk/drawingarea.h"
 #include "gui/draw.h"
-#include "gui/color_picker_proxy.h"
 #include "gui/gtk.h"
 #include "gui/accelerators.h"
 #include "gui/presets.h"
 #include "iop/iop_api.h"
+#include "libs/colorpicker.h"
 
 #define DT_GUI_CURVE_EDITOR_INSET DT_PIXEL_APPLY_DPI(5)
 #define DT_GUI_CURVE_INFL .3f
@@ -190,7 +190,7 @@ static void dt_iop_levels_compute_levels_automatic(dt_dev_pixelpipe_iop_t *piece
 
   uint32_t total = piece->histogram_stats.pixels;
 
-  float thr[3];
+  dt_aligned_pixel_t thr;
   for(int k = 0; k < 3; k++)
   {
     thr[k] = (float)total * d->percentiles[k] / 100.0f;
@@ -251,12 +251,9 @@ void color_picker_apply(dt_iop_module_t *self, GtkWidget *picker, dt_dev_pixelpi
 
   float mean_picked_color = *self->picked_color / 100.0;
 
-  if(self->color_picker_point[0] >= 0.0f
-     && self->color_picker_point[1] >= 0.0f
-     && self->picked_color_max[0] >= 0.0f
-     && mean_picked_color != c->last_picked_color)
+  if(mean_picked_color != c->last_picked_color)
   {
-    float previous_color[3];
+    dt_aligned_pixel_t previous_color;
     previous_color[0] = p->levels[0];
     previous_color[1] = p->levels[1];
     previous_color[2] = p->levels[2];

@@ -185,9 +185,9 @@ static void blur_horizontal_2ch(float *const restrict buf, const int height, con
 // Put the to-be-vectorized loop into a function by itself to nudge the compiler into actually vectorizing...
 // With optimization enabled, this gets inlined and interleaved with other instructions as though it had been
 // written in place, so we get a net win from better vectorization.
-static void load_add_4wide(float *const restrict out, float *const restrict accum, const float *const restrict values)
+static void load_add_4wide(float *const restrict out, dt_aligned_pixel_t accum, const float *const restrict values)
 {
-  for_four_channels(c,aligned(accum))
+  for_four_channels(c,aligned(accum, out))
   {
     const float v = values[c];
     accum[c] += v;
@@ -195,7 +195,7 @@ static void load_add_4wide(float *const restrict out, float *const restrict accu
   }
 }
 
-static void sub_4wide(float *const restrict accum, const float *const restrict values)
+static void sub_4wide(float *const restrict accum, const dt_aligned_pixel_t values)
 {
   for_four_channels(c,aligned(accum))
     accum[c] -= values[c];
@@ -204,10 +204,10 @@ static void sub_4wide(float *const restrict accum, const float *const restrict v
 // Put the to-be-vectorized loop into a function by itself to nudge the compiler into actually vectorizing...
 // With optimization enabled, this gets inlined and interleaved with other instructions as though it had been
 // written in place, so we get a net win from better vectorization.
-static void load_add_4wide_Kahan(float *const restrict out, float *const restrict accum,
+static void load_add_4wide_Kahan(float *const restrict out, dt_aligned_pixel_t accum,
                                  const float *const restrict values, float *const restrict comp)
 {
-  for_four_channels(c,aligned(accum,comp))
+  for_four_channels(c,aligned(accum, comp, out))
   {
     const float v = values[c];
     out[c] = v;
@@ -219,7 +219,7 @@ static void load_add_4wide_Kahan(float *const restrict out, float *const restric
   }
 }
 
-static void sub_4wide_Kahan(float *const restrict accum, const float *const restrict values,
+static void sub_4wide_Kahan(float *const restrict accum, const dt_aligned_pixel_t values,
                             float *const restrict comp)
 {
   for_four_channels(c,aligned(accum,comp,values))
@@ -232,7 +232,7 @@ static void sub_4wide_Kahan(float *const restrict accum, const float *const rest
   }
 }
 
-static void store_scaled_4wide(float *const restrict out, const float *const restrict in, const float scale)
+static void store_scaled_4wide(float *const restrict out, const dt_aligned_pixel_t in, const float scale)
 {
   for_four_channels(c,aligned(in))
     out[c] = in[c] / scale;
@@ -375,7 +375,7 @@ static void blur_horizontal_4ch(float *const restrict buf, const size_t height, 
   for(int y = 0; y < height; y++)
   {
     float *const restrict scratch = dt_get_perthread(scanlines,padded_size);
-    float DT_ALIGNED_PIXEL L[4] = { 0, 0, 0, 0 };
+    dt_aligned_pixel_t L = { 0, 0, 0, 0 };
     size_t hits = 0;
     const size_t index = (size_t)4 * y * width;
     float *const restrict bufp = buf + index;
@@ -427,8 +427,8 @@ static void blur_horizontal_4ch(float *const restrict buf, const size_t height, 
 static void blur_horizontal_4ch_Kahan(float *const restrict buf, const size_t width,
                                       const size_t radius, float *const restrict scratch)
 {
-  float DT_ALIGNED_PIXEL L[4] = { 0, 0, 0, 0 };
-  float DT_ALIGNED_PIXEL comp[4] = { 0, 0, 0, 0 };
+  dt_aligned_pixel_t L = { 0, 0, 0, 0 };
+  dt_aligned_pixel_t comp = { 0, 0, 0, 0 };
   size_t hits = 0;
   // add up the left half of the window
   for (size_t x = 0; x < MIN(radius,width) ; x++)
@@ -817,7 +817,7 @@ static void blur_vertical_4wide(float *const restrict buf, const size_t height, 
   size_t mask = 1;
   for(size_t r = (2*radius+1); r > 1 ; r >>= 1) mask = (mask << 1) | 1;
 
-  float DT_ALIGNED_PIXEL L[4] = { 0, 0, 0, 0 };
+  dt_aligned_pixel_t L = { 0, 0, 0, 0 };
   size_t hits = 0;
   // add up the left half of the window
   for (size_t y = 0; y < MIN(radius, height); y++)
@@ -876,8 +876,8 @@ static void blur_vertical_4wide_Kahan(float *const restrict buf, const size_t he
   size_t mask = 1;
   for(size_t r = (2*radius+1); r > 1 ; r >>= 1) mask = (mask << 1) | 1;
 
-  float DT_ALIGNED_PIXEL L[4] = { 0, 0, 0, 0 };
-  float DT_ALIGNED_PIXEL comp[4] = { 0, 0, 0, 0 };
+  dt_aligned_pixel_t L = { 0, 0, 0, 0 };
+  dt_aligned_pixel_t comp = { 0, 0, 0, 0 };
   size_t hits = 0;
   // add up the left half of the window
   for (size_t y = 0; y < MIN(radius, height); y++)
@@ -1272,14 +1272,22 @@ void dt_box_mean_vertical(float *const buf, const size_t height, const size_t wi
     dt_unreachable_codepath();
 }
 
+static inline float window_max(const float *x, int n)
+{
+  float m = -(FLT_MAX);
+#ifdef _OPENMP
+#pragma omp simd reduction(max : m)
+#endif
+  for(int j = 0; j < n; j++)
+    m = MAX(m, x[j]);
+  return m;
+}
 
 // calculate the one-dimensional moving maximum over a window of size 2*w+1
 // input array x has stride 1, output array y has stride stride_y
 static inline void box_max_1d(int N, const float *const restrict x, float *const restrict y, size_t stride_y, int w)
 {
-  float m = -(FLT_MAX);
-  for(int i = 0; i < MIN(w + 1, N); i++)
-    m = MAX(x[i], m);
+  float m = window_max(x, MIN(w + 1, N));
   for(int i = 0; i < N; i++)
   {
     // store maximum of current window at center position
@@ -1288,12 +1296,8 @@ static inline void box_max_1d(int N, const float *const restrict x, float *const
     // rescan the window to determine the new maximum
     if(i - w >= 0 && x[i - w] == m)
     {
-      m = -(FLT_MAX);
-#ifdef _OPENMP
-#pragma omp simd aligned(x) reduction(max : m)
-#endif
-      for(int j = i - w + 1; j < MIN(i + w + 2, N); j++)
-        m = MAX(x[j], m);
+      const int start = i - w + 1;
+      m = window_max(x + start, MIN(i + w + 2, N) - start);
     }
     // if the window has not yet exceeded the end of the row/column, update the maximum value
     if(i + w + 1 < N)
@@ -1426,24 +1430,29 @@ void dt_box_max(float *const buf, const size_t height, const size_t width, const
     dt_unreachable_codepath();
 }
 
+static inline float window_min(const float *x, int n)
+{
+  float m = FLT_MAX;
+#ifdef _OPENMP
+#pragma omp simd reduction(min : m)
+#endif
+  for(int j = 0; j < n; j++)
+    m = MIN(m, x[j]);
+  return m;
+}
+
 // calculate the one-dimensional moving minimum over a window of size 2*w+1
 // input array x has stride 1, output array y has stride stride_y
 static inline void box_min_1d(int N, const float *x, float *y, size_t stride_y, int w)
 {
-  float m = FLT_MAX;
-  for(int i = 0; i < MIN(w + 1, N); i++)
-    m = MIN(x[i], m);
+  float m = window_min(x, MIN(w + 1, N));
   for(int i = 0; i < N; i++)
   {
     y[i * stride_y] = m;
     if(i - w >= 0 && x[i - w] == m)
     {
-      m = FLT_MAX;
-#ifdef _OPENMP
-#pragma omp simd aligned(x) reduction(min : m)
-#endif
-      for(int j = i - w + 1; j < MIN(i + w + 2, N); j++)
-        m = MIN(x[j], m);
+      const int start = (i - w + 1);
+      m = window_min(x + start, MIN((i + w + 2), N) - start);
     }
     // if the window has not yet exceeded the end of the row/column, update the minimum value
     if(i + w + 1 < N)

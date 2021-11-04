@@ -28,14 +28,220 @@ You are strongly advised to take a backup first.
 
 ## The Big Ones
 
+- The keyboard shortcut system has been entirely reworked and extended to allow you
+  to control darktable with other devices, for example, MIDI devices
+  and game controllers. Standard keyboard/mouse shortcuts can now make use
+  of mouse movements (horizontal, vertical, diagonal) as well as multiple
+  button/key presses and short or long presses/clicks.
+
+  Please note that any shortcuts you have previously created are not transferred
+  to the new functionality and will need to be redefined in darktable 3.8.
+
+- New diffuse and sharpen module.
+
+- New scene-referred blurs module.
+
+- Perspective correction module has been renamed to rotate and perspective
+  and now allows you to manually define correction settings by drawing lines
+  or rectangles on the image (replicating keystone correction functionality 
+  from the deprecated crop and rotate module) 
+
+- Added support for multiple images in the print view. The page can be
+  filled with multiple areas, each of which can be moved around and placed on
+  the page with the ability to snap to a grid for precision.
+
+- A new LMMSE demosaic algorithm has been introduced. This algorithm is particularly
+  suited to high ISO and/or noisy images.
+
+- The composition guides from the crop module are now available globally and do
+  not require the crop module to be activated.
 
 ## Other New Features And Changes
 
+- The denoise (profiled) module now uses wavelets mode by default and its default 
+  settings in Y0U0V0 mode have been improved.
+
+- Flip buttons have been added to the orientation module (functionality moved
+  from crop and rotate).
+
+- Background jobs handling has been removed from preferences.
+
+- Much of the SSE-specific code has been removed, since compiler-generated code 
+  is usually faster.
+
+- The darktable-generate-cache script now displays filenames and image ids.
+
+- File name matches in the collections module are now faster. 
+
+- Mask handling is faster.
+
+- Processing module order can now be automatically applied based on the image 
+  properties.
+
+- Folder status is properly refreshed when a mount is changed.
+
+- An area color picker is selectable by using a <kbd>Right-Click</kbd> in
+  addition to the existing <kbd>Ctrl+click</kbd> action.
+
+- Subsitution variables have been added for image dimensions as follows:
+  $(SENSOR_HEIGHT) and $(SENSOR_WIDTH) for the absolute pixel
+  dimensions of the sensor; $(MAX_HEIGHT) and $(MAX_WIDTH) for the raw 
+  image size; and $(EXPORT_HEIGHT) and $(EXPORT_WIDTH) for the
+  post-cropping final image size.
+
+- More work on code speed-up in many different routines ensuring
+  better vectorization and/or OpenMP definition. Notably, the
+  split-toning, haze removal and soften modules have been improved.
+
+- The beginner preset in module groups now takes the chosen workflow
+  (display or scene referred) into account.
+
+- The quick access panel now takes the chosen workflow
+  (display or scene referred) into account.
+
+- New sorting options based on capture, import, modification,
+  last export and last print times.
+
+- Tooltip for raster mask now includes source module information.
+
+- The following modules have been deprecated:
+
+  - Crop & rotate - the features of this module are now shared between the crop, 
+    orientation, and rotate and perspective modules.
+
+    Note that the new crop module is now placed after the retouch module
+    to ensure that the full image can be used a source area.
+
+- A new option has been added to allow you to choose when to start writing
+  changes to the XMP sidecare files. Choose to (a) never write XMP, 
+  (b) write XMP as soon as the image is imported; or 
+  (c) write XMP only after the user has edited the image in the darkroom view.
+
+- Timezone entry has been improved in the geotagging module.
+
+- A new preference has been added to choose the number of recent collections to display.
+
+- Rating support has been added to the collections module making possible to create
+  presets, for example, to select the best images of 2021.
+
+- PNG files are now supported in the watermark module.
+
+- Minor usability improvements have been made to the tone equalizer,
+  ensuring that the cursor is shown on focus and the module is activated on scroll.
+
+- The values in the global color picker module are now selectable.
+
+- HSV has been added as an option in the global color picker module.
+
+- the color scheme of the timeline is improved.
+
+- The scopes module (previously named histogram) can be moved to the
+  left panel.
+
+- Improved color rendering for waveform and parade scopes.
+
+- A new vertical waveform scope option has been added.
+
+- Live samples can now be displayed in the vectorscope.
+
+- An RYB option has been added to the vectorscope.
+
+- The lut3d module has been moved after filmic.
+
+- The automatic mask tuning has been improved in the tone equalizer module.
+
+- Tiling has been enabled in the color balance rgb, diffuse and filmic rgb modules
+  to allow very large images to be processed.
+
+- When scanning for updated XMP files, the synchronization window has been improved
+  to offer more choices as to how the database/XMP files should be updated.
+
+- Added read support for HEIF/HEIC file format.
+
+- Added support for ARM64/Apple M1 as a build target.
+
+- Added a preference to invert the behavior of mouse scroll up/down on drawn
+  mask attributes. At the same time, and for consistency, the scroll-up action has been
+  set to increase all mask attributes by default.
+
+- Added timestamp in camera import dialog for consistency with other
+  import dialog.
+
+- The current module order is now shown in the module order module header to 
+  save space in the GUI.
+
+- The split toning module now displays the hue in degree for consistency
+  with other modules.
+
+- Rejected images in the lighttable view are now dimmed for clarity.
+
+- The last selected Piwigo album is now remembered in the export module.
+
+- New "magic wand" icons are now used for the auto-tune actions in
+  the tone equalizer module.
+
+- For advanced users and developers, OpenCL build options are now exposed in
+  darktablerc.
+
+- The "module order" entry is now moved to the end of the copy/paste dialog 
+  for better usability, as this option is rarely used.
+
+- The collections module now offers some new presets based on image time to
+  complement the existing presets based on the import time.
 
 ## Bug Fixes
 
+- Multiple memory leaks have been fixed.
+
+- Fixed green equilibration in RCD CPU code path.
+
+- Select the best illuminant for DNG images.
+
+- When trying to enter a view that cannot be used (like the tethering view
+  where no camera is attached), make sure to reset the combobox back to 
+  the previous view.
+
+- Fix calibration optimizations for delta E in Channel Mixer RGB module.
+
+- Fix focus peaking, which was in some cases displaying some wrong
+  random pixels on the borders.
+
+- Fix refresh when pasting the whole or part of history.
+
+- Fix possible uninitialized-data access in RCD demosaic.
+
+- Update metadata fields when applying a preset.
+
+- Fix creation of liquify interpolated path to be closer to what the user
+  would expect.
+
+- Multiple Windows PATH specific issues have been fixed. Also, UNC
+  path-names are now supported.
+
+- Make sure RAW+Jpeg files keep the same filename during copy & import.
+
+- Add some consistency to the drawn shape opacity increase/decrease, which was
+  working in the opposite way to the other mask controls.
+
+- Invert liquify strength vector rotation for consistency.
+
+- Make metadata and tagging consistent regarding the current selection.
+
+- Fix some rounding errors in masks with sharp corners, which were creating
+  discontinuities in the mask area.
+
+- Fix the image loader flag, which was not properly set at import time.
+
+- Add a search box in preset perferences and shortcuts.
+
+## Notes
+
+- The 3.8.x series of darktable releases will be the last which supports macOS 10.7 and building with Xcode 11.
+  The next major release will require at least macOS 10.14 to run and Xcode 12 to build.
 
 ## Changed Dependencies
+
+- Move from Lua 5.3 to 5.4.
 
 ## RawSpeed changes
 

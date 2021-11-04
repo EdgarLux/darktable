@@ -60,6 +60,7 @@
 
 #include <gtk/gtk.h>
 #include "control/conf.h"
+#include "common/calculator.h"
 
 #define NON_DEF_CHAR "●"
 
@@ -74,7 +75,7 @@ static gboolean handle_enter_key(GtkWidget *widget, GdkEvent *event, gpointer da
   return FALSE;
 }
 
-static void set_widget_label_default(GtkWidget *widget, const char *confstr, GtkWidget *label)
+static void set_widget_label_default(GtkWidget *widget, const char *confstr, GtkWidget *label, const float factor)
 {
   gboolean is_default = TRUE;
 
@@ -93,17 +94,30 @@ static void set_widget_label_default(GtkWidget *widget, const char *confstr, Gtk
     gchar *c_state = NULL;
     gtk_tree_model_iter_nth_child(model, &iter, NULL, active);
     gtk_tree_model_get(model, &iter, 0, &c_state, -1);
-    is_default = (strcmp(c_state, c_default) == 0);
+    is_default = (g_strcmp0(c_state, c_default) == 0);
+  }
+  else if(GTK_IS_SPIN_BUTTON(widget))
+  {
+    const gchar *c_default = dt_confgen_get(confstr, DT_DEFAULT);
+    const float v_default = dt_calculator_solve(1, c_default) * factor;
+    const float v_state = gtk_spin_button_get_value(GTK_SPIN_BUTTON(widget));
+    is_default = (v_state == v_default);
   }
   else if(GTK_IS_ENTRY(widget))
   {
     const gchar *c_default = dt_confgen_get(confstr, DT_DEFAULT);
     const gchar *c_state = gtk_entry_get_text(GTK_ENTRY(widget));
-    is_default = (strcmp(c_state, c_default) == 0);
+    is_default = (g_strcmp0(c_state, c_default) == 0);
+  }
+  else if(GTK_IS_FILE_CHOOSER(widget))
+  {
+    const gchar *c_default = dt_confgen_get(confstr, DT_DEFAULT);
+    const gchar *c_state = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(widget));
+    is_default = (g_strcmp0(c_state, c_default) == 0);
   }
   else
   {
-    // unsupported widget like a file-chooser
+    // other unsupported widgets
     return;
   }
 
@@ -165,8 +179,9 @@ gboolean restart_required = FALSE;
     <xsl:if test="@restart">
       <xsl:text>  restart_required = TRUE;&#xA;</xsl:text>
     </xsl:if>
+    <xsl:apply-templates select="type" mode="factor"/>
     <xsl:text>  set_widget_label_default(widget, "</xsl:text>
-    <xsl:value-of select="name"/><xsl:text>", GTK_WIDGET(user_data));</xsl:text>
+    <xsl:value-of select="name"/><xsl:text>", GTK_WIDGET(user_data), factor);</xsl:text>
     <xsl:text>&#xA;}&#xA;&#xA;</xsl:text>
   </xsl:for-each>
 
@@ -246,46 +261,40 @@ gboolean restart_required = FALSE;
 
   <xsl:value-of select="$tab_end" />
 
-  <!-- other views -->
-
-  <xsl:text>&#xA;static void&#xA;init_tab_other_views</xsl:text><xsl:value-of select="$tab_start"/><xsl:text>  gtk_stack_add_titled(GTK_STACK(stack), scroll, _("other views"), _("other views"));&#xA;</xsl:text>
-
-<xsl:text>
-   {
-      GtkWidget *seclabel = gtk_label_new(_("map / geolocalization"));
-      GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-      gtk_box_pack_start(GTK_BOX(lbox), seclabel, FALSE, FALSE, 0);
-      gtk_widget_set_name(lbox, "pref_section");
-      gtk_grid_attach(GTK_GRID(grid), lbox, 0, line++, 2, 1);
-   }
-</xsl:text>
-
-  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='otherviews' and @section='geoloc']">
-    <xsl:apply-templates select="." mode="tab_block"/>
-  </xsl:for-each>
-
-  <!-- slideshow section -->
-  <xsl:text>
-   {
-      GtkWidget *seclabel = gtk_label_new(_("slideshow"));
-      GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-      gtk_box_pack_start(GTK_BOX(lbox), seclabel, FALSE, FALSE, 0);
-      gtk_widget_set_name(lbox, "pref_section");
-      gtk_grid_attach(GTK_GRID(grid), lbox, 0, line++, 2, 1);
-   }
-</xsl:text>
-
-  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='otherviews' and @section='slideshow']">
-    <xsl:apply-templates select="." mode="tab_block"/>
-  </xsl:for-each>
-  <xsl:value-of select="$tab_end" />
-
   <!-- processing -->
 
   <xsl:text>&#xA;static void&#xA;init_tab_processing</xsl:text><xsl:value-of select="$tab_start"/><xsl:text>  gtk_stack_add_titled(GTK_STACK(stack), scroll, _("processing"), _("processing"));&#xA;</xsl:text>
 
-  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='processing']">
+  <xsl:text>
+    {
+      GtkWidget *seclabel = gtk_label_new(_("image processing"));
+      GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+      gtk_box_pack_start(GTK_BOX(lbox), seclabel, FALSE, FALSE, 0);
+      gtk_widget_set_name(lbox, "pref_section");
+      gtk_grid_attach(GTK_GRID(grid), lbox, 0, line++, 2, 1);
+    }
+  </xsl:text>
+
+  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='processing' and @section='general']">
     <xsl:apply-templates select="." mode="tab_block"/>
+  </xsl:for-each>
+
+  <!-- cpu/gpu/memory -->
+
+  <xsl:text>
+    {
+      GtkWidget *seclabel = gtk_label_new(_("cpu / gpu / memory"));
+      GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+      gtk_box_pack_start(GTK_BOX(lbox), seclabel, FALSE, FALSE, 0);
+      gtk_widget_set_name(lbox, "pref_section");
+      gtk_grid_attach(GTK_GRID(grid), lbox, 0, line++, 2, 1);
+    }
+  </xsl:text>
+
+  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='processing' and @section='cpugpu']">
+    <xsl:if test="name != 'opencl' or $HAVE_OPENCL=1">
+      <xsl:apply-templates select="." mode="tab_block"/>
+    </xsl:if>
   </xsl:for-each>
   <xsl:value-of select="$tab_end" />
 
@@ -293,19 +302,34 @@ gboolean restart_required = FALSE;
 
   <xsl:text>&#xA;static void&#xA;init_tab_security</xsl:text><xsl:value-of select="$tab_start"/><xsl:text>  gtk_stack_add_titled(GTK_STACK(stack), scroll, _("security"), _("security"));&#xA;</xsl:text>
 
-  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='security']">
+  <!-- general (confirmations) section -->
+  <xsl:text>
+    {
+      GtkWidget *seclabel = gtk_label_new(_("general"));
+      GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+      gtk_box_pack_start(GTK_BOX(lbox), seclabel, FALSE, FALSE, 0);
+      gtk_widget_set_name(lbox, "pref_section");
+      gtk_grid_attach(GTK_GRID(grid), lbox, 0, line++, 2, 1);
+    }
+  </xsl:text>
+
+  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='security' and @section='general']">
     <xsl:apply-templates select="." mode="tab_block"/>
   </xsl:for-each>
-  <xsl:value-of select="$tab_end" />
 
-  <!-- cpu/gpu/memory -->
+  <!-- others section -->
+  <xsl:text>
+   {
+      GtkWidget *seclabel = gtk_label_new(_("other"));
+      GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+      gtk_box_pack_start(GTK_BOX(lbox), seclabel, FALSE, FALSE, 0);
+      gtk_widget_set_name(lbox, "pref_section");
+      gtk_grid_attach(GTK_GRID(grid), lbox, 0, line++, 2, 1);
+   }
+  </xsl:text>
 
-  <xsl:text>&#xA;static void&#xA;init_tab_cpugpu</xsl:text><xsl:value-of select="$tab_start"/><xsl:text>  gtk_stack_add_titled(GTK_STACK(stack), scroll, _("cpu / gpu / memory"), _("cpu / gpu / memory"));&#xA;</xsl:text>
-
-  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='cpugpu']">
-    <xsl:if test="name != 'opencl' or $HAVE_OPENCL=1">
-      <xsl:apply-templates select="." mode="tab_block"/>
-    </xsl:if>
+  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='security' and @section='other']">
+    <xsl:apply-templates select="." mode="tab_block"/>
   </xsl:for-each>
   <xsl:value-of select="$tab_end" />
 
@@ -373,12 +397,12 @@ gboolean restart_required = FALSE;
 
 <xsl:text>
    {
-      GtkWidget *seclabel = gtk_label_new(_("keyboard shortcuts with multiple instances"));
+      GtkWidget *seclabel = gtk_label_new(_("shortcuts with multiple instances"));
       GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
       gtk_box_pack_start(GTK_BOX(lbox), seclabel, FALSE, FALSE, 0);
       gtk_widget_set_name(lbox, "pref_section");
       gtk_grid_attach(GTK_GRID(grid), lbox, 0, line++, 2, 1);
-      g_object_set(lbox,  "tooltip-text", _("where multiple module instances are present, these preferences control rules that are applied (in order) to decide which module instance keyboard shortcuts will be applied to"), (gchar *)0);
+      g_object_set(lbox,  "tooltip-text", _("where multiple module instances are present, these preferences control rules that are applied (in order) to decide which module instance shortcuts will be applied to"), (gchar *)0);
    }
 </xsl:text>
 
@@ -386,9 +410,26 @@ gboolean restart_required = FALSE;
     <xsl:apply-templates select="." mode="tab_block"/>
   </xsl:for-each>
 
-<xsl:text>
+  <!-- other views -->
+
+  <xsl:text>
    {
-      GtkWidget *seclabel = gtk_label_new(_("other"));
+      GtkWidget *seclabel = gtk_label_new(_("map / geolocalization view"));
+      GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+      gtk_box_pack_start(GTK_BOX(lbox), seclabel, FALSE, FALSE, 0);
+      gtk_widget_set_name(lbox, "pref_section");
+      gtk_grid_attach(GTK_GRID(grid), lbox, 0, line++, 2, 1);
+   }
+  </xsl:text>
+
+  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='otherviews' and @section='geoloc']">
+    <xsl:apply-templates select="." mode="tab_block"/>
+  </xsl:for-each>
+
+  <!-- slideshow section -->
+  <xsl:text>
+   {
+      GtkWidget *seclabel = gtk_label_new(_("slideshow view"));
       GtkWidget *lbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
       gtk_box_pack_start(GTK_BOX(lbox), seclabel, FALSE, FALSE, 0);
       gtk_widget_set_name(lbox, "pref_section");
@@ -396,12 +437,12 @@ gboolean restart_required = FALSE;
    }
 </xsl:text>
 
-  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='misc' and @section='other']">
+  <xsl:for-each select="./dtconfiglist/dtconfig[@prefs='otherviews' and @section='slideshow']">
     <xsl:apply-templates select="." mode="tab_block"/>
   </xsl:for-each>
   <xsl:value-of select="$tab_end" />
 
-        <!-- import -->
+  <!-- import -->
 
   <xsl:text>&#xA;static void&#xA;init_tab_import</xsl:text><xsl:value-of select="$tab_start"/><xsl:text>  gtk_stack_add_titled(GTK_STACK(stack), scroll, _("import"), _("import"));&#xA;</xsl:text>
 
@@ -427,6 +468,14 @@ gboolean restart_required = FALSE;
 
   <xsl:text>&#xA;GtkWidget *dt_prefs_init_dialog_collect</xsl:text><xsl:value-of select="$dialog_start"/>
   <xsl:for-each select="./dtconfiglist/dtconfig[@dialog='collect']">
+      <xsl:apply-templates select="." mode="tab_block"/>
+  </xsl:for-each>
+  <xsl:value-of select="$dialog_end" />
+
+  <!-- dialog: recentcollect -->
+
+  <xsl:text>&#xA;GtkWidget *dt_prefs_init_dialog_recentcollect</xsl:text><xsl:value-of select="$dialog_start"/>
+  <xsl:for-each select="./dtconfiglist/dtconfig[@dialog='recentcollect']">
       <xsl:apply-templates select="." mode="tab_block"/>
   </xsl:for-each>
   <xsl:value-of select="$dialog_end" />
@@ -545,12 +594,12 @@ gboolean restart_required = FALSE;
   </xsl:template>
 
   <xsl:template match="dtconfig[type='dir']" mode="reset">
-    <xsl:text>
-      dt_conf_set_string("</xsl:text><xsl:value-of select="name"/><xsl:text>", "</xsl:text><xsl:value-of select="default"/><xsl:text>");
-      gchar *folder = dt_conf_get_string("</xsl:text><xsl:value-of select="name"/><xsl:text>");
-      gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(widget), folder);
-      g_free(folder);
-    </xsl:text>
+    <xsl:text>    gchar *path = dt_conf_expand_default_dir("</xsl:text><xsl:value-of select="default"/><xsl:text>");
+    dt_conf_set_string("</xsl:text><xsl:value-of select="name"/><xsl:text>", path);
+    g_free(path);
+    path = dt_conf_get_string("</xsl:text><xsl:value-of select="name"/><xsl:text>");
+    gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(widget), path);
+    g_free(path);</xsl:text>
   </xsl:template>
 
 <!-- CALLBACK -->
@@ -595,16 +644,13 @@ gboolean restart_required = FALSE;
     gtk_tree_model_get(gtk_combo_box_get_model(GTK_COMBO_BOX(widget)), &amp;iter, 0, &amp;s, -1);
     dt_conf_set_string("</xsl:text><xsl:value-of select="name"/><xsl:text>", s);
     g_free(s);
-  }
-</xsl:text>
+  }</xsl:text>
   </xsl:template>
 
   <xsl:template match="dtconfig[type='dir']" mode="change">
-    <xsl:text>
-    gchar *folder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(widget));
-    dt_conf_set_string("</xsl:text><xsl:value-of select="name"/><xsl:text>", folder);
-    g_free(folder);
-    </xsl:text>
+    <xsl:text>  gchar *folder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(widget));
+  dt_conf_set_string("</xsl:text><xsl:value-of select="name"/><xsl:text>", folder);
+  g_free(folder);</xsl:text>
   </xsl:template>
 
 <!-- TAB -->
@@ -655,10 +701,12 @@ gboolean restart_required = FALSE;
     gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(widget), setting);
     g_free(setting);
     </xsl:text>
-    <xsl:text>g_signal_connect(G_OBJECT(widget), "button-press-event", G_CALLBACK(preferences_changed_callback_</xsl:text><xsl:value-of select="generate-id(.)"/><xsl:text>), labdef);</xsl:text>
+    <xsl:text>g_signal_connect(G_OBJECT(widget), "selection-changed", G_CALLBACK(preferences_changed_callback_</xsl:text><xsl:value-of select="generate-id(.)"/><xsl:text>), labdef);</xsl:text>
     <xsl:text>
     g_signal_connect(G_OBJECT(dialog), "response", G_CALLBACK(preferences_response_callback_</xsl:text><xsl:value-of select="generate-id(.)"/><xsl:text>), widget);
-    snprintf(tooltip, 1024, _("double click to reset to `%s'"), "</xsl:text><xsl:value-of select="default"/><xsl:text>");
+    gchar *default_path = dt_conf_expand_default_dir("</xsl:text><xsl:value-of select="default"/><xsl:text>");
+    snprintf(tooltip, 1024, _("double click to reset to `%s'"), default_path);
+    g_free(default_path);
     g_object_set(labelev,  "tooltip-text", tooltip, (gchar *)0);
     </xsl:text>
   </xsl:template>

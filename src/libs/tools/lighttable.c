@@ -256,6 +256,8 @@ void gui_init(dt_lib_module_t *self)
   gtk_box_pack_start(GTK_BOX(self->widget), d->layout_box, TRUE, TRUE, 0);
 
   d->layout_filemanager = dtgtk_togglebutton_new(dtgtk_cairo_paint_lt_mode_grid, CPF_STYLE_FLAT, NULL);
+  dt_action_define(&darktable.view_manager->proxy.lighttable.view->actions, NULL,
+                   "toggle filemanager layout", d->layout_filemanager, NULL);
   dt_gui_add_help_link(d->layout_filemanager, dt_get_help_url("layout_filemanager"));
   gtk_widget_set_tooltip_text(d->layout_filemanager, _("click to enter filemanager layout."));
   g_signal_connect(G_OBJECT(d->layout_filemanager), "button-release-event",
@@ -263,6 +265,8 @@ void gui_init(dt_lib_module_t *self)
   gtk_box_pack_start(GTK_BOX(d->layout_box), d->layout_filemanager, TRUE, TRUE, 0);
 
   d->layout_zoomable = dtgtk_togglebutton_new(dtgtk_cairo_paint_lt_mode_zoom, CPF_STYLE_FLAT, NULL);
+  dt_action_define(&darktable.view_manager->proxy.lighttable.view->actions, NULL,
+                   "toggle zoomable lighttable layout", d->layout_zoomable, NULL);
   dt_gui_add_help_link(d->layout_zoomable, dt_get_help_url("layout_zoomable"));
   gtk_widget_set_tooltip_text(d->layout_zoomable, _("click to enter zoomable lighttable layout."));
   g_signal_connect(G_OBJECT(d->layout_zoomable), "button-release-event",
@@ -270,6 +274,8 @@ void gui_init(dt_lib_module_t *self)
   gtk_box_pack_start(GTK_BOX(d->layout_box), d->layout_zoomable, TRUE, TRUE, 0);
 
   d->layout_culling_fix = dtgtk_togglebutton_new(dtgtk_cairo_paint_lt_mode_culling_fixed, CPF_STYLE_FLAT, NULL);
+  dt_action_define(&darktable.view_manager->proxy.lighttable.view->actions, NULL,
+                   "toggle culling mode", d->layout_culling_fix, NULL);
   dt_gui_add_help_link(d->layout_culling_fix, dt_get_help_url("layout_culling"));
   g_signal_connect(G_OBJECT(d->layout_culling_fix), "button-release-event",
                    G_CALLBACK(_lib_lighttable_layout_btn_release), self);
@@ -277,12 +283,16 @@ void gui_init(dt_lib_module_t *self)
 
   d->layout_culling_dynamic
       = dtgtk_togglebutton_new(dtgtk_cairo_paint_lt_mode_culling_dynamic, CPF_STYLE_FLAT, NULL);
+  dt_action_define(&darktable.view_manager->proxy.lighttable.view->actions, NULL,
+                   "toggle culling dynamic mode", d->layout_culling_dynamic, NULL);
   dt_gui_add_help_link(d->layout_culling_dynamic, dt_get_help_url("layout_culling"));
   g_signal_connect(G_OBJECT(d->layout_culling_dynamic), "button-release-event",
                    G_CALLBACK(_lib_lighttable_layout_btn_release), self);
   gtk_box_pack_start(GTK_BOX(d->layout_box), d->layout_culling_dynamic, TRUE, TRUE, 0);
 
   d->layout_preview = dtgtk_togglebutton_new(dtgtk_cairo_paint_lt_mode_fullpreview, CPF_STYLE_FLAT, NULL);
+  dt_action_define(&darktable.view_manager->proxy.lighttable.view->actions, NULL,
+                   "toggle sticky preview mode", d->layout_preview, NULL);
   dt_gui_add_help_link(d->layout_preview, dt_get_help_url("layout_preview"));
   g_signal_connect(G_OBJECT(d->layout_preview), "button-release-event",
                    G_CALLBACK(_lib_lighttable_layout_btn_release), self);
@@ -303,7 +313,6 @@ void gui_init(dt_lib_module_t *self)
   gtk_entry_set_max_length(GTK_ENTRY(d->zoom_entry), 2);
   gtk_entry_set_width_chars(GTK_ENTRY(d->zoom_entry), 3);
   gtk_entry_set_max_width_chars(GTK_ENTRY(d->zoom_entry), 3);
-  dt_gui_key_accel_block_on_focus_connect(d->zoom_entry);
   gtk_box_pack_start(GTK_BOX(self->widget), d->zoom_entry, TRUE, TRUE, 0);
 
   g_signal_connect(G_OBJECT(d->zoom), "value-changed", G_CALLBACK(_lib_lighttable_zoom_slider_changed),
@@ -327,8 +336,6 @@ void gui_init(dt_lib_module_t *self)
 
 void gui_cleanup(dt_lib_module_t *self)
 {
-  dt_lib_tool_lighttable_t *d = (dt_lib_tool_lighttable_t *)self->data;
-  dt_gui_key_accel_block_on_focus_disconnect(d->zoom_entry);
   g_free(self->data);
   self->data = NULL;
 }
@@ -610,7 +617,7 @@ static int layout_cb(lua_State *L)
   const dt_lighttable_layout_t tmp = _lib_lighttable_get_layout(self);
   if(lua_gettop(L) > 0){
     dt_lighttable_layout_t value;
-    luaA_to(L,dt_lighttable_layout_t,&value,1);
+    luaA_to(L, dt_lighttable_layout_t, &value, 1);
     _lib_lighttable_set_layout(self, value);
   }
   luaA_push(L, dt_lighttable_layout_t, &tmp);
@@ -622,7 +629,7 @@ static int zoom_level_cb(lua_State *L)
   const gint tmp = _lib_lighttable_get_zoom(self);
   if(lua_gettop(L) > 0){
     int value;
-    luaA_to(L,int,&value,1);
+    luaA_to(L, int, &value, 1);
     _lib_lighttable_set_zoom(self, value);
   }
   luaA_push(L, int, &tmp);
@@ -639,18 +646,19 @@ void init(struct dt_lib_module_t *self)
   lua_pushcclosure(L, dt_lua_type_member_common, 1);
   dt_lua_type_register_const_type(L, my_type, "layout");
   lua_pushlightuserdata(L, self);
-  lua_pushcclosure(L, zoom_level_cb,1);
+  lua_pushcclosure(L, zoom_level_cb, 1);
   dt_lua_gtk_wrap(L);
   lua_pushcclosure(L, dt_lua_type_member_common, 1);
   dt_lua_type_register_const_type(L, my_type, "zoom_level");
 
   luaA_enum(L,dt_lighttable_layout_t);
-  luaA_enum_value(L,dt_lighttable_layout_t,DT_LIGHTTABLE_LAYOUT_FIRST);
-  luaA_enum_value(L,dt_lighttable_layout_t,DT_LIGHTTABLE_LAYOUT_ZOOMABLE);
-  luaA_enum_value(L,dt_lighttable_layout_t,DT_LIGHTTABLE_LAYOUT_FILEMANAGER);
+  luaA_enum_value(L, dt_lighttable_layout_t, DT_LIGHTTABLE_LAYOUT_FIRST);
+  luaA_enum_value(L, dt_lighttable_layout_t, DT_LIGHTTABLE_LAYOUT_ZOOMABLE);
+  luaA_enum_value(L, dt_lighttable_layout_t, DT_LIGHTTABLE_LAYOUT_FILEMANAGER);
   luaA_enum_value(L, dt_lighttable_layout_t, DT_LIGHTTABLE_LAYOUT_CULLING);
   luaA_enum_value(L, dt_lighttable_layout_t, DT_LIGHTTABLE_LAYOUT_CULLING_DYNAMIC);
-  luaA_enum_value(L,dt_lighttable_layout_t,DT_LIGHTTABLE_LAYOUT_LAST);
+  luaA_enum_value(L, dt_lighttable_layout_t, DT_LIGHTTABLE_LAYOUT_PREVIEW);
+  luaA_enum_value(L, dt_lighttable_layout_t, DT_LIGHTTABLE_LAYOUT_LAST);
 }
 #endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

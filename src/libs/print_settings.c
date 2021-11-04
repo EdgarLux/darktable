@@ -378,23 +378,29 @@ static void _create_pdf(dt_job_t *job, dt_images_box imgs, const float width, co
   if (*printer_profile)
     icc_id = dt_pdf_add_icc(pdf, printer_profile);
 */
+  int32_t count = 0;
+
   for(int k=0; k<imgs.count; k++)
   {
     const int resolution = params->prt.printer.resolution;
     const dt_image_box *box = &imgs.box[k];
 
-    pdf_image[k] =
-      dt_pdf_add_image(pdf, (uint8_t *)box->buf, box->exp_width, box->exp_height,
-                       8, icc_id, 0.0);
+    if(box->imgid > -1)
+    {
+      pdf_image[count] =
+        dt_pdf_add_image(pdf, (uint8_t *)box->buf, box->exp_width, box->exp_height,
+                         8, icc_id, 0.0);
 
-    //  PDF bounding-box has origin on bottom-left
-    pdf_image[k]->bb_x      = dt_pdf_pixel_to_point(box->print.x, resolution);
-    pdf_image[k]->bb_y      = dt_pdf_pixel_to_point(box->print.y, resolution);
-    pdf_image[k]->bb_width  = dt_pdf_pixel_to_point(box->print.width, resolution);
-    pdf_image[k]->bb_height = dt_pdf_pixel_to_point(box->print.height, resolution);
+      //  PDF bounding-box has origin on bottom-left
+      pdf_image[count]->bb_x      = dt_pdf_pixel_to_point(box->print.x, resolution);
+      pdf_image[count]->bb_y      = dt_pdf_pixel_to_point(box->print.y, resolution);
+      pdf_image[count]->bb_width  = dt_pdf_pixel_to_point(box->print.width, resolution);
+      pdf_image[count]->bb_height = dt_pdf_pixel_to_point(box->print.height, resolution);
+      count++;
+    }
   }
 
-  params->pdf_page = dt_pdf_add_page(pdf, pdf_image, imgs.count);
+  params->pdf_page = dt_pdf_add_page(pdf, pdf_image, count);
   dt_pdf_finish(pdf, &params->pdf_page, 1);
 
   // now releases all the buf
@@ -471,8 +477,9 @@ static int _print_job_run(dt_job_t *job)
 
   for(int k=0; k<params->imgs.count; k++)
   {
-    if(_export_and_setup_pos(job, &params->imgs.box[k], k))
-      return 1;
+    if(params->imgs.box[k].imgid > -1)
+      if(_export_and_setup_pos(job, &params->imgs.box[k], k))
+        return 1;
   }
 
   if(dt_control_job_get_state(job) == DT_JOB_STATE_CANCELLED) return 0;
@@ -512,8 +519,9 @@ static int _print_job_run(dt_job_t *job)
 
   for(int k=0; k<params->imgs.count; k++)
   {
-    if(dt_tag_attach(tagid, params->imgs.box[k].imgid, FALSE, FALSE))
-      DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_TAG_CHANGED);
+    if(params->imgs.box[k].imgid > -1)
+      if(dt_tag_attach(tagid, params->imgs.box[k].imgid, FALSE, FALSE))
+        DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_TAG_CHANGED);
 
     /* register print timestamp in cache */
     dt_image_cache_set_print_timestamp(darktable.image_cache, params->imgs.box[k].imgid);
@@ -700,7 +708,7 @@ static void _set_printer(const dt_lib_module_t *self, const char *printer_name)
 
   dt_conf_set_string("plugins/print/print/printer", printer_name);
 
-  char *default_paper = dt_conf_get_string("plugins/print/print/paper");
+  const char *default_paper = dt_conf_get_string_const("plugins/print/print/paper");
 
   // next add corresponding papers
 
@@ -738,11 +746,9 @@ static void _set_printer(const dt_lib_module_t *self, const char *printer_name)
   if(paper)
     memcpy(&ps->prt.paper, paper, sizeof(dt_paper_info_t));
 
-  g_free (default_paper);
-
   // next add corresponding supported media
 
-  char *default_medium = dt_conf_get_string("plugins/print/print/medium");
+  const char *default_medium = dt_conf_get_string_const("plugins/print/print/medium");
 
   // first clear current list
 
@@ -778,8 +784,6 @@ static void _set_printer(const dt_lib_module_t *self, const char *printer_name)
 
   if(medium)
     memcpy(&ps->prt.medium, medium, sizeof(dt_medium_info_t));
-
-  g_free (default_medium);
 
   dt_view_print_settings(darktable.view_manager, &ps->prt, &ps->imgs);
 }
@@ -1772,7 +1776,7 @@ void gui_post_expose(struct dt_lib_module_t *self, cairo_t *cr, int32_t width, i
 
   // 1mm
 
-  const float step = gtk_spin_button_get_value(GTK_SPIN_BUTTON(ps->grid_size)) * units[ps->unit];
+  const float step = gtk_spin_button_get_value(GTK_SPIN_BUTTON(ps->grid_size)) / units[ps->unit];
 
   // only display grid if spacing more than 5 pixels
   if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(ps->grid))
@@ -2103,17 +2107,8 @@ void gui_init(dt_lib_module_t *self)
 
   gtk_entry_set_alignment(GTK_ENTRY(d->grid_size), 1);
 
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->b_top));
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->b_left));
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->b_right));
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->b_bottom));
 
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->b_x));
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->b_y));
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->b_width));
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->b_height));
 
-  dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(d->grid_size));
 
   ////////////////////////// PRINTER SETTINGS
 
@@ -2146,7 +2141,7 @@ void gui_init(dt_lib_module_t *self)
 
   gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(d->pprofile), TRUE, TRUE, 0);
   int printer_profile_type = dt_conf_get_int("plugins/print/printer/icctype");
-  gchar *printer_profile = dt_conf_get_string("plugins/print/printer/iccprofile");
+  const char *printer_profile = dt_conf_get_string_const("plugins/print/printer/iccprofile");
   combo_idx = -1;
   n = 0;
 
@@ -2169,8 +2164,6 @@ void gui_init(dt_lib_module_t *self)
       }
     }
   }
-
-  g_free (printer_profile);
 
   // profile not found, maybe a profile has been removed? revert to none
   if(combo_idx == -1)
@@ -2332,9 +2325,6 @@ void gui_init(dt_lib_module_t *self)
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
 
-    d->snap_grid = gtk_check_button_new_with_label(_("snap to grid"));
-    gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(d->snap_grid), TRUE, TRUE, 0);
-
     d->grid = gtk_check_button_new_with_label(_("display grid"));
     // d->grid_size = gtk_spin_button_new_with_range(0, 100, 0.1);
     gtk_box_pack_start(GTK_BOX(hbox), GTK_WIDGET(d->grid), TRUE, TRUE, 0);
@@ -2344,6 +2334,10 @@ void gui_init(dt_lib_module_t *self)
                               dt_conf_get_float("plugins/print/print/grid_size") * units[d->unit]);
 
     gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(hbox), TRUE, TRUE, 0);
+
+    d->snap_grid = gtk_check_button_new_with_label(_("snap to grid"));
+    gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(d->snap_grid), TRUE, TRUE, 0);
+
     gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(vbox), TRUE, TRUE, 0);
 
     g_signal_connect(G_OBJECT(d->grid_size), "value-changed", G_CALLBACK(_grid_size_changed), self);
@@ -2472,7 +2466,7 @@ void gui_init(dt_lib_module_t *self)
   dt_bauhaus_combobox_add(d->profile, _("image settings"));
 
   const int icctype = dt_conf_get_int("plugins/print/print/icctype");
-  gchar *iccprofile = dt_conf_get_string("plugins/print/print/iccprofile");
+  const gchar *iccprofile = dt_conf_get_string_const("plugins/print/print/iccprofile");
   combo_idx = -1;
   n = 0;
 
@@ -2500,7 +2494,6 @@ void gui_init(dt_lib_module_t *self)
     d->v_iccprofile = g_strdup("");
     combo_idx = 0;
   }
-  g_free (iccprofile);
 
   dt_bauhaus_combobox_set(d->profile, combo_idx);
 
@@ -2534,7 +2527,7 @@ void gui_init(dt_lib_module_t *self)
   dt_bauhaus_combobox_add(d->style, _("none"));
 
   GList *styles = dt_styles_get_list("");
-  gchar *current_style = dt_conf_get_string("plugins/print/print/style");
+  const char *current_style = dt_conf_get_string_const("plugins/print/print/style");
   combo_idx = -1; n=0;
 
   for(const GList *st_iter = styles; st_iter; st_iter = g_list_next(st_iter))
@@ -2549,7 +2542,6 @@ void gui_init(dt_lib_module_t *self)
       combo_idx=n;
     }
   }
-  g_free(current_style);
   g_list_free_full(styles, dt_style_free);
   gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(d->style), TRUE, TRUE, 0);
   gtk_widget_set_tooltip_text(d->style, _("temporary style to use while printing"));
@@ -3069,18 +3061,6 @@ void *get_params(dt_lib_module_t *self, int *size)
 void gui_cleanup(dt_lib_module_t *self)
 {
   dt_lib_print_settings_t *ps = (dt_lib_print_settings_t *)self->data;
-
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(ps->b_top));
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(ps->b_left));
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(ps->b_right));
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(ps->b_bottom));
-
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(ps->b_x));
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(ps->b_y));
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(ps->b_width));
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(ps->b_right));
-
-  dt_gui_key_accel_block_on_focus_disconnect(GTK_WIDGET(ps->grid_size));
 
   g_list_free_full(ps->profiles, g_free);
   g_list_free_full(ps->paper_list, free);

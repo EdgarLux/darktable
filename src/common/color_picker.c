@@ -32,16 +32,16 @@ static inline size_t _box_size(const int *const box)
 #ifdef _OPENMP
 #pragma omp declare simd aligned(rgb, JzCzhz: 16) uniform(profile)
 #endif
-static inline void rgb_to_JzCzhz(const float *const rgb, float *const JzCzhz,
+static inline void rgb_to_JzCzhz(const dt_aligned_pixel_t rgb, dt_aligned_pixel_t JzCzhz,
                                  const dt_iop_order_iccprofile_info_t *const profile)
 {
-  float XYZ_D65[3] DT_ALIGNED_PIXEL = { 0.0f, 0.0f, 0.0f };
-  float JzAzBz[3] DT_ALIGNED_PIXEL = { 0.0f, 0.0f, 0.0f };
+  dt_aligned_pixel_t XYZ_D65 = { 0.0f, 0.0f, 0.0f };
+  dt_aligned_pixel_t JzAzBz = { 0.0f, 0.0f, 0.0f };
 
   if(profile)
   {
-    float XYZ_D50[3] DT_ALIGNED_PIXEL = { 0.0f, 0.0f, 0.0f };
-    dt_ioppr_rgb_matrix_to_xyz(rgb, XYZ_D50, profile->matrix_in, profile->lut_in, profile->unbounded_coeffs_in,
+    dt_aligned_pixel_t XYZ_D50 = { 0.0f, 0.0f, 0.0f };
+    dt_ioppr_rgb_matrix_to_xyz(rgb, XYZ_D50, profile->matrix_in_transposed, profile->lut_in, profile->unbounded_coeffs_in,
                                profile->lutsize, profile->nonlinearlut);
     dt_XYZ_D50_2_XYZ_D65(XYZ_D50, XYZ_D65);
   }
@@ -58,12 +58,12 @@ static inline void rgb_to_JzCzhz(const float *const rgb, float *const JzCzhz,
 #ifdef _OPENMP
 #pragma omp declare simd aligned(avg, min, max, pixels: 16) uniform(width, w)
 #endif
-static inline void _color_picker_rgb_or_lab(float *const avg, float *const min, float *const max,
+static inline void _color_picker_rgb_or_lab(dt_aligned_pixel_t avg, dt_aligned_pixel_t min, dt_aligned_pixel_t max,
                                             const float *const pixels, const float w, const size_t width)
 {
   for(size_t i = 0; i < width; i += 4)
   {
-    float pick[4] DT_ALIGNED_PIXEL = { pixels[i], pixels[i + 1], pixels[i + 2], 0.0f };
+    dt_aligned_pixel_t pick = { pixels[i], pixels[i + 1], pixels[i + 2], 0.0f };
     for(size_t k = 0; k < 4; k++)
     {
       avg[k] += w * pick[k];
@@ -76,12 +76,12 @@ static inline void _color_picker_rgb_or_lab(float *const avg, float *const min, 
 #ifdef _OPENMP
 #pragma omp declare simd aligned(avg, min, max, pixels: 16) uniform(width, w)
 #endif
-static inline void _color_picker_lch(float *const avg, float *const min, float *const max,
+static inline void _color_picker_lch(dt_aligned_pixel_t avg, dt_aligned_pixel_t min, dt_aligned_pixel_t max,
                                      const float *const pixels, const float w, const size_t width)
 {
   for(size_t i = 0; i < width; i += 4)
   {
-    float pick[4] DT_ALIGNED_PIXEL;
+    dt_aligned_pixel_t pick;
     dt_Lab_2_LCH(pixels + i, pick);
     pick[3] = pick[2] < 0.5f ? pick[2] + 0.5f : pick[2] - 0.5f;
     for(size_t k = 0; k < 4; k++)
@@ -96,12 +96,12 @@ static inline void _color_picker_lch(float *const avg, float *const min, float *
 #ifdef _OPENMP
 #pragma omp declare simd aligned(avg, min, max, pixels: 16) uniform(width, w)
 #endif
-static inline void _color_picker_hsl(float *const avg, float *const min, float *const max,
+static inline void _color_picker_hsl(dt_aligned_pixel_t avg, dt_aligned_pixel_t min, dt_aligned_pixel_t max,
                                      const float *const pixels, const float w, const size_t width)
 {
   for(size_t i = 0; i < width; i += 4)
   {
-    float pick[4] DT_ALIGNED_PIXEL;
+    dt_aligned_pixel_t pick;
     dt_RGB_2_HSL(pixels + i, pick);
     pick[3] = pick[0] < 0.5f ? pick[0] + 0.5f : pick[0] - 0.5f;
     for(size_t k = 0; k < 4; k++)
@@ -116,13 +116,13 @@ static inline void _color_picker_hsl(float *const avg, float *const min, float *
 #ifdef _OPENMP
 #pragma omp declare simd aligned(avg, min, max, pixels: 16) uniform(width, w, profile)
 #endif
-static inline void _color_picker_jzczhz(float *const avg, float *const min, float *const max,
+static inline void _color_picker_jzczhz(dt_aligned_pixel_t avg, dt_aligned_pixel_t min, dt_aligned_pixel_t max,
                                         const float *const pixels, const float w, const size_t width,
                                         const dt_iop_order_iccprofile_info_t *const profile)
 {
   for(size_t i = 0; i < width; i += 4)
   {
-    float pick[4] DT_ALIGNED_PIXEL;
+    dt_aligned_pixel_t pick;
     rgb_to_JzCzhz(pixels + i, pick, profile);
     pick[3] = pick[2] < 0.5f ? pick[2] + 0.5f : pick[2] - 0.5f;
     for(size_t k = 0; k < 4; k++)
@@ -136,8 +136,8 @@ static inline void _color_picker_jzczhz(float *const avg, float *const min, floa
 
 static void color_picker_helper_4ch_seq(const dt_iop_buffer_dsc_t *const dsc, const float *const pixel,
                                         const dt_iop_roi_t *const roi, const int *const box,
-                                        float *const picked_color, float *const picked_color_min,
-                                        float *const picked_color_max, const dt_iop_colorspace_type_t cst_to,
+                                        dt_aligned_pixel_t picked_color, dt_aligned_pixel_t picked_color_min,
+                                        dt_aligned_pixel_t picked_color_max, const dt_iop_colorspace_type_t cst_to,
                                         const dt_iop_order_iccprofile_info_t *const profile)
 {
   const int width = roi->width;
@@ -186,8 +186,8 @@ static void color_picker_helper_4ch_seq(const dt_iop_buffer_dsc_t *const dsc, co
 
 static void color_picker_helper_4ch_parallel(const dt_iop_buffer_dsc_t *const dsc, const float *const pixel,
                                              const dt_iop_roi_t *const roi, const int *const box,
-                                             float *const picked_color, float *const picked_color_min,
-                                             float *const picked_color_max, const dt_iop_colorspace_type_t cst_to,
+                                             dt_aligned_pixel_t picked_color, dt_aligned_pixel_t picked_color_min,
+                                             dt_aligned_pixel_t picked_color_max, const dt_iop_colorspace_type_t cst_to,
                                              const dt_iop_order_iccprofile_info_t *const profile)
 {
   const int width = roi->width;
@@ -314,8 +314,8 @@ static void color_picker_helper_4ch_parallel(const dt_iop_buffer_dsc_t *const ds
 }
 
 static void color_picker_helper_4ch(const dt_iop_buffer_dsc_t *dsc, const float *const pixel,
-                                    const dt_iop_roi_t *roi, const int *const box, float *const picked_color,
-                                    float *const picked_color_min, float *const picked_color_max,
+                                    const dt_iop_roi_t *roi, const int *const box, dt_aligned_pixel_t picked_color,
+                                    dt_aligned_pixel_t picked_color_min, dt_aligned_pixel_t picked_color_max,
                                     const dt_iop_colorspace_type_t cst_to,
                                     const dt_iop_order_iccprofile_info_t *const profile)
 {
@@ -331,8 +331,8 @@ static void color_picker_helper_4ch(const dt_iop_buffer_dsc_t *dsc, const float 
 
 static void color_picker_helper_bayer_seq(const dt_iop_buffer_dsc_t *const dsc, const float *const pixel,
                                           const dt_iop_roi_t *const roi, const int *const box,
-                                          float *const picked_color, float *const picked_color_min,
-                                          float *const picked_color_max)
+                                          dt_aligned_pixel_t picked_color, dt_aligned_pixel_t picked_color_min,
+                                          dt_aligned_pixel_t picked_color_max)
 {
   const int width = roi->width;
   const uint32_t filters = dsc->filters;
@@ -365,8 +365,8 @@ static void color_picker_helper_bayer_seq(const dt_iop_buffer_dsc_t *const dsc, 
 
 static void color_picker_helper_bayer_parallel(const dt_iop_buffer_dsc_t *const dsc, const float *const pixel,
                                                const dt_iop_roi_t *const roi, const int *const box,
-                                               float *const picked_color, float *const picked_color_min,
-                                               float *const picked_color_max)
+                                               dt_aligned_pixel_t picked_color, dt_aligned_pixel_t picked_color_min,
+                                               dt_aligned_pixel_t picked_color_max)
 {
   const int width = roi->width;
   const uint32_t filters = dsc->filters;
@@ -445,8 +445,8 @@ static void color_picker_helper_bayer_parallel(const dt_iop_buffer_dsc_t *const 
 }
 
 static void color_picker_helper_bayer(const dt_iop_buffer_dsc_t *dsc, const float *const pixel,
-                                      const dt_iop_roi_t *roi, const int *const box, float *const picked_color,
-                                      float *const picked_color_min, float *const picked_color_max)
+                                      const dt_iop_roi_t *roi, const int *const box, dt_aligned_pixel_t picked_color,
+                                      dt_aligned_pixel_t picked_color_min, dt_aligned_pixel_t picked_color_max)
 {
   const size_t size = _box_size(box);
 
@@ -459,8 +459,8 @@ static void color_picker_helper_bayer(const dt_iop_buffer_dsc_t *dsc, const floa
 
 static void color_picker_helper_xtrans_seq(const dt_iop_buffer_dsc_t *const dsc, const float *const pixel,
                                            const dt_iop_roi_t *const roi, const int *const box,
-                                           float *const picked_color, float *const picked_color_min,
-                                           float *const picked_color_max)
+                                           dt_aligned_pixel_t picked_color, dt_aligned_pixel_t picked_color_min,
+                                           dt_aligned_pixel_t picked_color_max)
 {
   const int width = roi->width;
   const uint8_t(*const xtrans)[6] = (const uint8_t(*const)[6])dsc->xtrans;
@@ -494,8 +494,8 @@ static void color_picker_helper_xtrans_seq(const dt_iop_buffer_dsc_t *const dsc,
 
 static void color_picker_helper_xtrans_parallel(const dt_iop_buffer_dsc_t *const dsc, const float *const pixel,
                                                 const dt_iop_roi_t *const roi, const int *const box,
-                                                float *const picked_color, float *const picked_color_min,
-                                                float *const picked_color_max)
+                                                dt_aligned_pixel_t picked_color, dt_aligned_pixel_t picked_color_min,
+                                                dt_aligned_pixel_t picked_color_max)
 {
   const int width = roi->width;
   const uint8_t(*const xtrans)[6] = (const uint8_t(*const)[6])dsc->xtrans;
@@ -575,8 +575,8 @@ static void color_picker_helper_xtrans_parallel(const dt_iop_buffer_dsc_t *const
 }
 
 static void color_picker_helper_xtrans(const dt_iop_buffer_dsc_t *dsc, const float *const pixel,
-                                       const dt_iop_roi_t *roi, const int *const box, float *const picked_color,
-                                       float *const picked_color_min, float *const picked_color_max)
+                                       const dt_iop_roi_t *roi, const int *const box, dt_aligned_pixel_t picked_color,
+                                       dt_aligned_pixel_t picked_color_min, dt_aligned_pixel_t picked_color_max)
 {
   const size_t size = _box_size(box);
 
@@ -589,8 +589,8 @@ static void color_picker_helper_xtrans(const dt_iop_buffer_dsc_t *dsc, const flo
 
 // picked_color, picked_color_min and picked_color_max should be aligned
 void dt_color_picker_helper(const dt_iop_buffer_dsc_t *dsc, const float *const pixel, const dt_iop_roi_t *roi,
-                            const int *const box, float *const picked_color, float *const picked_color_min,
-                            float *const picked_color_max, const dt_iop_colorspace_type_t image_cst,
+                            const int *const box, dt_aligned_pixel_t picked_color, dt_aligned_pixel_t picked_color_min,
+                            dt_aligned_pixel_t picked_color_max, const dt_iop_colorspace_type_t image_cst,
                             const dt_iop_colorspace_type_t picker_cst,
                             const dt_iop_order_iccprofile_info_t *const profile)
 {

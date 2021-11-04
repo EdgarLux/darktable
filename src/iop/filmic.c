@@ -407,10 +407,10 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
     float *in = ((float *)ivoid) + k;
     float *out = ((float *)ovoid) + k;
 
-    float DT_ALIGNED_PIXEL XYZ[4];
+    dt_aligned_pixel_t XYZ;
     dt_Lab_to_XYZ(in, XYZ);
 
-    float DT_ALIGNED_PIXEL rgb[4] = { 0.0f };
+    dt_aligned_pixel_t rgb = { 0.0f };
     dt_XYZ_to_prophotorgb(XYZ, rgb);
 
     float concavity, luma;
@@ -429,7 +429,7 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
     if (preserve_color)
     {
       int index;
-      float ratios[4];
+      dt_aligned_pixel_t ratios;
       float max = fmaxf(fmaxf(rgb[0], rgb[1]), rgb[2]);
 
       // Save the ratios
@@ -590,7 +590,7 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
       concavity = _mm_set1_ps(data->grad_2[(int)CLAMP(XYZ[1] * 0x10000ul, 0, 0xffff)]);
 
       // Unpack SSE vector to regular array
-      float rgb_unpack[4];
+      dt_aligned_pixel_t rgb_unpack;
 
       // Filmic S curve
       for (int c = 0; c < 4; ++c)
@@ -700,7 +700,7 @@ static void apply_auto_grey(dt_iop_module_t *self)
   dt_iop_filmic_params_t *p = (dt_iop_filmic_params_t *)self->params;
   dt_iop_filmic_gui_data_t *g = (dt_iop_filmic_gui_data_t *)self->gui_data;
 
-  float DT_ALIGNED_PIXEL XYZ[4] = { 0.0f };
+  dt_aligned_pixel_t XYZ = { 0.0f };
   dt_Lab_to_XYZ(self->picked_color, XYZ);
 
   const float grey = XYZ[1];
@@ -727,7 +727,7 @@ static void apply_auto_black(dt_iop_module_t *self)
   dt_iop_filmic_gui_data_t *g = (dt_iop_filmic_gui_data_t *)self->gui_data;
 
   const float noise = powf(2.0f, -16.0f);
-  float DT_ALIGNED_PIXEL XYZ[4] = { 0.0f };
+  dt_aligned_pixel_t XYZ = { 0.0f };
 
   // Black
   dt_Lab_to_XYZ(self->picked_color_min, XYZ);
@@ -755,7 +755,7 @@ static void apply_auto_white_point_source(dt_iop_module_t *self)
   dt_iop_filmic_gui_data_t *g = (dt_iop_filmic_gui_data_t *)self->gui_data;
 
   const float noise = powf(2.0f, -16.0f);
-  float DT_ALIGNED_PIXEL XYZ[4] = { 0.0f };
+  dt_aligned_pixel_t XYZ = { 0.0f };
 
   // White
   dt_Lab_to_XYZ(self->picked_color_max, XYZ);
@@ -814,7 +814,7 @@ static void apply_autotune(dt_iop_module_t *self)
   dt_iop_filmic_params_t *p = (dt_iop_filmic_params_t *)self->params;
 
   const float noise = powf(2.0f, -16.0f);
-  float DT_ALIGNED_PIXEL XYZ[4] = { 0.0f };
+  dt_aligned_pixel_t XYZ = { 0.0f };
 
   // Grey
   dt_Lab_to_XYZ(self->picked_color, XYZ);
@@ -1372,10 +1372,6 @@ void gui_update(dt_iop_module_t *self)
   dt_iop_filmic_params_t *p = (dt_iop_filmic_params_t *)module->params;
 
   dt_iop_color_picker_reset(self, TRUE);
-
-  self->color_picker_box[0] = self->color_picker_box[1] = .25f;
-  self->color_picker_box[2] = self->color_picker_box[3] = .75f;
-  self->color_picker_point[0] = self->color_picker_point[1] = 0.5f;
 
   dt_bauhaus_slider_set_soft(g->white_point_source, p->white_point_source);
   dt_bauhaus_slider_set_soft(g->grey_point_source, p->grey_point_source);

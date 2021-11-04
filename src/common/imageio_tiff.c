@@ -472,7 +472,13 @@ dt_imageio_retval_t dt_imageio_open_tiff(dt_image_t *img, const char *filename, 
   _TIFFfree(t.buf);
   TIFFClose(t.tiff);
 
-  return (ok == 1 ? DT_IMAGEIO_OK : DT_IMAGEIO_FILE_CORRUPTED);
+  if(ok == 1)
+  {
+    img->loader = LOADER_TIFF;
+    return DT_IMAGEIO_OK;
+  }
+  else
+    return DT_IMAGEIO_FILE_CORRUPTED;
 }
 
 int dt_imageio_tiff_read_profile(const char *filename, uint8_t **out)
@@ -503,14 +509,17 @@ int dt_imageio_tiff_read_profile(const char *filename, uint8_t **out)
     cmsSaveProfileToMem(profile, 0, &profile_len);
     if(profile_len > 0)
     {
-      *out = (uint8_t *)malloc(profile_len);
+      *out = (uint8_t *)g_malloc(profile_len);
       cmsSaveProfileToMem(profile, *out, &profile_len);
     }
   }
   else if(TIFFGetField(tiff, TIFFTAG_ICCPROFILE, &profile_len, &profile))
   {
-    *out = (uint8_t *)malloc(profile_len);
-    memcpy(*out, profile, profile_len);
+    if(profile_len > 0)
+    {
+      *out = (uint8_t *)g_malloc(profile_len);
+      memcpy(*out, profile, profile_len);
+    }
   }
   else
     profile_len = 0;

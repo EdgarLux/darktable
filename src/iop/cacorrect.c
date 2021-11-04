@@ -272,7 +272,7 @@ static inline void pixSort(float *a, float *b)
 
 /*
   We want to avoid the module being processed in case the provided size of data is too small resulting in
-  really bad artefacts. This is often the case while zooming in with the current dt pipeline.
+  really bad artifacts. This is often the case while zooming in with the current dt pipeline.
   There is no "maths background" so i chose this after a lot of testing.
 */
 #define CA_SIZE_MINIMUM (1600)
@@ -337,7 +337,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
 
   if(avoidshift)
   {
-    const size_t buffsize = h_width * h_height;
+    const size_t buffsize = (size_t)h_width * h_height;
     redfactor = dt_alloc_align_float(buffsize);
     memset(redfactor, 0, sizeof(float) * buffsize);
     bluefactor = dt_alloc_align_float(buffsize);
@@ -360,7 +360,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   double fitparams[2][2][16];
 
   // temporary array to store simple interpolation of G
-  float *Gtmp = dt_alloc_align_float(height * width);
+  float *Gtmp = dt_alloc_align_float((size_t)height * width);
   memset(Gtmp, 0, sizeof(float) * height * width);
 
   // temporary array to avoid race conflicts, only every second pixel needs to be saved here

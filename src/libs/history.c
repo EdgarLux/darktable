@@ -70,11 +70,8 @@ typedef struct dt_lib_history_t
 #define HIST_WIDGET_STATUS 2
 
 /* compress history stack */
-static gboolean _lib_compress_stack_accel(GtkAccelGroup *accel_group, GObject *acceleratable, guint keyval,
-                                          GdkModifierType modifier, gpointer data);
-static gboolean _lib_truncate_stack_accel(GtkAccelGroup *accel_group, GObject *acceleratable, guint keyval,
-                                          GdkModifierType modifier, gpointer data);
-static void _lib_history_compress_clicked_callback(GtkWidget *widget, GdkEventButton *e, gpointer user_data);
+static void _lib_history_compress_clicked_callback(GtkButton *widget, gpointer user_data);
+static gboolean _lib_history_compress_pressed_callback(GtkWidget *widget, GdkEventButton *e, gpointer user_data);
 static void _lib_history_button_clicked_callback(GtkWidget *widget, gpointer user_data);
 static void _lib_history_create_style_button_clicked_callback(GtkWidget *widget, gpointer user_data);
 /* signal callback for history change */
@@ -109,7 +106,6 @@ void init_key_accels(dt_lib_module_t *self)
   dt_accel_register_lib(self, NC_("accel", "create style from history"), 0, 0);
 //   dt_accel_register_lib(self, NC_("accel", "apply style from popup menu"), 0, 0);
   dt_accel_register_lib(self, NC_("accel", "compress history stack"), 0, 0);
-  dt_accel_register_lib(self, NC_("accel", "truncate history stack"), 0, 0);
 }
 
 void connect_key_accels(dt_lib_module_t *self)
@@ -118,12 +114,8 @@ void connect_key_accels(dt_lib_module_t *self)
 
   dt_accel_connect_button_lib(self, "create style from history", d->create_button);
 //   dt_accel_connect_button_lib(self, "apply style from popup menu", d->apply_button);
-  GClosure *closure;
-  closure = g_cclosure_new(G_CALLBACK(_lib_compress_stack_accel), (gpointer)self, NULL);
-  dt_accel_connect_lib(self, "compress history stack", closure);
 
-  closure = g_cclosure_new(G_CALLBACK(_lib_truncate_stack_accel), (gpointer)self, NULL);
-  dt_accel_connect_lib(self, "truncate history stack", closure);
+  dt_accel_connect_button_lib(self, "compress history stack", d->compress_button);
 }
 
 void gui_init(dt_lib_module_t *self)
@@ -149,7 +141,8 @@ void gui_init(dt_lib_module_t *self)
   d->compress_button = dt_ui_button_new(_("compress history stack"),
                                         _("create a minimal history stack which produces the same image\n"
                                           "ctrl-click to truncate history to the selected item"), NULL);
-  g_signal_connect(G_OBJECT(d->compress_button), "button-press-event", G_CALLBACK(_lib_history_compress_clicked_callback), self);
+  g_signal_connect(G_OBJECT(d->compress_button), "clicked", G_CALLBACK(_lib_history_compress_clicked_callback), self);
+  g_signal_connect(G_OBJECT(d->compress_button), "button-press-event", G_CALLBACK(_lib_history_compress_pressed_callback), self);
 
   /* add toolbar button for creating style */
   d->create_button = dtgtk_button_new(dtgtk_cairo_paint_styles, CPF_NONE, NULL);
@@ -416,7 +409,7 @@ static int _check_deleted_instances(dt_develop_t *dev, GList **_iop_list, GList 
       dt_undo_iterate_internal(darktable.undo, DT_UNDO_HISTORY, mod, &_history_invalidate_cb);
 
       // we cleanup the module
-      dt_accel_cleanup_closures_iop(mod);
+      dt_action_cleanup_instance_iop(mod);
 
       // don't delete the module, a pipe may still need it
       dev->alliop = g_list_append(dev->alliop, mod);
@@ -614,16 +607,7 @@ static void _pop_undo(gpointer user_data, dt_undo_type_t type, dt_undo_data_t da
     // topology has changed
     if(pipe_remove)
     {
-      // we refresh the pipe
-      dev->pipe->changed |= DT_DEV_PIPE_REMOVE;
-      dev->preview_pipe->changed |= DT_DEV_PIPE_REMOVE;
-      dev->preview2_pipe->changed |= DT_DEV_PIPE_REMOVE;
-      dev->pipe->cache_obsolete = 1;
-      dev->preview_pipe->cache_obsolete = 1;
-      dev->preview2_pipe->cache_obsolete = 1;
-
-      // invalidate buffers and force redraw of darkroom
-      dt_dev_invalidate_all(dev);
+      dt_dev_pixelpipe_rebuild(dev);
     }
 
     dt_pthread_mutex_unlock(&dev->history_mutex);
@@ -976,6 +960,7 @@ static gboolean _changes_tooltip_callback(GtkWidget *widget, gint x, gint y, gbo
     GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(view));
     gtk_text_buffer_set_text(buffer, tooltip_text, -1);
     gtk_tooltip_set_custom(tooltip, view);
+    gtk_widget_map(view); // FIXME: workaround added in order to fix #9908, probably a Gtk issue, remove when fixed upstream
 
     int count_column1 = 0, count_column2 = 0;
     for(gchar *line = tooltip_text; *line; )
@@ -1067,7 +1052,7 @@ static void _lib_history_change_callback(gpointer instance, gpointer user_data)
     const dt_dev_history_item_t *hitem = (dt_dev_history_item_t *)(history->data);
     gchar *label;
     if(!hitem->multi_name[0] || strcmp(hitem->multi_name, "0") == 0)
-      label = g_strdup_printf("%s", hitem->module->name());
+      label = g_strdup(hitem->module->name());
     else
       label = g_strdup_printf("%s %s", hitem->module->name(), hitem->multi_name);
 
@@ -1144,24 +1129,18 @@ static void _lib_history_truncate(gboolean compress)
   dt_dev_modulegroups_set(darktable.develop, dt_dev_modulegroups_get(darktable.develop));
 }
 
-static gboolean _lib_compress_stack_accel(GtkAccelGroup *accel_group, GObject *acceleratable, guint keyval,
-                                          GdkModifierType modifier, gpointer data)
+
+static void _lib_history_compress_clicked_callback(GtkButton *widget, gpointer user_data)
 {
   _lib_history_truncate(TRUE);
-  return TRUE;
 }
 
-static gboolean _lib_truncate_stack_accel(GtkAccelGroup *accel_group, GObject *acceleratable, guint keyval,
-                                          GdkModifierType modifier, gpointer data)
-{
-  _lib_history_truncate(FALSE);
-  return TRUE;
-}
-
-static void _lib_history_compress_clicked_callback(GtkWidget *widget, GdkEventButton *e, gpointer user_data)
+static gboolean _lib_history_compress_pressed_callback(GtkWidget *widget, GdkEventButton *e, gpointer user_data)
 {
   const gboolean compress = !dt_modifier_is(e->state, GDK_CONTROL_MASK);
   _lib_history_truncate(compress);
+
+  return TRUE;
 }
 
 static void _lib_history_button_clicked_callback(GtkWidget *widget, gpointer user_data)

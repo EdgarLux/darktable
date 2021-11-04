@@ -54,8 +54,7 @@ static void _list_remove_thumb(gpointer user_data)
 static int _get_selection_count()
 {
   int nb = 0;
-  gchar *query = dt_util_dstrcat(
-      NULL,
+  gchar *query = g_strdup(  //TODO: since this is a fixed string, do we need to copy?
       "SELECT count(*) FROM main.selected_images AS s, memory.collected_images as m WHERE s.imgid = m.imgid");
   sqlite3_stmt *stmt;
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);
@@ -77,7 +76,7 @@ static int _thumb_get_imgid(int rowid)
 {
   int id = -1;
   sqlite3_stmt *stmt;
-  gchar *query = dt_util_dstrcat(NULL, "SELECT imgid FROM memory.collected_images WHERE rowid=%d", rowid);
+  gchar *query = g_strdup_printf("SELECT imgid FROM memory.collected_images WHERE rowid=%d", rowid);
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);
   if(sqlite3_step(stmt) == SQLITE_ROW)
   {
@@ -92,7 +91,7 @@ static int _thumb_get_rowid(int imgid)
 {
   int id = -1;
   sqlite3_stmt *stmt;
-  gchar *query = dt_util_dstrcat(NULL, "SELECT rowid FROM memory.collected_images WHERE imgid=%d", imgid);
+  gchar *query = g_strdup_printf("SELECT rowid FROM memory.collected_images WHERE imgid=%d", imgid);
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);
   if(sqlite3_step(stmt) == SQLITE_ROW)
   {
@@ -199,8 +198,7 @@ static void _thumbs_move(dt_culling_t *table, int move)
     if(table->navigate_inside_selection)
     {
       sqlite3_stmt *stmt;
-      gchar *query = dt_util_dstrcat(NULL,
-                                     "SELECT m.rowid FROM memory.collected_images as m, main.selected_images as s "
+      gchar *query = g_strdup_printf("SELECT m.rowid FROM memory.collected_images as m, main.selected_images as s "
                                      "WHERE m.imgid=s.imgid AND m.rowid<=%d "
                                      "ORDER BY m.rowid DESC LIMIT 1 OFFSET %d",
                                      table->offset, -1 * move);
@@ -214,8 +212,7 @@ static void _thumbs_move(dt_culling_t *table, int move)
         // if we are here, that means we don't have enough space to move as wanted. So we move to first position
         g_free(query);
         sqlite3_finalize(stmt);
-        query
-            = dt_util_dstrcat(NULL, "SELECT m.rowid FROM memory.collected_images as m, main.selected_images as s "
+        query = g_strdup_printf("SELECT m.rowid FROM memory.collected_images as m, main.selected_images as s "
                                     "WHERE m.imgid=s.imgid "
                                     "ORDER BY m.rowid LIMIT 1");
         DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);
@@ -247,8 +244,7 @@ static void _thumbs_move(dt_culling_t *table, int move)
     if(table->navigate_inside_selection)
     {
       sqlite3_stmt *stmt;
-      gchar *query
-          = dt_util_dstrcat(NULL,
+      gchar *query = g_strdup_printf(
                             "SELECT COUNT(m.rowid) FROM memory.collected_images as m, main.selected_images as s "
                             "WHERE m.imgid=s.imgid AND m.rowid>%d",
                             table->offset);
@@ -264,8 +260,7 @@ static void _thumbs_move(dt_culling_t *table, int move)
       if(nb_after >= table->thumbs_count)
       {
         const int delta = MIN(nb_after + 1 - table->thumbs_count, move);
-        query = dt_util_dstrcat(NULL,
-                                "SELECT m.rowid FROM memory.collected_images as m, main.selected_images as s "
+        query = g_strdup_printf("SELECT m.rowid FROM memory.collected_images as m, main.selected_images as s "
                                 "WHERE m.imgid=s.imgid AND m.rowid>=%d "
                                 "ORDER BY m.rowid LIMIT 1 OFFSET %d",
                                 table->offset, delta);
@@ -287,8 +282,7 @@ static void _thumbs_move(dt_culling_t *table, int move)
     else
     {
       sqlite3_stmt *stmt;
-      gchar *query = dt_util_dstrcat(NULL,
-                                     "SELECT COUNT(m.rowid) FROM memory.collected_images as m "
+      gchar *query = g_strdup_printf("SELECT COUNT(m.rowid) FROM memory.collected_images as m "
                                      "WHERE m.rowid>%d",
                                      table->offset);
       DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);
@@ -568,7 +562,7 @@ static gboolean _event_leave_notify(GtkWidget *widget, GdkEventCrossing *event, 
   }
 
   // if we leave thumbtable in favour of an inferior (a thumbnail) it's not a real leave !
-  if(event->detail == GDK_NOTIFY_INFERIOR) return FALSE;
+  if(event->detail == GDK_NOTIFY_INFERIOR || event->detail == GDK_NOTIFY_VIRTUAL) return FALSE;
 
   table->mouse_inside = FALSE;
   dt_control_set_mouse_over_id(-1);
@@ -774,13 +768,6 @@ static void _dt_mouse_over_image_callback(gpointer instance, gpointer user_data)
 
   const int imgid = dt_control_get_mouse_over_id();
 
-  if(imgid > 0)
-  {
-    // let's be absolutely sure that the right widget has the focus
-    // otherwise accels don't work...
-    gtk_widget_grab_focus(dt_ui_center(darktable.gui->ui));
-  }
-
   // we crawl over all images to find the right one
   for(GList *l = table->list; l; l = g_list_next(l))
   {
@@ -807,19 +794,19 @@ static gchar *_thumbs_get_overlays_class(dt_thumbnail_overlay_t over)
   switch(over)
   {
     case DT_THUMBNAIL_OVERLAYS_NONE:
-      return dt_util_dstrcat(NULL, "dt_overlays_none");
+      return g_strdup("dt_overlays_none");
     case DT_THUMBNAIL_OVERLAYS_HOVER_EXTENDED:
-      return dt_util_dstrcat(NULL, "dt_overlays_hover_extended");
+      return g_strdup("dt_overlays_hover_extended");
     case DT_THUMBNAIL_OVERLAYS_ALWAYS_NORMAL:
-      return dt_util_dstrcat(NULL, "dt_overlays_always");
+      return g_strdup("dt_overlays_always");
     case DT_THUMBNAIL_OVERLAYS_ALWAYS_EXTENDED:
-      return dt_util_dstrcat(NULL, "dt_overlays_always_extended");
+      return g_strdup("dt_overlays_always_extended");
     case DT_THUMBNAIL_OVERLAYS_MIXED:
-      return dt_util_dstrcat(NULL, "dt_overlays_mixed");
+      return g_strdup("dt_overlays_mixed");
     case DT_THUMBNAIL_OVERLAYS_HOVER_BLOCK:
-      return dt_util_dstrcat(NULL, "dt_overlays_hover_block");
+      return g_strdup("dt_overlays_hover_block");
     default:
-      return dt_util_dstrcat(NULL, "dt_overlays_hover");
+      return g_strdup("dt_overlays_hover");
   }
 }
 
@@ -843,7 +830,7 @@ dt_culling_t *dt_culling_new(dt_culling_mode_t mode)
     gtk_style_context_add_class(context, "dt_culling");
 
   // overlays
-  gchar *otxt = dt_util_dstrcat(NULL, "plugins/lighttable/overlays/culling/%d", table->mode);
+  gchar *otxt = g_strdup_printf("plugins/lighttable/overlays/culling/%d", table->mode);
   table->overlays = dt_conf_get_int(otxt);
   g_free(otxt);
 
@@ -851,7 +838,7 @@ dt_culling_t *dt_culling_new(dt_culling_mode_t mode)
   gtk_style_context_add_class(context, cl0);
   free(cl0);
 
-  otxt = dt_util_dstrcat(NULL, "plugins/lighttable/overlays/culling_block_timeout/%d", table->mode);
+  otxt = g_strdup_printf("plugins/lighttable/overlays/culling_block_timeout/%d", table->mode);
   table->overlays_block_timeout = 2;
   if(!dt_conf_key_exists(otxt))
     table->overlays_block_timeout = dt_conf_get_int("plugins/lighttable/overlay_timeout");
@@ -859,7 +846,7 @@ dt_culling_t *dt_culling_new(dt_culling_mode_t mode)
     table->overlays_block_timeout = dt_conf_get_int(otxt);
   g_free(otxt);
 
-  otxt = dt_util_dstrcat(NULL, "plugins/lighttable/tooltips/culling/%d", table->mode);
+  otxt = g_strdup_printf("plugins/lighttable/tooltips/culling/%d", table->mode);
   table->show_tooltips = dt_conf_get_bool(otxt);
   g_free(otxt);
 
@@ -993,8 +980,7 @@ void dt_culling_init(dt_culling_t *table, int offset)
 
   // is first_id inside selection ?
   gboolean inside = FALSE;
-  query = dt_util_dstrcat(NULL,
-                          "SELECT col.imgid "
+  query = g_strdup_printf("SELECT col.imgid "
                           "FROM memory.collected_images AS col, main.selected_images AS sel "
                           "WHERE col.imgid=sel.imgid AND col.imgid=%d",
                           first_id);
@@ -1062,8 +1048,7 @@ static void _thumbs_prefetch(dt_culling_t *table)
   dt_thumbnail_t *last = (dt_thumbnail_t *)g_list_last(table->list)->data;
   if(table->navigate_inside_selection)
   {
-    query
-        = dt_util_dstrcat(NULL,
+    query = g_strdup_printf(
                           "SELECT m.imgid "
                           "FROM memory.collected_images AS m, main.selected_images AS s "
                           "WHERE m.imgid = s.imgid"
@@ -1074,8 +1059,7 @@ static void _thumbs_prefetch(dt_culling_t *table)
   }
   else
   {
-    query
-        = dt_util_dstrcat(NULL,
+    query = g_strdup_printf(
                           "SELECT m.imgid "
                           "FROM memory.collected_images AS m "
                           "WHERE m.rowid > (SELECT mm.rowid FROM memory.collected_images AS mm WHERE mm.imgid=%d) "
@@ -1096,8 +1080,7 @@ static void _thumbs_prefetch(dt_culling_t *table)
   dt_thumbnail_t *prev = (dt_thumbnail_t *)(table->list)->data;
   if(table->navigate_inside_selection)
   {
-    query
-        = dt_util_dstrcat(NULL,
+    query = g_strdup_printf(
                           "SELECT m.imgid "
                           "FROM memory.collected_images AS m, main.selected_images AS s "
                           "WHERE m.imgid = s.imgid"
@@ -1108,8 +1091,7 @@ static void _thumbs_prefetch(dt_culling_t *table)
   }
   else
   {
-    query
-        = dt_util_dstrcat(NULL,
+    query = g_strdup_printf(
                           "SELECT m.imgid "
                           "FROM memory.collected_images AS m "
                           "WHERE m.rowid < (SELECT mm.rowid FROM memory.collected_images AS mm WHERE mm.imgid=%d) "
@@ -1133,8 +1115,7 @@ static gboolean _thumbs_recreate_list_at(dt_culling_t *table, const int offset)
 
   if(table->navigate_inside_selection)
   {
-    query = dt_util_dstrcat(NULL,
-                            "SELECT m.rowid, m.imgid, b.aspect_ratio "
+    query = g_strdup_printf("SELECT m.rowid, m.imgid, b.aspect_ratio "
                             "FROM memory.collected_images AS m, main.selected_images AS s, images AS b "
                             "WHERE m.imgid = b.id AND m.imgid = s.imgid AND m.rowid >= %d "
                             "ORDER BY m.rowid "
@@ -1143,8 +1124,7 @@ static gboolean _thumbs_recreate_list_at(dt_culling_t *table, const int offset)
   }
   else
   {
-    query = dt_util_dstrcat(NULL,
-                            "SELECT m.rowid, m.imgid, b.aspect_ratio "
+    query = g_strdup_printf("SELECT m.rowid, m.imgid, b.aspect_ratio "
                             "FROM (SELECT rowid, imgid "
                             "FROM memory.collected_images "
                             "WHERE rowid < %d + %d "
@@ -1233,8 +1213,7 @@ static gboolean _thumbs_recreate_list_at(dt_culling_t *table, const int offset)
      && g_list_shorter_than(newlist, _get_selection_count()))
   {
     const int nb = table->thumbs_count - g_list_length(newlist);
-    query = dt_util_dstrcat(NULL,
-                            "SELECT m.rowid, m.imgid, b.aspect_ratio "
+    query = g_strdup_printf("SELECT m.rowid, m.imgid, b.aspect_ratio "
                             "FROM memory.collected_images AS m, main.selected_images AS s, images AS b "
                             "WHERE m.imgid = b.id AND m.imgid = s.imgid AND m.rowid < %d "
                             "ORDER BY m.rowid DESC "
@@ -1646,9 +1625,6 @@ void dt_culling_full_redraw(dt_culling_t *table, gboolean force)
     }
   }
 
-  // be sure the focus is in the right widget (needed for accels)
-  gtk_widget_grab_focus(dt_ui_center(darktable.gui->ui));
-
   dt_print(DT_DEBUG_LIGHTTABLE, "done in %0.04f sec\n", dt_get_wtime() - start);
 
   if(darktable.unmuted & DT_DEBUG_CACHE) dt_mipmap_cache_print(darktable.mipmap_cache);
@@ -1720,7 +1696,7 @@ void dt_culling_zoom_fit(dt_culling_t *table)
 void dt_culling_set_overlays_mode(dt_culling_t *table, dt_thumbnail_overlay_t over)
 {
   if(!table) return;
-  gchar *txt = dt_util_dstrcat(NULL, "plugins/lighttable/overlays/culling/%d", table->mode);
+  gchar *txt = g_strdup_printf("plugins/lighttable/overlays/culling/%d", table->mode);
   dt_conf_set_int(txt, over);
   g_free(txt);
   gchar *cl0 = _thumbs_get_overlays_class(table->overlays);
@@ -1730,7 +1706,7 @@ void dt_culling_set_overlays_mode(dt_culling_t *table, dt_thumbnail_overlay_t ov
   gtk_style_context_remove_class(context, cl0);
   gtk_style_context_add_class(context, cl1);
 
-  txt = dt_util_dstrcat(NULL, "plugins/lighttable/overlays/culling_block_timeout/%d", table->mode);
+  txt = g_strdup_printf("plugins/lighttable/overlays/culling_block_timeout/%d", table->mode);
   int timeout = 2;
   if(!dt_conf_key_exists(txt))
     timeout = dt_conf_get_int("plugins/lighttable/overlay_timeout");
@@ -1738,7 +1714,7 @@ void dt_culling_set_overlays_mode(dt_culling_t *table, dt_thumbnail_overlay_t ov
     timeout = dt_conf_get_int(txt);
   g_free(txt);
 
-  txt = dt_util_dstrcat(NULL, "plugins/lighttable/tooltips/culling/%d", table->mode);
+  txt = g_strdup_printf("plugins/lighttable/tooltips/culling/%d", table->mode);
   table->show_tooltips = dt_conf_get_bool(txt);
   g_free(txt);
 

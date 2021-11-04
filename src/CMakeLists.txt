@@ -53,12 +53,12 @@ FILE(GLOB SOURCE_FILES
   "common/imageio_tiff.c"
   "common/imageio_im.c"
   "common/imageio_gm.c"
-  "common/imageio_rawspeed.cc"
   "common/import_session.c"
   "common/interpolation.c"
   "common/locallaplacian.c"
   "common/locallaplaciancl.c"
   "common/l10n.c"
+  "common/matrices.c"
   "common/metadata.c"
   "common/metadata_export.c"
   "common/mipmap_cache.c"
@@ -240,7 +240,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 if(APPLE AND (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
@@ -362,6 +361,27 @@ if (USE_AVIF)
     endif()
 endif()
 
+if(USE_HEIF)
+  find_package(libheif 1.9.0 CONFIG)
+  if(TARGET heif)
+    list(APPEND LIBS heif)
+  else()
+    find_package(libheif 1.9.0)
+    if(TARGET libheif::libheif)
+      list(APPEND LIBS libheif::libheif)
+    endif()
+  endif()
+  if(libheif_FOUND)
+    add_definitions(-DHAVE_LIBHEIF=1)
+    list(APPEND SOURCES "common/imageio_heif.c")
+    set(DT_SUPPORTED_EXTENSIONS ${DT_SUPPORTED_EXTENSIONS} heif heic hif CACHE INTERNAL "")
+    if(NOT TARGET avif)
+      # libheif can handle avif, too
+      set(DT_SUPPORTED_EXTENSIONS ${DT_SUPPORTED_EXTENSIONS} avif CACHE INTERNAL "")
+    endif()
+  endif()
+endif()
+
 if(USE_LENSFUN)
   find_package(LensFun)
   if(LensFun_FOUND)
@@ -404,7 +424,7 @@ if (USE_ISOBMFF)
     check_cxx_symbol_exists(EXV_ENABLE_BMFF "exiv2/exiv2.hpp" HAVE_EXV_ENABLE_BMFF)
     if(HAVE_EXV_ENABLE_BMFF)
       add_definitions(-DHAVE_LIBEXIV2_WITH_ISOBMFF=1)
-      set(DT_SUPPORTED_EXTENSIONS ${DT_SUPPORTED_EXTENSIONS} cr3 heif CACHE INTERNAL "")
+      set(DT_SUPPORTED_EXTENSIONS ${DT_SUPPORTED_EXTENSIONS} cr3 CACHE INTERNAL "")
       message(STATUS "Exiv2 >= 0.27.4 found with ISOBMFF support (CR3, AVIF, HEIF)")
     else()
       message(STATUS "Exiv2 >= 0.27.4 found, but was not compiled with ISOBMFF support (CR3, AVIF, HEIF)")
@@ -655,14 +675,14 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.h" "${DARKTABLE_BINDIR}
 # Build external deps
 #
 if(USE_LUA)
-  find_package(Lua53 5.3)
-  if(Lua53_FOUND)
+  find_package(Lua54 5.4)
+  if(Lua54_FOUND)
     message(STATUS "Lua support: Enabled")
-    include_directories(SYSTEM ${Lua53_INCLUDE_DIRS})
-    list(APPEND LIBS ${Lua53_LDFLAGS})
+    include_directories(SYSTEM ${Lua54_INCLUDE_DIRS})
+    list(APPEND LIBS ${Lua54_LDFLAGS})
   else()
     if(DONT_USE_INTERNAL_LUA)
-      message(STATUS "Lua support: System library for lua 5.3 not found (to use darktable's version use -DDONT_USE_INTERNAL_LUA=Off)")
+      message(STATUS "Lua support: System library for lua 5.4 not found (to use darktable's version use -DDONT_USE_INTERNAL_LUA=Off)")
       set(USE_LUA OFF)
     else(DONT_USE_INTERNAL_LUA)
       message(STATUS "Lua support: System library not found (using darktable's version)")
@@ -670,7 +690,7 @@ if(USE_LUA)
       add_subdirectory(external/lua)
       list(APPEND LIBS lua)
     endif(DONT_USE_INTERNAL_LUA)
-  endif(Lua53_FOUND)
+  endif(Lua54_FOUND)
 
   if(USE_LUA)
     add_definitions("-DUSE_LUA")
@@ -723,9 +743,9 @@ else(USE_LUA)
 endif(USE_LUA)
 
 if(USE_LUA)
-  if(NOT Lua53_FOUND)
+  if(NOT Lua54_FOUND)
     list(APPEND LIB_DEPS lua) # 2nd half of the uglyness :/
-  endif(NOT Lua53_FOUND)
+  endif(NOT Lua54_FOUND)
   # liblautoc for lua automated interface generation
   add_library(lautoc_static STATIC IMPORTED)
   set_target_properties(lautoc_static PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/external/LuaAutoC/liblautoc.a POSITION_INDEPENDENT_CODE True)
@@ -920,13 +940,16 @@ if(LIB_DEPS)
 endif()
 
 target_link_libraries(lib_darktable PUBLIC ${STATIC_LIBS})
-target_link_libraries(lib_darktable PRIVATE rawspeed)
 target_link_libraries(lib_darktable PRIVATE whereami)
 target_link_libraries(lib_darktable PUBLIC ${LIBS})
 
 unset(LIBS)
 unset(STATIC_LIBS)
 unset(LIB_DEPS)
+
+add_library(lib_darktable_imageio_rawspeed STATIC common/imageio_rawspeed.cc)
+target_link_libraries(lib_darktable_imageio_rawspeed PRIVATE rawspeed)
+target_link_libraries(lib_darktable PRIVATE lib_darktable_imageio_rawspeed)
 
 #
 # Install lib_darktable

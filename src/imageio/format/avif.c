@@ -294,7 +294,7 @@ int write_image(struct dt_imageio_module_data_t *data,
       case DT_COLORSPACE_SRGB:
           image->colorPrimaries = AVIF_COLOR_PRIMARIES_BT709;
           image->transferCharacteristics = AVIF_TRANSFER_CHARACTERISTICS_SRGB;
-          image->matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT709;
+          image->matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT470BG;
           break;
       case DT_COLORSPACE_REC709:
           image->colorPrimaries = AVIF_COLOR_PRIMARIES_BT709;
@@ -611,9 +611,8 @@ void *get_params(dt_imageio_module_format_t *self)
     return NULL;
   }
 
-  gchar * bpp = dt_conf_get_string("plugins/imageio/format/avif/bpp");
+  const char *bpp = dt_conf_get_string_const("plugins/imageio/format/avif/bpp");
   d->bit_depth = atoi(bpp);
-  g_free(bpp);
   if(d->bit_depth < 8 || d->bit_depth > 12)
   {
       d->bit_depth = 8;

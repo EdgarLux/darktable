@@ -708,17 +708,19 @@ static int lua_button_clicked_cb(lua_State* L)
 {
   lua_callback_data * data = lua_touserdata(L, 1);
   dt_lua_module_entry_push(L, "lib", data->self->plugin_name);
-  lua_getuservalue(L, -1);
+  lua_getiuservalue(L, -1, 1);
   lua_getfield(L, -1, "callbacks");
   lua_getfield(L, -1, data->key);
   lua_pushstring(L, data->key);
 
   GList *image = dt_collection_get_selected(darktable.collection, -1);
   lua_newtable(L);
+  int table_index = 1;
   while(image)
   {
     luaA_push(L, dt_lua_image_t, &image->data);
-    luaL_ref(L, -2);
+    lua_seti(L, -2, table_index);
+    table_index++;
     image = g_list_delete_link(image, image);
   }
 
@@ -739,7 +741,7 @@ static int lua_register_action(lua_State *L)
   lua_settop(L, 3);
   dt_lib_module_t *self = lua_touserdata(L, lua_upvalueindex(1));
   dt_lua_module_entry_push(L, "lib", self->plugin_name);
-  lua_getuservalue(L,-1);
+  lua_getiuservalue(L, -1, 1);
   const char* name = luaL_checkstring(L, 1);
   const char* key = luaL_checkstring(L, 2);
   luaL_checktype(L, 3, LUA_TFUNCTION);
@@ -767,7 +769,7 @@ static int lua_register_action(lua_State *L)
 
   // save the signal connection in case we need to destroy it later
   dt_lua_module_entry_push(L, "lib", self->plugin_name);
-  lua_getuservalue(L, -1);
+  lua_getiuservalue(L, -1, 1);
   lua_getfield(L, -1, "signal_handlers");
   lua_pushstring(L, name);
   lua_pushinteger(L, s);
@@ -796,7 +798,7 @@ static int lua_destroy_action(lua_State *L)
       // remove the callback
 
       dt_lua_module_entry_push(L, "lib", self->plugin_name);
-      lua_getuservalue(L, -1);
+      lua_getiuservalue(L, -1, 1);
       lua_getfield(L, -1, "callbacks");
       lua_pushstring(L, name);
       lua_pushnil(L);
@@ -805,7 +807,7 @@ static int lua_destroy_action(lua_State *L)
       // disconnect the signal
 
       dt_lua_module_entry_push(L, "lib", self->plugin_name);
-      lua_getuservalue(L, -1);
+      lua_getiuservalue(L, -1, 1);
       lua_getfield(L, -1, "signal_handlers");
       lua_pushstring(L, name);
       lua_gettable(L, -2);
@@ -870,13 +872,13 @@ void init(struct dt_lib_module_t *self)
   dt_lua_type_register_const_type(L, my_type, "set_sensitive");
 
   dt_lua_module_entry_push(L, "lib", self->plugin_name);
-  lua_getuservalue(L, -1);
+  lua_getiuservalue(L, -1, 1);
   lua_newtable(L);
   lua_setfield(L, -2, "callbacks");
   lua_pop(L, 2);
 
   dt_lua_module_entry_push(L, "lib", self->plugin_name);
-  lua_getuservalue(L, -1);
+  lua_getiuservalue(L, -1, 1);
   lua_newtable(L);
   lua_setfield(L, -2, "signal_handlers");
   lua_pop(L, 2);

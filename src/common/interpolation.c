@@ -819,10 +819,10 @@ static void dt_interpolation_compute_pixel4c_plain(const struct dt_interpolation
     in = in - (itor->width - 1) * (4 + linestride);
 
     // Apply the kernel
-    float pixel[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    dt_aligned_pixel_t pixel = { 0.0f, 0.0f, 0.0f, 0.0f };
     for(int i = 0; i < 2 * itor->width; i++)
     {
-      float h[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+      dt_aligned_pixel_t h = { 0.0f, 0.0f, 0.0f, 0.0f };
       for(int j = 0; j < 2 * itor->width; j++)
       {
         for(int c = 0; c < 3; c++) h[c] += kernelh[j] * in[j * 4 + c];
@@ -853,11 +853,11 @@ static void dt_interpolation_compute_pixel4c_plain(const struct dt_interpolation
     prepare_tap_boundaries(&ytap_first, &ytap_last, bordermode, 2 * itor->width, iy, height);
 
     // Apply the kernel
-    float pixel[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    dt_aligned_pixel_t pixel = { 0.0f, 0.0f, 0.0f, 0.0f };
     for(int i = ytap_first; i < ytap_last; i++)
     {
       const int clip_y = clip(iy + i, 0, height - 1, bordermode);
-      float h[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+      dt_aligned_pixel_t h = { 0.0f, 0.0f, 0.0f, 0.0f };
       for(int j = xtap_first; j < xtap_last; j++)
       {
         const int clip_x = clip(ix + j, 0, width - 1, bordermode);
@@ -1102,7 +1102,7 @@ const struct dt_interpolation *dt_interpolation_new(enum dt_interpolation_type t
   if(type == DT_INTERPOLATION_USERPREF)
   {
     // Find user preferred interpolation method
-    gchar *uipref = dt_conf_get_string("plugins/lighttable/export/pixel_interpolator");
+    const char *uipref = dt_conf_get_string_const("plugins/lighttable/export/pixel_interpolator");
     for(int i = DT_INTERPOLATION_FIRST; uipref && i < DT_INTERPOLATION_LAST; i++)
     {
       if(!strcmp(uipref, dt_interpolator[i].name))
@@ -1112,7 +1112,6 @@ const struct dt_interpolation *dt_interpolation_new(enum dt_interpolation_type t
         break;
       }
     }
-    g_free(uipref);
 
     /* In the case the search failed (!uipref or name not found),
      * prepare later search pass with default fallback */
@@ -1121,7 +1120,7 @@ const struct dt_interpolation *dt_interpolation_new(enum dt_interpolation_type t
   else if(type == DT_INTERPOLATION_USERPREF_WARP)
   {
     // Find user preferred interpolation method
-    gchar *uipref = dt_conf_get_string("plugins/lighttable/export/pixel_interpolator_warp");
+    const char *uipref = dt_conf_get_string_const("plugins/lighttable/export/pixel_interpolator_warp");
     for(int i = DT_INTERPOLATION_FIRST; uipref && i < DT_INTERPOLATION_LAST; i++)
     {
       if(!strcmp(uipref, dt_interpolator[i].name))
@@ -1131,7 +1130,6 @@ const struct dt_interpolation *dt_interpolation_new(enum dt_interpolation_type t
         break;
       }
     }
-    g_free(uipref);
 
     /* In the case the search failed (!uipref or name not found),
      * prepare later search pass with default fallback */
@@ -1482,7 +1480,7 @@ static void dt_interpolation_resample_plain(const struct dt_interpolation *itor,
       debug_extra("output %p [% 4d % 4d]\n", out, ox, oy);
 
       // This will hold the resulting pixel
-      DT_ALIGNED_PIXEL float vs[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+      dt_aligned_pixel_t vs = { 0.0f, 0.0f, 0.0f, 0.0f };
 
       // Number of horizontal samples contributing to the output
       int hl = hlength[hlidx++]; // H(orizontal) L(ength)
@@ -1492,7 +1490,7 @@ static void dt_interpolation_resample_plain(const struct dt_interpolation *itor,
         // This is our input line
         size_t baseidx_vindex = (size_t)vindex[viidx++] * in_stride_floats;
 
-        DT_ALIGNED_PIXEL float vhs[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        dt_aligned_pixel_t vhs = { 0.0f, 0.0f, 0.0f, 0.0f };
 
         for(int ix = 0; ix < hl; ix++)
         {
@@ -1500,7 +1498,7 @@ static void dt_interpolation_resample_plain(const struct dt_interpolation *itor,
           const size_t baseidx = baseidx_vindex + (size_t)hindex[hiidx++] * 4;
           const float htap = hkernel[hkidx++];
           // Convince gcc 10 to vectorize
-          DT_ALIGNED_PIXEL float tmp[4] = { in[baseidx], in[baseidx+1], in[baseidx+2], in[baseidx+3] };
+          dt_aligned_pixel_t tmp = { in[baseidx], in[baseidx+1], in[baseidx+2], in[baseidx+3] };
           for_each_channel(c, aligned(tmp,vhs:16)) vhs[c] += tmp[c] * htap;
         }
 

@@ -113,11 +113,11 @@ typedef enum dt_collection_properties_t
   DT_COLLECTION_PROP_HISTORY,
   DT_COLLECTION_PROP_MODULE,
   DT_COLLECTION_PROP_ORDER,
+  DT_COLLECTION_PROP_RATING,
 
   DT_COLLECTION_PROP_LAST,
 
   DT_COLLECTION_PROP_UNDEF,
-  DT_COLLECTION_PROP_RATING, // this one goes here as not used currently in collect.c
   DT_COLLECTION_PROP_SORT
 } dt_collection_properties_t;
 
@@ -258,7 +258,7 @@ void dt_collection_hint_message(const dt_collection_t *collection);
 int dt_collection_image_offset(int imgid);
 
 /* serialize and deserialize into a string. */
-void dt_collection_deserialize(char *buf);
+void dt_collection_deserialize(const char *buf);
 int dt_collection_serialize(char *buf, int bufsize);
 
 /* splits an input string into a number part and an optional operator part */

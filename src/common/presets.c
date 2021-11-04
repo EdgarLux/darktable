@@ -16,13 +16,14 @@
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "common/presets.h"
 #include "common/darktable.h"
 #include "common/debug.h"
-#include "common/presets.h"
 #include "common/exif.h"
 #include "common/file_location.h"
 #include "develop/blend.h"
 #include "develop/imageop.h"
+#include "libs/lib.h"
 
 #include <libxml/encoding.h>
 #include <libxml/xmlwriter.h>
@@ -199,7 +200,14 @@ int dt_presets_import_from_file(const char *preset_path)
   xmlDocPtr doc = xmlParseFile(preset_path);
   if(!doc)
     return FALSE;
-  
+
+  xmlNodePtr root = xmlDocGetRootElement(doc);
+  if(!root || xmlStrcmp(root->name, BAD_CAST "darktable_preset") != 0)
+  {
+    xmlFreeDoc(doc);
+    return FALSE;
+  }
+
   gchar *name = get_preset_element(doc, "name");
   gchar *description = get_preset_element(doc, "description");
   gchar *operation = get_preset_element(doc, "operation");
@@ -276,7 +284,7 @@ int dt_presets_import_from_file(const char *preset_path)
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 24, def);
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 25, format);
 
-  result = (sqlite3_step(stmt) == SQLITE_OK);
+  result = (sqlite3_step(stmt) == SQLITE_DONE);
 
   sqlite3_finalize(stmt);
 
@@ -293,6 +301,18 @@ int dt_presets_import_from_file(const char *preset_path)
   return result;
 }
 
+gboolean dt_presets_module_can_autoapply(const gchar *operation)
+{
+  for(const GList *lib_modules = darktable.lib->plugins; lib_modules; lib_modules = g_list_next(lib_modules))
+  {
+    dt_lib_module_t *lib_module = (dt_lib_module_t *)lib_modules->data;
+    if(!strcmp(lib_module->plugin_name, operation))
+    {
+      return dt_lib_presets_can_autoapply(lib_module);
+    }
+  }
+  return TRUE;
+}
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;

@@ -297,8 +297,12 @@ int dt_view_manager_switch_by_view(dt_view_manager_t *vm, const dt_view_t *nv)
 
   if(new_view->try_enter)
   {
-    int error = new_view->try_enter(new_view);
-    if(error) return error;
+    const int error = new_view->try_enter(new_view);
+    if(error)
+    {
+      DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_VIEWMANAGER_VIEW_CANNOT_CHANGE, old_view, new_view);
+      return error;
+    }
   }
 
   /* cleanup current view before initialization of new  */
@@ -579,20 +583,6 @@ int dt_view_manager_button_pressed(dt_view_manager_t *vm, double x, double y, do
   return 0;
 }
 
-int dt_view_manager_key_pressed(dt_view_manager_t *vm, guint key, guint state)
-{
-  if(!vm->current_view) return 0;
-  if(vm->current_view->key_pressed) return vm->current_view->key_pressed(vm->current_view, key, state);
-  return 0;
-}
-
-int dt_view_manager_key_released(dt_view_manager_t *vm, guint key, guint state)
-{
-  if(!vm->current_view) return 0;
-  if(vm->current_view->key_released) return vm->current_view->key_released(vm->current_view, key, state);
-  return 0;
-}
-
 void dt_view_manager_configure(dt_view_manager_t *vm, int width, int height)
 {
   for(GList *iter = vm->views; iter; iter = g_list_next(iter))
@@ -684,8 +674,7 @@ static void _images_to_act_on_insert_in_list(GList **list, const int imgid, gboo
     else
     {
       sqlite3_stmt *stmt;
-      gchar *query = dt_util_dstrcat(
-          NULL,
+      gchar *query = g_strdup_printf(
           "SELECT id"
           "  FROM main.images"
           "  WHERE group_id = %d AND id IN (%s)",
@@ -765,7 +754,7 @@ const GList *dt_view_get_images_to_act_on(const gboolean only_visible, const gbo
     {
       // column 1,2
       sqlite3_stmt *stmt;
-      gchar *query = dt_util_dstrcat(NULL, "SELECT imgid FROM main.selected_images WHERE imgid=%d", mouseover);
+      gchar *query = g_strdup_printf("SELECT imgid FROM main.selected_images WHERE imgid=%d", mouseover);
       DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);
       if(stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW)
       {
@@ -873,7 +862,7 @@ gchar *dt_view_get_images_to_act_on_query(const gboolean only_visible)
     {
       // column 1,2
       sqlite3_stmt *stmt;
-      gchar *query = dt_util_dstrcat(NULL, "SELECT imgid FROM main.selected_images WHERE imgid =%d", mouseover);
+      gchar *query = g_strdup_printf("SELECT imgid FROM main.selected_images WHERE imgid =%d", mouseover);
       DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);
       if(stmt != NULL && sqlite3_step(stmt) == SQLITE_ROW)
       {
@@ -935,10 +924,11 @@ gchar *dt_view_get_images_to_act_on_query(const gboolean only_visible)
   }
   if(images)
   {
+    // remove trailing comma
     images[strlen(images) - 1] = '\0';
   }
   else
-    images = dt_util_dstrcat(NULL, " ");
+    images = g_strdup(" ");
   return images;
 }
 
@@ -1508,41 +1498,38 @@ GSList *dt_mouse_action_create_format(GSList *actions, dt_mouse_action_type_t ty
 
 static gchar *_mouse_action_get_string(dt_mouse_action_t *ma)
 {
-  gchar *accel_label = gtk_accelerator_get_label(ma->key.accel_key, ma->key.accel_mods);
-  gchar *atxt = dt_util_dstrcat(NULL, "%s", accel_label);
-  g_free(accel_label);
-
+  gchar *atxt = gtk_accelerator_get_label(ma->key.accel_key, ma->key.accel_mods);
   if(strcmp(atxt, ""))
     atxt = dt_util_dstrcat(atxt, "+");
 
   switch(ma->action)
   {
     case DT_MOUSE_ACTION_LEFT:
-      atxt = dt_util_dstrcat(atxt, _("Left click"));
+      atxt = dt_util_dstrcat(atxt, _("left click"));
       break;
     case DT_MOUSE_ACTION_RIGHT:
-      atxt = dt_util_dstrcat(atxt, _("Right click"));
+      atxt = dt_util_dstrcat(atxt, _("right click"));
       break;
     case DT_MOUSE_ACTION_MIDDLE:
-      atxt = dt_util_dstrcat(atxt, _("Middle click"));
+      atxt = dt_util_dstrcat(atxt, _("middle click"));
       break;
     case DT_MOUSE_ACTION_SCROLL:
-      atxt = dt_util_dstrcat(atxt, _("Scroll"));
+      atxt = dt_util_dstrcat(atxt, _("scroll"));
       break;
     case DT_MOUSE_ACTION_DOUBLE_LEFT:
-      atxt = dt_util_dstrcat(atxt, _("Left double-click"));
+      atxt = dt_util_dstrcat(atxt, _("left double-click"));
       break;
     case DT_MOUSE_ACTION_DOUBLE_RIGHT:
-      atxt = dt_util_dstrcat(atxt, _("Right double-click"));
+      atxt = dt_util_dstrcat(atxt, _("right double-click"));
       break;
     case DT_MOUSE_ACTION_DRAG_DROP:
-      atxt = dt_util_dstrcat(atxt, _("Drag and drop"));
+      atxt = dt_util_dstrcat(atxt, _("drag and drop"));
       break;
     case DT_MOUSE_ACTION_LEFT_DRAG:
-      atxt = dt_util_dstrcat(atxt, _("Left click+Drag"));
+      atxt = dt_util_dstrcat(atxt, _("left click+drag"));
       break;
     case DT_MOUSE_ACTION_RIGHT_DRAG:
-      atxt = dt_util_dstrcat(atxt, _("Right click+Drag"));
+      atxt = dt_util_dstrcat(atxt, _("right click+drag"));
       break;
   }
 
@@ -1618,7 +1605,7 @@ void dt_view_accels_show(dt_view_manager_t *vm)
   vm->accels_window.sticky_btn
       = dtgtk_button_new(dtgtk_cairo_paint_multiinstance, CPF_STYLE_FLAT, NULL);
   g_object_set(G_OBJECT(vm->accels_window.sticky_btn), "tooltip-text",
-               _("switch to a classic window which will stay open after key release."), (char *)NULL);
+               _("switch to a classic window which will stay open after key release"), (char *)NULL);
   g_signal_connect(G_OBJECT(vm->accels_window.sticky_btn), "button-press-event", G_CALLBACK(_accels_window_sticky),
                    vm);
   context = gtk_widget_get_style_context(vm->accels_window.sticky_btn);
@@ -1722,7 +1709,7 @@ void dt_view_accels_refresh(dt_view_manager_t *vm)
       GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
       GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(_("shortcut"), renderer, "text", 0, NULL);
       gtk_tree_view_append_column(GTK_TREE_VIEW(list), column);
-      column = gtk_tree_view_column_new_with_attributes(_("Action"), renderer, "text", 1, NULL);
+      column = gtk_tree_view_column_new_with_attributes(_("action"), renderer, "text", 1, NULL);
       gtk_tree_view_append_column(GTK_TREE_VIEW(list), column);
 
       gtk_box_pack_start(GTK_BOX(box), list, FALSE, FALSE, 0);

@@ -10,30 +10,31 @@ darktable is **not** a free Adobe® Lightroom® replacement.
 ## Table of Contents
 
 1. [Documentation](#documentation)
-2. [Requirements](#requirements)
+2. [Website](#website)
+3. [Requirements](#requirements)
    - [Supported platforms](#supported-platforms)
    - [Hardware](#hardware)
-3. [Installing](#installing)
+4. [Installing](#installing)
    - [Latest release](#latest-release)
    - [Development snapshot](#development-snapshot)
-4. [Updating from older versions](#updating-from-older-versions)
-5. [Getting extensions](#getting-extensions)
-6. [Building](#building)
+5. [Updating from older versions](#updating-from-older-versions)
+6. [Getting extensions](#getting-extensions)
+7. [Building](#building)
    - [Dependencies](#dependencies)
    - [Get the source](#get-the-source)
    - [Get submodules](#get-submodules)
    - [Compile](#compile)
    - [Further reading](#further-reading)
-7. [Using](#using)
+8. [Using](#using)
    - [Test/unstable version](#testunstable-version)
    - [Regular/stable version](#regularstable-version)
-8. [Contributing](#contributing)
-9. [FAQ](#faq)
+9. [Contributing](#contributing)
+10. [FAQ](#faq)
    - [Why is my camera not detected when plugged-in ?](#why-is-my-camera-not-detected-when-plugged-in-)
    - [Why is my lens not detected/corrected in darkroom ?](#why-is-my-lens-not-detectedcorrected-in-darkroom-)
    - [Why are the thumbnails in lighttable looking different than the preview in darkroom ?](#why-are-the-thumbnails-in-lighttable-looking-different-than-the-preview-in-darkroom-)
-10. [Wiki](#wiki)
-11. [Mailing lists](#mailing-lists)
+11. [Wiki](#wiki)
+12. [Mailing lists](#mailing-lists)
 
 Documentation
 -------------
@@ -41,6 +42,11 @@ Documentation
 The darktable user manual is maintained in the [dtdocs](https://github.com/darktable-org/dtdocs) repository.
 
 Lua API documentation is maintained in the [luadocs](https://github.com/darktable-org/luadocs) repository.
+
+Website
+-------
+
+The website [https://www.darktable.org/](https://www.darktable.org/) is maintained in the [dtorg](https://github.com/darktable-org/dtorg) repository.
 
 Requirements
 ------------
@@ -79,10 +85,10 @@ you can build the software yourself following the instructions [below](#building
 
 ### Latest release
 
-3.6.0 (stable)
+3.6.1 (stable)
 
-* [Download executable for Windows](https://github.com/darktable-org/darktable/releases/download/release-3.6.0/darktable-3.6.0-win64.exe)
-* [Download executable for mac OS](https://github.com/darktable-org/darktable/releases/download/release-3.6.0/darktable-3.6.0.3.dmg)
+* [Download executable for Windows](https://github.com/darktable-org/darktable/releases/download/release-3.6.1/darktable-3.6.1-win64.exe)
+* [Download executable for mac OS](https://github.com/darktable-org/darktable/releases/download/release-3.6.1/darktable-3.6.1.6.dmg)
 * [Install native packages and repositories for Linux](https://software.opensuse.org/download.html?project=graphics:darktable:stable&package=darktable)
 * [Install Flatpak package for Linux](https://flathub.org/apps/details/org.darktable.Darktable)
 * [More information about installing darktable on any system](https://www.darktable.org/install/)
@@ -165,7 +171,7 @@ Optional dependencies with no version requirement:
 * OpenEXR *(for EXR import and export)*
 * OpenJPEG *(for Jpeg2000 export)*
 * Colord, Xatom *(for system display color profile fetching)*
-* G'Mic *(for HaldcLUT support)*
+* G'Mic *(for gmz compressed lut support)*
 * PortMidi *(for MIDI input support)*
 * SDL2 *(for gamepad input support)*
 
@@ -243,7 +249,7 @@ See below (in "Using") how to start a test install of the unstable version witho
 
 #### Latest stable release
 
-3.6.0
+3.6.1
 
 darktable project releases one major version every year, for Christmas, tagged with even numbers (e.g., 2.2, 2.4, 2.6, 3.0).
 Minor revisions are tagged with a third digit (e.g., 3.0.1, 3.0.2) and mostly provide bug fixes and minor new features.
@@ -253,7 +259,7 @@ You may want to compile these stable releases yourself to get better performance
 git clone --recurse-submodules --depth 1 https://github.com/darktable-org/darktable.git
 cd darktable
 git fetch --tags
-git checkout tags/release-3.6.0
+git checkout tags/release-3.6.1
 ```
 
 ### Get submodules
@@ -337,7 +343,7 @@ If you are having crashes at startup, try launching darktable without OpenCL wit
 
 ### Further reading
 
-There is a comprehensive list of [build instructions for Ubuntu/Debian related Linux distributions](https://github.com/darktable-org/darktable/wiki/Build-instructions-for-Ubuntu-18.04-to-20.04) or for [Fedora and related ones distributions](https://github.com/darktable-org/darktable/wiki/Build-Instructions-for-Fedora). These build instructions could easily be adapted to all other distributions
+There is a comprehensive list of [build instructions for Ubuntu/Debian related Linux distributions](https://github.com/darktable-org/darktable/wiki/Build-instructions-for-Ubuntu) or for [Fedora and related ones distributions](https://github.com/darktable-org/darktable/wiki/Build-Instructions-for-Fedora). These build instructions could easily be adapted to all other distributions
 
 
 Contributing

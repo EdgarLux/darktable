@@ -148,14 +148,12 @@ dt_bilateral_t *dt_bilateral_init(const int width,     // width of input image
   b->numslices = darktable.num_openmp_threads;
   b->sliceheight = (height + b->numslices - 1) / b->numslices;
   b->slicerows = (b->size_y + b->numslices - 1) / b->numslices + 2;
-  b->buf = dt_alloc_align_float(b->size_x * b->size_z * b->numslices * b->slicerows);
-  if (b->buf)
-  {
-    memset(b->buf, 0, sizeof(float) * b->size_x * b->size_z * b->numslices * b->slicerows);
-  }
-  else
+  b->buf = dt_calloc_align_float(b->size_x * b->size_z * b->numslices * b->slicerows);
+  if (!b->buf)
   {
     fprintf(stderr,"[bilateral] unable to allocate buffer for %lux%lux%lu grid\n",b->size_x,b->size_y,b->size_z);
+    free(b);
+    return NULL;
   }
   dt_print(DT_DEBUG_DEV, "[bilateral] created grid [%ld %ld %ld] with sigma (%f %f) (%f %f)\n",
            b->size_x, b->size_y, b->size_z, b->sigma_s, sigma_s, b->sigma_r, sigma_r);
@@ -215,7 +213,7 @@ void dt_bilateral_splat(const dt_bilateral_t *b, const float *const in)
         // nearest neighbour splatting:
         const size_t grid_index = base + image_to_relgrid(b, i, L, &xf, &zf);
         // sum up payload here
-        const float contrib[4] =
+        const dt_aligned_pixel_t contrib =
         {
           (1.0f - xf) * (1.0f - yf) * 100.0f / sigma_s,	// precompute the contributions along the first two dimensions
           xf * (1.0f - yf) * 100.0f / sigma_s,

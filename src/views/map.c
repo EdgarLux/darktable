@@ -19,6 +19,7 @@
 #include "common/collection.h"
 #include "common/darktable.h"
 #include "common/debug.h"
+#include "common/gpx.h"
 #include "common/geo.h"
 #include "common/image_cache.h"
 #include "common/mipmap_cache.h"
@@ -72,6 +73,7 @@ typedef struct dt_map_t
   GList *selected_images;
   gboolean start_drag;
   int start_drag_x, start_drag_y;
+  int start_drag_offset_x, start_drag_offset_y;
   float thumb_lat_angle, thumb_lon_angle;
   sqlite3_stmt *main_query;
   gboolean drop_filmstrip_activated;
@@ -655,7 +657,7 @@ void init(dt_view_t *self)
 
     OsmGpsMapSource_t map_source
         = OSM_GPS_MAP_SOURCE_OPENSTREETMAP; // open street map should be a nice default ...
-    gchar *old_map_source = dt_conf_get_string("plugins/map/map_source");
+    const char *old_map_source = dt_conf_get_string_const("plugins/map/map_source");
     if(old_map_source && old_map_source[0] != '\0')
     {
       // find the number of the stored map_source
@@ -671,7 +673,6 @@ void init(dt_view_t *self)
     }
     else
       dt_conf_set_string("plugins/map/map_source", osm_gps_map_source_get_friendly_name(map_source));
-    g_free(old_map_source);
 
     lib->map_source = map_source;
 
@@ -1362,8 +1363,8 @@ static void _view_map_changed_callback_delayed(gpointer user_data)
       _dbscan(p, img_count, epsilon, min_images);
       dt_show_times(&start, "[map] dbscan calculation");
 
-      // set the groups
-      const GList *sel_imgs = dt_view_get_images_to_act_on(TRUE, FALSE, FALSE);
+      // set the clusters
+      const GList *sel_imgs = dt_view_get_images_to_act_on(FALSE, FALSE, FALSE);
       int group = -1;
       for(i = 0; i< img_count; i++)
       {
@@ -1458,7 +1459,7 @@ static void _view_map_changed_callback(OsmGpsMap *map, dt_view_t *self)
     return;
   }
 
-  // "changed" event can be high frequence. As calculation is heavy we don't to repeat it.
+  // "changed" event can be high frequency. As calculation is heavy we don't to repeat it.
   if(!lib->time_out)
   {
     g_timeout_add(100, _view_map_changed_callback_wait, self);
@@ -1499,8 +1500,8 @@ static dt_map_image_t *_view_map_get_entry_at_pos(dt_view_t *self, const double 
   return NULL;
 }
 
-static GList *_view_map_get_imgs_at_pos(dt_view_t *self, const double x,
-                                        const double y, const gboolean first_on)
+static GList *_view_map_get_imgs_at_pos(dt_view_t *self, const float x, const float y,
+                                        int *offset_x, int *offset_y, const gboolean first_on)
 {
   dt_map_t *lib = (dt_map_t *)self->data;
   GList *imgs = NULL;
@@ -1520,6 +1521,8 @@ static GList *_view_map_get_imgs_at_pos(dt_view_t *self, const double x,
       if(x >= img_x && x <= img_x + entry->width && y <= img_y && y >= img_y - entry->height)
       {
         imgid = entry->imgid;
+        *offset_x = (int)x - img_x;
+        *offset_y = (int)y - img_y - DT_PIXEL_APPLY_DPI(image_pin_size);
         break;
       }
     }
@@ -1648,8 +1651,8 @@ static void _view_map_drag_set_icon(const dt_view_t *self, GdkDragContext *conte
     GtkWidget *image = gtk_image_new_from_pixbuf(thumb);
     gtk_widget_set_name((image), "map_drag_icon");
     gtk_widget_show(image);
-    gtk_drag_set_icon_widget(context, image, 0,
-                             DT_PIXEL_APPLY_DPI(height + image_pin_size + 2 * thumb_border));
+    gtk_drag_set_icon_widget(context, image, lib->start_drag_offset_x,
+                             DT_PIXEL_APPLY_DPI(height + image_pin_size + 2 * thumb_border) + lib->start_drag_offset_y);
     g_object_unref(thumb);
   }
 }
@@ -1662,6 +1665,7 @@ static gboolean _view_map_drag_motion_callback(GtkWidget *widget, GdkDragContext
   osm_gps_map_convert_screen_to_geographic(lib->map, x, y, p);
   float lat, lon;
   osm_gps_map_point_get_degrees(p, &lat, &lon);
+  osm_gps_map_point_free(p);
   _toast_log_lat_lon(lat, lon);
   return FALSE;
 }
@@ -1801,6 +1805,7 @@ static gboolean _zoom_and_center(const gint x, const gint y, const int direction
   osm_gps_map_convert_screen_to_geographic(lib->map, nx, ny, pt);
   float nlat, nlon;
   osm_gps_map_point_get_degrees(pt, &nlat, &nlon);
+  osm_gps_map_point_free(pt);
   osm_gps_map_set_center_and_zoom(lib->map, nlat, nlon, zoom);
 
   return TRUE;
@@ -1922,6 +1927,7 @@ static gboolean _view_map_button_press_callback(GtkWidget *w, GdkEventButton *e,
     }
     // check if the click was on image(s) or just some random position
     lib->selected_images = _view_map_get_imgs_at_pos(self, e->x, e->y,
+                                                     &lib->start_drag_offset_x, &lib->start_drag_offset_y,
                                                      !dt_modifier_is(e->state, GDK_SHIFT_MASK));
     if(e->type == GDK_BUTTON_PRESS)
     {
@@ -1969,6 +1975,8 @@ static gboolean _view_map_button_release_callback(GtkWidget *w, GdkEventButton *
 {
   dt_map_t *lib = (dt_map_t *)self->data;
   lib->start_drag = FALSE;
+  lib->start_drag_offset_x = 0;
+  lib->start_drag_offset_y = 0;
   lib->loc.drag = FALSE;
   return FALSE;
 }
@@ -2007,6 +2015,8 @@ void enter(dt_view_t *self)
 
   lib->selected_images = NULL;
   lib->start_drag = FALSE;
+  lib->start_drag_offset_x = 0;
+  lib->start_drag_offset_y = 0;
   lib->loc.drag = FALSE;
   lib->entering = TRUE;
 
@@ -2036,6 +2046,8 @@ void enter(dt_view_t *self)
   darktable.view_manager->proxy.map.drag_set_icon = _view_map_drag_set_icon;
   darktable.view_manager->proxy.map.redraw = _view_map_redraw;
   darktable.view_manager->proxy.map.display_selected = _view_map_display_selected;
+
+  darktable.view_manager->proxy.map.view = self;
 
   /* connect signal for filmstrip image activate */
   DT_DEBUG_CONTROL_SIGNAL_CONNECT(darktable.signals, DT_SIGNAL_VIEWMANAGER_THUMBTABLE_ACTIVATE,
@@ -2180,6 +2192,51 @@ static gboolean _view_map_remove_pin(const dt_view_t *view, OsmGpsMapImage *pin)
   return osm_gps_map_image_remove(lib->map, pin);
 }
 
+static void _track_add_point(OsmGpsMapTrack *track, OsmGpsMapPoint *point, OsmGpsMapPoint *prev_point)
+{
+  float lat, lon, prev_lat, prev_lon;
+  osm_gps_map_point_get_degrees(point, &lat, &lon);
+  osm_gps_map_point_get_degrees(prev_point, &prev_lat, &prev_lon);
+  double d, delta;
+  gboolean short_distance = TRUE;
+  if(fabs(lat - prev_lat) > DT_MINIMUM_ANGULAR_DELTA_FOR_GEODESIC
+     || fabs(lon - prev_lon) > DT_MINIMUM_ANGULAR_DELTA_FOR_GEODESIC)
+  {
+    short_distance = FALSE;
+    dt_gpx_geodesic_distance(lat, lon,
+                             prev_lat, prev_lon,
+                             &d, &delta);
+  }
+
+  if(short_distance || d < DT_MINIMUM_DISTANCE_FOR_GEODESIC)
+  {
+    osm_gps_map_track_add_point(track, point);
+  }
+  else
+  {
+    /* the line must be splitted in order to seek the geodesic line */
+    OsmGpsMapPoint *ith_point;
+    double f, ith_lat, ith_lon;
+    const int n_segments = ceil(d / DT_MINIMUM_DISTANCE_FOR_GEODESIC);
+    gboolean first_time = TRUE;
+    for(int i = 1; i <= n_segments; i ++)
+    {
+      f = (double)i / n_segments;
+      dt_gpx_geodesic_intermediate_point(prev_lat, prev_lon,
+                                         lat, lon,
+                                         delta,
+                                         first_time,
+                                         f,
+                                         &ith_lat, &ith_lon);
+
+      ith_point = osm_gps_map_point_new_degrees (ith_lat, ith_lon);
+      osm_gps_map_track_add_point(track, ith_point);
+      osm_gps_map_point_free(ith_point);
+      first_time = FALSE;
+    }
+  }
+}
+
 #ifdef HAVE_OSMGPSMAP_110_OR_NEWER
 static OsmGpsMapPolygon *_view_map_add_polygon(const dt_view_t *view, GList *points)
 {
@@ -2288,11 +2345,25 @@ static OsmGpsMapTrack *_view_map_add_track(const dt_view_t *view, GList *points)
 
   OsmGpsMapTrack* track = osm_gps_map_track_new();
 
+  OsmGpsMapPoint* prev_point;
+  gboolean first_point = TRUE;
   for(GList *iter = points; iter; iter = g_list_next(iter))
   {
     dt_geo_map_display_point_t *p = (dt_geo_map_display_point_t *)iter->data;
     OsmGpsMapPoint* point = osm_gps_map_point_new_degrees(p->lat, p->lon);
-    osm_gps_map_track_add_point(track, point);
+    if(first_point)
+    {
+      osm_gps_map_track_add_point(track, point);
+    }
+    else
+    {
+      _track_add_point(track, point, prev_point);
+      osm_gps_map_point_free(prev_point);
+    }
+    prev_point = &(*point);
+    if(!g_list_next(iter))
+      osm_gps_map_point_free(prev_point);
+    first_point = FALSE;
   }
 
   g_object_set(track, "editable", FALSE, (gchar *)0);
@@ -2502,8 +2573,7 @@ static gboolean _view_map_center_on_image_list(dt_view_t *self, const char* tabl
   double min_latitude = INFINITY;
   int count = 0;
 
-  char *query = dt_util_dstrcat(NULL,
-                                "SELECT MIN(latitude), MAX(latitude),"
+  gchar *query = g_strdup_printf("SELECT MIN(latitude), MAX(latitude),"
                                 "       MIN(longitude), MAX(longitude), COUNT(*)"
                                 " FROM main.images AS i "
                                 " JOIN %s AS l ON l.imgid = i.id "
@@ -2591,7 +2661,8 @@ static void _drag_and_drop_received(GtkWidget *widget, GdkDragContext *context, 
         }
         float longitude, latitude;
         OsmGpsMapPoint *pt = osm_gps_map_point_new_degrees(0.0, 0.0);
-        osm_gps_map_convert_screen_to_geographic(lib->map, x, y, pt);
+        osm_gps_map_convert_screen_to_geographic(lib->map, x - lib->start_drag_offset_x,
+                                                 y - lib->start_drag_offset_y, pt);
         osm_gps_map_point_get_degrees(pt, &latitude, &longitude);
         osm_gps_map_point_free(pt);
         // TODO redraw the image group
@@ -2716,10 +2787,9 @@ static gboolean _view_map_prefs_changed(dt_map_t *lib)
   gboolean filter_images_drawn = dt_conf_get_bool("plugins/map/filter_images_drawn");
   if(lib->filter_images_drawn != filter_images_drawn) prefs_changed = TRUE;
 
-  char *thumbnail = dt_conf_get_string("plugins/map/images_thumbnail");
+  const char *thumbnail = dt_conf_get_string_const("plugins/map/images_thumbnail");
   lib->thumbnail = !g_strcmp0(thumbnail, "thumbnail") ? DT_MAP_THUMB_THUMB :
                    !g_strcmp0(thumbnail, "count") ? DT_MAP_THUMB_COUNT : DT_MAP_THUMB_NONE;
-  g_free(thumbnail);
 
   return prefs_changed;
 }

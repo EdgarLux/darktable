@@ -24,6 +24,7 @@
 #include "libs/lib.h"
 #include <gtk/gtk.h>
 #include <stdlib.h>
+#include <dtgtk/expander.h>
 
 DT_MODULE(1)
 
@@ -58,6 +59,19 @@ int position()
 void update(dt_lib_module_t *self)
 {
   dt_lib_ioporder_t *d = (dt_lib_ioporder_t *)self->data;
+
+  if(!d->widget)
+  {
+    if(!self->expander) return;
+
+    d->widget = gtk_label_new("");
+    g_signal_connect(G_OBJECT(d->widget), "destroy", G_CALLBACK(gtk_widget_destroyed), &d->widget);
+    gtk_widget_show(d->widget);
+    gtk_box_pack_start(GTK_BOX(dtgtk_expander_get_header(DTGTK_EXPANDER(self->expander))), d->widget, TRUE, TRUE, 0);
+
+    gtk_widget_destroy(self->arrow);
+    self->arrow = NULL;
+  }
 
   const dt_iop_order_t kind = dt_ioppr_get_iop_order_list_kind(darktable.develop->iop_order_list);
 
@@ -117,20 +131,11 @@ void update(dt_lib_module_t *self)
     d->current_mode = kind;
     gtk_label_set_text(GTK_LABEL(d->widget), _(dt_iop_order_string(DT_IOP_ORDER_V30)));
   }
-}
-
-static void _invalidate_pipe(dt_develop_t *dev)
-{
-  // we rebuild the pipe
-  dev->pipe->changed |= DT_DEV_PIPE_REMOVE;
-  dev->preview_pipe->changed |= DT_DEV_PIPE_REMOVE;
-  dev->preview2_pipe->changed |= DT_DEV_PIPE_REMOVE;
-  dev->pipe->cache_obsolete = 1;
-  dev->preview_pipe->cache_obsolete = 1;
-  dev->preview2_pipe->cache_obsolete = 1;
-
-  // invalidate buffers and force redraw of darkroom
-  dt_dev_invalidate_all(dev);
+  else if(kind == DT_IOP_ORDER_V30_JPG)
+  {
+    d->current_mode = kind;
+    gtk_label_set_text(GTK_LABEL(d->widget), _(dt_iop_order_string(DT_IOP_ORDER_V30_JPG)));
+  }
 }
 
 static void _image_loaded_callback(gpointer instance, gpointer user_data)
@@ -146,14 +151,9 @@ void gui_init(dt_lib_module_t *self)
   self->data = (void *)d;
   self->widget = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
 
-  GtkWidget *label = gtk_label_new(_("current order"));
-
-  d->widget = gtk_label_new("");
+  d->widget = NULL; // initialise in first update when header has been set up
   d->current_mode = -1;
   d->last_custom_iop_order = NULL;
-
-  gtk_box_pack_start(GTK_BOX(self->widget), label, TRUE, TRUE, 0);
-  gtk_box_pack_start(GTK_BOX(self->widget), d->widget, TRUE, TRUE, 0);
 
   DT_DEBUG_CONTROL_SIGNAL_CONNECT(darktable.signals, DT_SIGNAL_DEVELOP_IMAGE_CHANGED,
                             G_CALLBACK(_image_loaded_callback), self);
@@ -165,6 +165,9 @@ void gui_init(dt_lib_module_t *self)
 
 void gui_cleanup(dt_lib_module_t *self)
 {
+  dt_lib_ioporder_t *d = (dt_lib_ioporder_t *)self->data;
+
+  if(d->widget) gtk_widget_destroy(d->widget);
   free(self->data);
   self->data = NULL;
 }
@@ -183,10 +186,11 @@ void gui_reset (dt_lib_module_t *self)
 
     dt_ioppr_change_iop_order(darktable.develop, imgid, iop_order_list);
 
-    _invalidate_pipe(darktable.develop);
+    dt_dev_pixelpipe_rebuild(darktable.develop);
 
     d->current_mode = DT_IOP_ORDER_V30;
-    gtk_label_set_text(GTK_LABEL(d->widget), _("v3.0"));
+    if(d->widget)
+      gtk_label_set_text(GTK_LABEL(d->widget), _("v3.0"));
     g_list_free_full(iop_order_list, free);
   }
 }
@@ -204,7 +208,12 @@ void init_presets(dt_lib_module_t *self)
 
   list = dt_ioppr_get_iop_order_list_version(DT_IOP_ORDER_V30);
   params = dt_ioppr_serialize_iop_order_list(list, &size);
-  dt_lib_presets_add(_("v3.0 (default)"), self->plugin_name, self->version(), (const char *)params, (int32_t)size,
+  dt_lib_presets_add(_("v3.0 for RAW input (default)"), self->plugin_name, self->version(), (const char *)params, (int32_t)size,
+                     TRUE);
+
+  list = dt_ioppr_get_iop_order_list_version(DT_IOP_ORDER_V30_JPG);
+  params = dt_ioppr_serialize_iop_order_list(list, &size);
+  dt_lib_presets_add(_("v3.0 for JPEG/non-RAW input"), self->plugin_name, self->version(), (const char *)params, (int32_t)size,
                      TRUE);
   free(params);
 }
@@ -221,7 +230,7 @@ int set_params(dt_lib_module_t *self, const void *params, int size)
 
     dt_ioppr_change_iop_order(darktable.develop, imgid, iop_order_list);
 
-    _invalidate_pipe(darktable.develop);
+    dt_dev_pixelpipe_rebuild(darktable.develop);
 
     update(self);
 
@@ -241,6 +250,11 @@ void *get_params(dt_lib_module_t *self, int *size)
   *size = (int)p_size;
 
   return params;
+}
+
+gboolean preset_autoapply(dt_lib_module_t *self)
+{
+  return TRUE;
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

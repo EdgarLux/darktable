@@ -111,7 +111,7 @@
 /* text fields */
 @define-color field_bg @grey_15;
 @define-color field_fg @button_fg;
-@define-color field_active_bg @grey_25;
+@define-color field_active_bg @grey_30;
 @define-color field_active_fg @grey_80;
 @define-color field_selected_bg @grey_40;
 @define-color field_selected_fg @button_checked_fg;
@@ -143,6 +143,10 @@
 @define-color thumbnail_hover_bg_color @grey_85;
 @define-color thumbnail_hover_fg_color @grey_90;
 @define-color filmstrip_bg_color @darkroom_bg_color;
+@define-color timeline_bg_color shade(@filmstrip_bg_color, 0.9);
+@define-color timeline_fg_color @text_color;
+@define-color timeline_text_bg_color alpha(black, .8);
+@define-color timeline_text_fg_color alpha(white, .9);
 @define-color thumbnail_localcopy_color @grey_75;
 
 /* Brushes */
@@ -501,6 +505,17 @@ spinbutton>button
   margin-top: 0.42em;
 }
 
+#guides_module_combobox
+{
+  padding: 0.21em 0.84em 0.42em 0.84em;
+}
+
+#guides_module_combobox button
+{
+  border: none;
+  font-size: 1.2em;
+}
+
 /* icon buttons in modules main body */
 #iop-plugin-ui-main #dt-button,
 #iop-plugin-ui-main #dt-toggle-button,
@@ -605,7 +620,17 @@ spinbutton>button
 /* Set duplicate module space in darkroom */
 #left .duplicate-ui .text-button
 {
-  margin-top: 0.28em;
+  margin-top: 0.5em;
+}
+
+#left .duplicate-ui grid > label
+{
+  margin-top: 1em;
+}
+
+#left .duplicate-ui entry
+{
+  margin: 1.25em 0 1.25em 0.5em;
 }
 
 /* Set modules name header */
@@ -687,6 +712,16 @@ spinbutton>button
 #search-box label
 {
   margin-right: 0.5em;
+}
+
+.search image.left
+{
+  padding: 0 0.35em 0 0.21em;
+}
+
+#filter-box
+{
+  min-width: 50em;
 }
 
 /*-------------------
@@ -970,15 +1005,6 @@ tooltip button
   background-color: transparent;
 }
 
-menuitem check
-{
-  border-radius: 0.14em;
-  border: 0.07em solid shade(@tooltip_bg_color, 4);
-  min-width: 0.7em;
-  min-height: 0.7em;
-  margin-right: 0.35em;
-}
-
 /* Header and footer labels, especially for combobox */
 #header-toolbar label,
 #footer-toolbar label
@@ -993,20 +1019,27 @@ popover separator
   background-color: @selected_bg_color;
 }
 
+combobox separator
+{
+  min-height: 0.07em;
+}
+
 /*----------------------
   - GTK Notebooks tabs -
   ----------------------*/
 
 notebook tabs,
 #modules-tabs,
-#blending-tabs
+#blending-tabs,
+#guides-line
 {
   color: @button_fg;
   font-family: sans-serif;
 }
 
 #modules-tabs,
-#blending-tabs
+#blending-tabs,
+#guides-line
 {
   background-color: @button_border;
 }
@@ -1017,7 +1050,8 @@ notebook tabs,
   padding: 0.1em;
 }
 
-#blending-tabs #dt-toggle-button
+#blending-tabs #dt-toggle-button,
+#guides-line #dt-toggle-button
 {
   font-size: 0.8em;
   min-height: 1.55em;
@@ -1030,6 +1064,11 @@ notebook tabs,
   min-width: 0em;
   padding-left: 0.2em;
   padding-right: 0.2em;
+}
+
+#guides-line #dt-toggle-button
+{
+  min-width: 1.55em;
 }
 
 #blending-tabs #dt-button
@@ -1047,7 +1086,8 @@ notebook tabs,
 
 /* Do not apply border-radius to group modules icons and masks icons */
 #modules-tabs button,
-#blending-tabs button
+#blending-tabs button,
+#guides-line button
 {
   border-radius: 0;
   border: 0;
@@ -1255,22 +1295,37 @@ dialog scrollbar
   padding: 0 0.14em;
 }
 
-/* Set buttons and search field on presets and shortcuts control buttons */
+/* Set buttons and search field on presets and shortcuts control buttons ; first on shortcuts options to be sure things remains consistent between shortcuts views in preferences window and in standalone shortcuts one */
+#shortcut_controls
+{
+  margin: 0.35em 0 1.05em 0;
+}
+
+#shortcut_controls .search
+{
+  margin-right: 0.35em;
+}
+
+#preset_controls entry,
+#shortcut_controls entry
+{
+  min-width: 15em;
+}
+
+#shortcut_controls button
+{
+  margin-left: 0.21em;
+}
+
 #preferences_box #shortcut_controls,
 #preferences_box #preset_controls
 {
   margin: 0.35em 1.05em 1.05em 1.05em;
 }
 
-#preferences_box #shortcut_controls
-{
-  margin-left: 0.35em;
-}
-
-#preferences_box #shortcut_controls button,
 #preferences_box #preset_controls button
 {
-margin: 0 0.14em;
+  margin-right: 0.21em;
 }
 
 /*--------------------------------
@@ -1812,7 +1867,7 @@ messagedialog .default  /* this show that a button in confirmation action pop-up
 button:hover,
 #add-color-button:hover,
 menuitem:hover,
-menuitem:hover > *,
+menuitem:hover > *:not(check),
 combobox window *:hover,
 radiobutton:hover label,
 #control-button:hover,
@@ -1911,9 +1966,11 @@ button:disabled,
 }
 
 /* Treeviews and filechoosers states */
-treeview check /* set specific background color about check buttons in treeviews like copy/paste dialog window */
+treeview check, /* set specific background color about check buttons like in copy/paste dialog window */
+menuitem check
 {
-  background-color: @field_selected_bg;
+  background-color: @field_active_bg;
+  border-color: @border_color;
 }
 
 treeview:not(#lutname) *:hover:not(check),
@@ -1947,17 +2004,41 @@ treeview check:selected
   border-color: @plugin_bg_color;
 }
 
-treeview check:hover
-{
-  background-color: @bauhaus_bg_hover;
-  color: @field_hover_fg;
-  border-color: @selected_bg_color;
-}
-
 filechooser checkbutton:checked
 {
   background-color: transparent;
 }
+
+/* Adjust check menuitems */
+menuitem check,
+menuitem check:selected
+{
+  border-radius: 0.14em;
+  min-width: 0.7em;
+  min-height: 0.7em;
+  margin: 0 0.3em;
+}
+
+treeview check:hover,
+menuitem check:hover
+{
+  color: @bauhaus_fg_hover;
+}
+
+  /* set active menu items: needed for some Pango issues not rendering synthetic bold for all OS */
+.active-menu-item label
+{
+  font-weight: bold;
+}
+
+  /* set preset and blend menu items */
+.check-menu-item check,
+.check-menu-item check:selected
+{
+  background-color: transparent;
+  padding: 0 0.14em;
+}
+
 
 /* Adjust delete folder dialog window */
 treeview#delete-dialog,
@@ -2021,11 +2102,6 @@ notebook tab:hover
   border-bottom: 0.14em solid @button_hover_fg;
   color: @button_hover_fg;
   background-color: @button_hover_bg;
-}
-
-notebook tab:hover labelnotebook
-{
-  color: @button_hover_fg;
 }
 
 notebook tab:checked
@@ -2106,7 +2182,7 @@ Hierarchy :
       #thumb_bottom                                                  (GtkEventBox -- background of the bottom infos area)
         #thumb_bottom_label                                          (GtkLabel -- text of the bottom infos area, just with .dt_extended_overlay)
       #thumb_reject                                                  (GtkDarktableThumbnailBtn -- Reject icon)
-      #thumb_star                                                    (GtkDarktableThumbnailBtn -- Star icon, 5 occurences of this)
+      #thumb_star                                                    (GtkDarktableThumbnailBtn -- Star icon, 5 occurrences of this)
       #thumb_colorlabels                                             (GtkDarktableThumbnailBtn -- colorlabels icon, 1 icon with all labels)
       #thumb_localcopy                                               (GtkDarktableThumbnailBtn -- local copy triangle icon)
       #thumb_altered                                                 (GtkDarktableThumbnailBtn -- altered icon)
@@ -2127,8 +2203,10 @@ Details :
     state = :active    if the thumb correspond to one of the images worked on (filmstrip)
     state = :hover     if the mouse hover the widget
     class = .dt_group_left / .dt_group_right / .dt_group_top / .dt_group_bottom  if we need to draw group borders around thumb
+    class = .dt_thumbnail_rating_[0-6]   rating value of the image (6==rejected)
   #thumb_image
     only the borders are drawn - background is ignored
+    color transparency is used to draw the image
   all icons inside the widget
     class = .dt_thumb_btn
     state = :hover : the mouse is hovering the icon
@@ -2213,7 +2291,7 @@ Details :
 }
 
 /* Set top margin on active image in filmstrip */
-#thumb_main:active #thumb_back
+#thumbtable_filmstrip #thumb_main:active #thumb_back
 {
   border-top: 0.105em solid @border_color;
 }
@@ -2253,10 +2331,11 @@ Details :
 }
 
 /*----------------------------------------
-  - Popover overlays menu from star icon -
+  - Popover overlays menu from star icon and grid lines -
   ----------------------------------------*/
 
-#overlays_label  /* set title of the popover menu */
+#overlays_label,  /* set title of the popover menu */
+#guides_menu_title
 {
   font-weight: bold;
   padding: 0.28em 0;
@@ -2448,6 +2527,39 @@ Details :
   color: @thumbnail_fg_color;
 }
 
+/* Set rejected images */
+.dt_thumbnail_rating_6 #thumb_image
+{
+  color: rgba(0,0,0,0.35); /* only the transparency is used to fade the image drawing */
+}
+
+.dt_thumbnail_rating_6#thumb_main:hover #thumb_image
+{
+  color: rgba(0,0,0,1); /* take back image to normal state by removing transparency when hovering the image */
+}
+
+.dt_thumbnail_rating_6 #thumb_back
+{
+  background-color: shade(@thumbnail_bg_color,0.75); /* also fade the thumb background */
+  border: 1px solid shade(@lighttable_bg_color, 0.75); /* this is needed to have appropriate border colors and avoid visible differences in border regardless of not rejected images */
+}
+
+.dt_overlays_always .dt_thumbnail_rating_6 #thumb_ext,
+.dt_overlays_always .dt_thumbnail_rating_6 #thumb_altered,
+.dt_overlays_always_extended .dt_thumbnail_rating_6 #thumb_ext,
+.dt_overlays_always_extended .dt_thumbnail_rating_6 #thumb_altered,
+.dt_overlays_always_extended .dt_thumbnail_rating_6 #thumb_bottom_label,
+.dt_overlays_mixed .dt_thumbnail_rating_6 #thumb_ext,
+.dt_overlays_mixed .dt_thumbnail_rating_6 #thumb_altered
+{
+  color: rgba(0,0,0,0.15); /* add some transparency to infos items in thumbnail */
+}
+
+.dt_thumbnail_rating_6 #thumb_star
+{
+  color: transparent; /* needed to hide completely stars in rejected images as they are not needed, except in hover mode if we want to un-reject images */
+}
+
 /* Set local copy mark */
 #thumb_localcopy
 {
@@ -2616,10 +2728,4 @@ Details :
 #lighttable_layouts_box #dt-toggle-button
 {
   margin: 0 0.4em;
-}
-
-/* Set active menu items: needed for some Pango issues not rendering synthetic bold for all OS */
-.active-menu-item *
-{
-    font-weight: bold;
 }

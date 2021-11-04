@@ -24,6 +24,7 @@
 #ifdef __SSE__
 #include <xmmintrin.h>
 #endif
+#include "common/darktable.h"
 
 // work around missing standard math.h symbols
 /** ln(10) */
@@ -159,6 +160,26 @@ static inline void mat3mul(float *const __restrict__ dest, const float *const __
   }
 }
 
+// multiply two padded 3x3 matrices
+// dest needs to be different from m1 and m2
+// dest = m1 * m2 in this order
+#ifdef _OPENMP
+#pragma omp declare simd
+#endif
+static inline void mat3SSEmul(dt_colormatrix_t dest, const dt_colormatrix_t m1, const dt_colormatrix_t m2)
+{
+  for(int k = 0; k < 3; k++)
+  {
+    for(int i = 0; i < 3; i++)
+    {
+      float x = 0.0f;
+      for(int j = 0; j < 3; j++)
+        x += m1[k][j] * m2[j][i];
+      dest[k][i] = x;
+    }
+  }
+}
+
 #ifdef _OPENMP
 #pragma omp declare simd
 #endif
@@ -171,7 +192,7 @@ static inline void mul_mat_vec_2(const float *m, const float *p, float *o)
 #ifdef _OPENMP
 #pragma omp declare simd uniform(v_2) aligned(v_1, v_2:16)
 #endif
-static inline float scalar_product(const float v_1[4], const float v_2[4])
+static inline float scalar_product(const dt_aligned_pixel_t v_1, const dt_aligned_pixel_t v_2)
 {
   // specialized 3×1 dot products 2 4×1 RGB-alpha pixels.
   // v_2 needs to be uniform along loop increments, e.g. independent from current pixel values
@@ -190,7 +211,7 @@ static inline float scalar_product(const float v_1[4], const float v_2[4])
 #ifdef _OPENMP
 #pragma omp declare simd uniform(M) aligned(M:64) aligned(v_in, v_out:16)
 #endif
-static inline void dot_product(const float v_in[4], const float M[3][4], float v_out[4])
+static inline void dot_product(const dt_aligned_pixel_t v_in, const dt_colormatrix_t M, dt_aligned_pixel_t v_out)
 {
   // specialized 3×4 dot products of 4×1 RGB-alpha pixels
   #ifdef _OPENMP
@@ -212,8 +233,25 @@ static inline float dt_log2f(const float f)
 #endif
 }
 
+union float_int {
+  float f;
+  int k;
+};
+
+// a faster, vectorizable version of hypotf() when we know that there won't be overflow, NaNs, or infinities
+#ifdef _OPENMP
+#pragma omp declare simd 
+#endif
+static inline float dt_fast_hypotf(const float x, const float y)
+{
+  return sqrtf(x * x + y * y);
+}
+
 // fast approximation of expf()
 /****** if you change this function, you need to make the same change in data/kernels/{basecurve,basic}.cl ***/
+#ifdef _OPENMP
+#pragma omp declare simd 
+#endif
 static inline float dt_fast_expf(const float x)
 {
   // meant for the range [-100.0f, 0.0f]. largest error ~ -0.06 at 0.0f.
@@ -224,12 +262,30 @@ static inline float dt_fast_expf(const float x)
   // const int k = CLAMPS(i1 + x * (i2 - i1), 0x0u, 0x7fffffffu);
   // without max clamping (doesn't work for large x, but is faster):
   const int k0 = i1 + x * (i2 - i1);
-  union {
-      float f;
-      int k;
-  } u;
+  union float_int u;
   u.k = k0 > 0 ? k0 : 0;
   return u.f;
+}
+
+static inline void dt_fast_expf_4wide(const float x[4], float result[4])
+{
+  // meant for the range [-100.0f, 0.0f]. largest error ~ -0.06 at 0.0f.
+  // will get _a_lot_ worse for x > 0.0f (9000 at 10.0f)..
+  const int i1 = 0x3f800000u;
+  // e^x, the comment would be 2^x
+  const int i2 = 0x402DF854u; // 0x40000000u;
+  // const int k = CLAMPS(i1 + x * (i2 - i1), 0x0u, 0x7fffffffu);
+  // without max clamping (doesn't work for large x, but is faster):
+  union float_int u[4];
+#ifdef _OPENMP
+#pragma omp simd aligned(x, result)
+#endif
+  for(size_t c = 0; c < 4; c++)
+  {
+    const int k0 = i1 + (int)(x[c] * (i2 - i1));
+    u[c].k = k0 > 0 ? k0 : 0;
+    result[c] = u[c].f;
+  }
 }
 
 #if defined(__SSE2__)

@@ -40,6 +40,9 @@
 #ifdef HAVE_LIBAVIF
 #include "common/imageio_avif.h"
 #endif
+#ifdef HAVE_LIBHEIF
+#include "common/imageio_heif.h"
+#endif
 #include "develop/imageop_math.h"
 #include "develop/imageop_gui.h"
 #include "iop/iop_api.h"
@@ -109,9 +112,9 @@ typedef struct dt_iop_colorin_data_t
   cmsHTRANSFORM *xform_cam_nrgb;
   cmsHTRANSFORM *xform_nrgb_Lab;
   float lut[3][LUT_SAMPLES];
-  float cmatrix[9];
-  float nmatrix[9];
-  float lmatrix[9];
+  dt_colormatrix_t cmatrix;
+  dt_colormatrix_t nmatrix;
+  dt_colormatrix_t lmatrix;
   float unbounded_coeffs[3][3]; // approximation for extrapolation of shaper curves
   int blue_mapping;
   int nonlinearlut;
@@ -522,7 +525,7 @@ static void workicc_changed(GtkWidget *widget, gpointer user_data)
     g_strlcpy(p->filename_work, filename_work, sizeof(p->filename_work));
 
     const dt_iop_order_iccprofile_info_t *const work_profile = dt_ioppr_add_profile_info_to_list(self->dev, p->type_work, p->filename_work, DT_INTENT_PERCEPTUAL);
-    if(work_profile == NULL || isnan(work_profile->matrix_in[0]) || isnan(work_profile->matrix_out[0]))
+    if(work_profile == NULL || isnan(work_profile->matrix_in[0][0]) || isnan(work_profile->matrix_out[0][0]))
     {
       fprintf(stderr, "[colorin] can't extract matrix from colorspace `%s', it will be replaced by Rec2020 RGB!\n", p->filename_work);
       dt_control_log(_("can't extract matrix from colorspace `%s', it will be replaced by Rec2020 RGB!"), p->filename_work);
@@ -532,16 +535,7 @@ static void workicc_changed(GtkWidget *widget, gpointer user_data)
 
     DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_CONTROL_PROFILE_USER_CHANGED, DT_COLORSPACES_PROFILE_TYPE_WORK);
 
-    // we need to rebuild the pipe so the profile take effect
-    self->dev->pipe->changed |= DT_DEV_PIPE_REMOVE;
-    self->dev->preview_pipe->changed |= DT_DEV_PIPE_REMOVE;
-    self->dev->preview2_pipe->changed |= DT_DEV_PIPE_REMOVE;
-    self->dev->pipe->cache_obsolete = 1;
-    self->dev->preview_pipe->cache_obsolete = 1;
-    self->dev->preview2_pipe->cache_obsolete = 1;
-
-    // invalidate buffers and force redraw of darkroom
-    dt_dev_invalidate_all(self->dev);
+    dt_dev_pixelpipe_rebuild(self->dev);
   }
   else
   {
@@ -571,19 +565,19 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   cl_mem dev_m = NULL, dev_l = NULL, dev_r = NULL, dev_g = NULL, dev_b = NULL, dev_coeffs = NULL;
 
   int kernel;
-  float *cmat, *lmat;
+  float cmat[9], lmat[9];
 
   if(d->nrgb)
   {
     kernel = gd->kernel_colorin_clipping;
-    cmat = d->nmatrix;
-    lmat = d->lmatrix;
+    pack_3xSSE_to_3x3(d->nmatrix, cmat);
+    pack_3xSSE_to_3x3(d->lmatrix, lmat);
   }
   else
   {
     kernel = gd->kernel_colorin_unbound;
-    cmat = d->cmatrix;
-    lmat = d->lmatrix;
+    pack_3xSSE_to_3x3(d->cmatrix, cmat);
+    pack_3xSSE_to_3x3(d->lmatrix, lmat);
   }
 
   cl_int err = -999;
@@ -678,18 +672,26 @@ static void process_cmatrix_bm(struct dt_iop_module_t *self, dt_dev_pixelpipe_io
   const int ch = piece->colors;
   const int clipping = (d->nrgb != NULL);
 
+  dt_colormatrix_t cmatrix;
+  transpose_3xSSE(d->cmatrix, cmatrix);
+  dt_colormatrix_t nmatrix;
+  transpose_3xSSE(d->nmatrix, nmatrix);
+  dt_colormatrix_t lmatrix;
+  transpose_3xSSE(d->lmatrix, lmatrix);
+  
     // fprintf(stderr, "Using cmatrix codepath\n");
     // only color matrix. use our optimized fast path!
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
   dt_omp_firstprivate(ch, clipping, d, ivoid, ovoid, roi_out) \
+  shared(cmatrix, nmatrix, lmatrix) \
   schedule(static)
 #endif
   for(int j = 0; j < roi_out->height; j++)
   {
     const float *in = (const float *)ivoid + (size_t)ch * j * roi_out->width;
     float *out = (float *)ovoid + (size_t)ch * j * roi_out->width;
-    float cam[3];
+    dt_aligned_pixel_t cam;
 
     for(int i = 0; i < roi_out->width; i++, in += ch, out += ch)
     {
@@ -700,52 +702,29 @@ static void process_cmatrix_bm(struct dt_iop_module_t *self, dt_dev_pixelpipe_io
         cam[c] = (d->lut[c][0] >= 0.0f) ? ((in[c] < 1.0f) ? lerp_lut(d->lut[c], in[c])
                                                           : dt_iop_eval_exp(d->unbounded_coeffs[c], in[c]))
                                         : in[c];
+      cam[3] = 0.0f; // avoid uninitialized-variable warning
 
       apply_blue_mapping(cam, cam);
 
       if(!clipping)
       {
-        float DT_ALIGNED_PIXEL _xyz[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-
-        for(int c = 0; c < 3; c++)
-        {
-          _xyz[c] = 0.0f;
-          for(int k = 0; k < 3; k++)
-          {
-            _xyz[c] += d->cmatrix[3 * c + k] * cam[k];
-          }
-        }
-
+        dt_aligned_pixel_t _xyz;
+        dt_apply_transposed_color_matrix(cam, cmatrix, _xyz);
         dt_XYZ_to_Lab(_xyz, out);
       }
       else
       {
-        float DT_ALIGNED_PIXEL nRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-        for(int c = 0; c < 3; c++)
-        {
-          nRGB[c] = 0.0f;
-          for(int k = 0; k < 3; k++)
-          {
-            nRGB[c] += d->nmatrix[3 * c + k] * cam[k];
-          }
-        }
+        dt_aligned_pixel_t nRGB;
+        dt_apply_transposed_color_matrix(cam, nmatrix, nRGB);
 
-        float DT_ALIGNED_PIXEL cRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-        for(int c = 0; c < 3; c++)
+        dt_aligned_pixel_t cRGB;
+        for_each_channel(c)
         {
           cRGB[c] = CLAMP(nRGB[c], 0.0f, 1.0f);
         }
 
-        float DT_ALIGNED_PIXEL XYZ[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-        for(int c = 0; c < 3; c++)
-        {
-          XYZ[c] = 0.0f;
-          for(int k = 0; k < 3; k++)
-          {
-            XYZ[c] += d->lmatrix[3 * c + k] * cRGB[k];
-          }
-        }
-
+        dt_aligned_pixel_t XYZ;
+        dt_apply_transposed_color_matrix(cRGB, lmatrix, XYZ);
         dt_XYZ_to_Lab(XYZ, out);
       }
     }
@@ -757,31 +736,26 @@ static void process_cmatrix_fastpath_simple(struct dt_iop_module_t *self, dt_dev
                                             const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
   const dt_iop_colorin_data_t *const d = (dt_iop_colorin_data_t *)piece->data;
-  const int ch = piece->colors;
+  assert(piece->colors == 4);
 
+  dt_colormatrix_t cmatrix;
+  transpose_3xSSE(d->cmatrix, cmatrix);
+  
 // fprintf(stderr, "Using cmatrix codepath\n");
 // only color matrix. use our optimized fast path!
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
-  dt_omp_firstprivate(ch, d, ivoid, ovoid, roi_out) \
+  dt_omp_firstprivate(ivoid, ovoid, roi_out)    \
+  shared(cmatrix) \
   schedule(static)
 #endif
   for(int k = 0; k < (size_t)roi_out->width * roi_out->height; k++)
   {
-    float *in = (float *)ivoid + (size_t)ch * k;
-    float *out = (float *)ovoid + (size_t)ch * k;
+    float *in = (float *)ivoid + (size_t)4 * k;
+    float *out = (float *)ovoid + (size_t)4 * k;
 
-    float DT_ALIGNED_PIXEL _xyz[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-
-    for(int c = 0; c < 3; c++)
-    {
-      _xyz[c] = 0.0f;
-      for(int i = 0; i < 3; i++)
-      {
-        _xyz[c] += d->cmatrix[3 * c + i] * in[i];
-      }
-    }
-
+    dt_aligned_pixel_t _xyz = { 0.0f, 0.0f, 0.0f, 0.0f };
+    dt_apply_transposed_color_matrix(in, cmatrix, _xyz);
     dt_XYZ_to_Lab(_xyz, out);
   }
 }
@@ -791,45 +765,35 @@ static void process_cmatrix_fastpath_clipping(struct dt_iop_module_t *self, dt_d
                                               const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
   const dt_iop_colorin_data_t *const d = (dt_iop_colorin_data_t *)piece->data;
-  const int ch = piece->colors;
+  assert(piece->colors == 4);
 
+  dt_colormatrix_t nmatrix;
+  dt_colormatrix_t lmatrix;
+  transpose_3xSSE(d->nmatrix, nmatrix);
+  transpose_3xSSE(d->lmatrix, lmatrix);
+  
 // fprintf(stderr, "Using cmatrix codepath\n");
 // only color matrix. use our optimized fast path!
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
-  dt_omp_firstprivate(ch, d, ivoid, ovoid, roi_out) \
+  dt_omp_firstprivate(ivoid, ovoid, roi_out)      \
+  shared(nmatrix, lmatrix) \
   schedule(static)
 #endif
   for(int k = 0; k < (size_t)roi_out->width * roi_out->height; k++)
   {
-    float *in = (float *)ivoid + (size_t)ch * k;
-    float *out = (float *)ovoid + (size_t)ch * k;
+    float *in = (float *)ivoid + (size_t)4 * k;
+    float *out = (float *)ovoid + (size_t)4 * k;
 
-    float DT_ALIGNED_PIXEL nRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    for(int c = 0; c < 3; c++)
-    {
-      nRGB[c] = 0.0f;
-      for(int i = 0; i < 3; i++)
-      {
-        nRGB[c] += d->nmatrix[3 * c + i] * in[i];
-      }
-    }
+    dt_aligned_pixel_t nRGB;
+    dt_apply_transposed_color_matrix(in, nmatrix, nRGB);
 
-    float DT_ALIGNED_PIXEL cRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    for(int c = 0; c < 3; c++)
-    {
+    dt_aligned_pixel_t cRGB = { 0.0f, 0.0f, 0.0f, 0.0f };
+    for_each_channel(c)
       cRGB[c] = CLAMP(nRGB[c], 0.0f, 1.0f);
-    }
 
-    float DT_ALIGNED_PIXEL XYZ[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    for(int c = 0; c < 3; c++)
-    {
-      XYZ[c] = 0.0f;
-      for(int i = 0; i < 3; i++)
-      {
-        XYZ[c] += d->lmatrix[3 * c + i] * cRGB[i];
-      }
-    }
+    dt_aligned_pixel_t XYZ;
+    dt_apply_transposed_color_matrix(cRGB, lmatrix, XYZ);
 
     dt_XYZ_to_Lab(XYZ, out);
   }
@@ -860,18 +824,26 @@ static void process_cmatrix_proper(struct dt_iop_module_t *self, dt_dev_pixelpip
   const int ch = piece->colors;
   const int clipping = (d->nrgb != NULL);
 
+  dt_colormatrix_t cmatrix;
+  transpose_3xSSE(d->cmatrix, cmatrix);
+  dt_colormatrix_t nmatrix;
+  transpose_3xSSE(d->nmatrix, nmatrix);
+  dt_colormatrix_t lmatrix;
+  transpose_3xSSE(d->lmatrix, lmatrix);
+  
 // fprintf(stderr, "Using cmatrix codepath\n");
 // only color matrix. use our optimized fast path!
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
   dt_omp_firstprivate(ch, clipping, d, ivoid, ovoid, roi_out) \
+  shared(cmatrix, nmatrix, lmatrix) \
   schedule(static)
 #endif
   for(int j = 0; j < roi_out->height; j++)
   {
     const float *in = (const float *)ivoid + (size_t)ch * j * roi_out->width;
     float *out = (float *)ovoid + (size_t)ch * j * roi_out->width;
-    float cam[3];
+    dt_aligned_pixel_t cam;
 
     for(int i = 0; i < roi_out->width; i++, in += ch, out += ch)
     {
@@ -882,50 +854,27 @@ static void process_cmatrix_proper(struct dt_iop_module_t *self, dt_dev_pixelpip
         cam[c] = (d->lut[c][0] >= 0.0f) ? ((in[c] < 1.0f) ? lerp_lut(d->lut[c], in[c])
                                                           : dt_iop_eval_exp(d->unbounded_coeffs[c], in[c]))
                                         : in[c];
+      cam[3] = 0.0f; // avoid uninitialized-variable warning
 
       if(!clipping)
       {
-        float DT_ALIGNED_PIXEL _xyz[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-
-        for(int c = 0; c < 3; c++)
-        {
-          _xyz[c] = 0.0f;
-          for(int k = 0; k < 3; k++)
-          {
-            _xyz[c] += d->cmatrix[3 * c + k] * cam[k];
-          }
-        }
-
+        dt_aligned_pixel_t _xyz;
+        dt_apply_transposed_color_matrix(cam, cmatrix, _xyz);
         dt_XYZ_to_Lab(_xyz, out);
       }
       else
       {
-        float DT_ALIGNED_PIXEL nRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-        for(int c = 0; c < 3; c++)
-        {
-          nRGB[c] = 0.0f;
-          for(int k = 0; k < 3; k++)
-          {
-            nRGB[c] += d->nmatrix[3 * c + k] * cam[k];
-          }
-        }
+        dt_aligned_pixel_t nRGB;
+        dt_apply_transposed_color_matrix(cam, nmatrix, nRGB);
 
-        float DT_ALIGNED_PIXEL cRGB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-        for(int c = 0; c < 3; c++)
+        dt_aligned_pixel_t cRGB;
+        for_each_channel(c)
         {
           cRGB[c] = CLAMP(nRGB[c], 0.0f, 1.0f);
         }
 
-        float DT_ALIGNED_PIXEL XYZ[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-        for(int c = 0; c < 3; c++)
-        {
-          XYZ[c] = 0.0f;
-          for(int k = 0; k < 3; k++)
-          {
-            XYZ[c] += d->lmatrix[3 * c + k] * cRGB[k];
-          }
-        }
-
+        dt_aligned_pixel_t XYZ;
+        dt_apply_transposed_color_matrix(cRGB, lmatrix, XYZ);
         dt_XYZ_to_Lab(XYZ, out);
       }
     }
@@ -1066,7 +1015,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   {
     dt_iop_image_copy_by_size(ovoid, ivoid, roi_out->width, roi_out->height, piece->colors);
   }
-  else if(!isnan(d->cmatrix[0]))
+  else if(!isnan(d->cmatrix[0][0]))
   {
     process_cmatrix(self, piece, ivoid, ovoid, roi_in, roi_out);
   }
@@ -1088,14 +1037,19 @@ static void process_sse2_cmatrix_bm(struct dt_iop_module_t *self, dt_dev_pixelpi
   const int clipping = (d->nrgb != NULL);
 
   // only color matrix. use our optimized fast path!
-  const float *const cmat = d->cmatrix;
-  const float *const nmat = d->nmatrix;
-  const float *const lmat = d->lmatrix;
+  float cmat[9], nmat[9], lmat[9];
+  pack_3xSSE_to_3x3(d->cmatrix, cmat);
+  pack_3xSSE_to_3x3(d->nmatrix, nmat);
+  pack_3xSSE_to_3x3(d->lmatrix, lmat);
   float *in = (float *)ivoid;
   float *out = (float *)ovoid;
+
+  const __m128 cm0 = _mm_set_ps(0.0f, cmat[6], cmat[3], cmat[0]);
+  const __m128 cm1 = _mm_set_ps(0.0f, cmat[7], cmat[4], cmat[1]);
+  const __m128 cm2 = _mm_set_ps(0.0f, cmat[8], cmat[5], cmat[2]);
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
-  dt_omp_firstprivate(ch, clipping, cmat, d, lmat, nmat, roi_in, roi_out) \
+  dt_omp_firstprivate(ch, clipping, d, lmat, nmat, roi_in, roi_out, cm0, cm1, cm2) \
   shared(out, in) \
   schedule(static)
 #endif
@@ -1104,10 +1058,7 @@ static void process_sse2_cmatrix_bm(struct dt_iop_module_t *self, dt_dev_pixelpi
 
     float *buf_in = in + (size_t)ch * roi_in->width * j;
     float *buf_out = out + (size_t)ch * roi_out->width * j;
-    float cam[3];
-    const __m128 cm0 = _mm_set_ps(0.0f, cmat[6], cmat[3], cmat[0]);
-    const __m128 cm1 = _mm_set_ps(0.0f, cmat[7], cmat[4], cmat[1]);
-    const __m128 cm2 = _mm_set_ps(0.0f, cmat[8], cmat[5], cmat[2]);
+    dt_aligned_pixel_t cam;
 
     const __m128 nm0 = _mm_set_ps(0.0f, nmat[6], nmat[3], nmat[0]);
     const __m128 nm1 = _mm_set_ps(0.0f, nmat[7], nmat[4], nmat[1]);
@@ -1162,11 +1113,9 @@ static void process_sse2_cmatrix_fastpath_simple(struct dt_iop_module_t *self, d
   const int ch = piece->colors;
 
   // only color matrix. use our optimized fast path!
-  const float *const cmat = d->cmatrix;
-
-  const __m128 cm0 = _mm_set_ps(0.0f, cmat[6], cmat[3], cmat[0]);
-  const __m128 cm1 = _mm_set_ps(0.0f, cmat[7], cmat[4], cmat[1]);
-  const __m128 cm2 = _mm_set_ps(0.0f, cmat[8], cmat[5], cmat[2]);
+  const __m128 cm0 = _mm_set_ps(0.0f, d->cmatrix[2][0], d->cmatrix[1][0], d->cmatrix[0][0]);
+  const __m128 cm1 = _mm_set_ps(0.0f, d->cmatrix[2][1], d->cmatrix[1][1], d->cmatrix[0][1]);
+  const __m128 cm2 = _mm_set_ps(0.0f, d->cmatrix[2][2], d->cmatrix[1][2], d->cmatrix[0][2]);
 
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
@@ -1197,16 +1146,13 @@ static void process_sse2_cmatrix_fastpath_clipping(struct dt_iop_module_t *self,
   const int ch = piece->colors;
 
   // only color matrix. use our optimized fast path!
-  const float *const nmat = d->nmatrix;
-  const float *const lmat = d->lmatrix;
+  const __m128 nm0 = _mm_set_ps(0.0f, d->nmatrix[2][0], d->nmatrix[1][0], d->nmatrix[0][0]);
+  const __m128 nm1 = _mm_set_ps(0.0f, d->nmatrix[2][1], d->nmatrix[1][1], d->nmatrix[0][1]);
+  const __m128 nm2 = _mm_set_ps(0.0f, d->nmatrix[2][2], d->nmatrix[1][2], d->nmatrix[0][2]);
 
-  const __m128 nm0 = _mm_set_ps(0.0f, nmat[6], nmat[3], nmat[0]);
-  const __m128 nm1 = _mm_set_ps(0.0f, nmat[7], nmat[4], nmat[1]);
-  const __m128 nm2 = _mm_set_ps(0.0f, nmat[8], nmat[5], nmat[2]);
-
-  const __m128 lm0 = _mm_set_ps(0.0f, lmat[6], lmat[3], lmat[0]);
-  const __m128 lm1 = _mm_set_ps(0.0f, lmat[7], lmat[4], lmat[1]);
-  const __m128 lm2 = _mm_set_ps(0.0f, lmat[8], lmat[5], lmat[2]);
+  const __m128 lm0 = _mm_set_ps(0.0f, d->lmatrix[2][0], d->lmatrix[1][0], d->lmatrix[0][0]);
+  const __m128 lm1 = _mm_set_ps(0.0f, d->lmatrix[2][1], d->lmatrix[1][1], d->lmatrix[0][1]);
+  const __m128 lm2 = _mm_set_ps(0.0f, d->lmatrix[2][2], d->lmatrix[1][2], d->lmatrix[0][2]);
 
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
@@ -1258,14 +1204,22 @@ static void process_sse2_cmatrix_proper(struct dt_iop_module_t *self, dt_dev_pix
   const int clipping = (d->nrgb != NULL);
 
   // only color matrix. use our optimized fast path!
-  const float *const cmat = d->cmatrix;
-  const float *const nmat = d->nmatrix;
-  const float *const lmat = d->lmatrix;
   float *in = (float *)ivoid;
   float *out = (float *)ovoid;
+
+  const __m128 cm0 = _mm_set_ps(0.0f, d->cmatrix[2][0], d->cmatrix[1][0], d->cmatrix[0][0]);
+  const __m128 cm1 = _mm_set_ps(0.0f, d->cmatrix[2][1], d->cmatrix[1][1], d->cmatrix[0][1]);
+  const __m128 cm2 = _mm_set_ps(0.0f, d->cmatrix[2][2], d->cmatrix[1][2], d->cmatrix[0][2]);
+  const __m128 nm0 = _mm_set_ps(0.0f, d->nmatrix[2][0], d->nmatrix[1][0], d->nmatrix[0][0]);
+  const __m128 nm1 = _mm_set_ps(0.0f, d->nmatrix[2][1], d->nmatrix[1][1], d->nmatrix[0][1]);
+  const __m128 nm2 = _mm_set_ps(0.0f, d->nmatrix[2][2], d->nmatrix[1][2], d->nmatrix[0][2]);
+  const __m128 lm0 = _mm_set_ps(0.0f, d->lmatrix[2][0], d->lmatrix[1][0], d->lmatrix[0][0]);
+  const __m128 lm1 = _mm_set_ps(0.0f, d->lmatrix[2][1], d->lmatrix[1][1], d->lmatrix[0][1]);
+  const __m128 lm2 = _mm_set_ps(0.0f, d->lmatrix[2][2], d->lmatrix[1][2], d->lmatrix[0][2]);
+
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
-  dt_omp_firstprivate(ch, clipping, cmat, d, lmat, nmat, roi_in, roi_out) \
+  dt_omp_firstprivate(ch, clipping, d, roi_in, roi_out, cm0, cm1, cm2, nm0, nm1, nm2, lm0, lm1, lm2) \
   shared(out, in) \
   schedule(static)
 #endif
@@ -1274,18 +1228,7 @@ static void process_sse2_cmatrix_proper(struct dt_iop_module_t *self, dt_dev_pix
 
     float *buf_in = in + (size_t)ch * roi_in->width * j;
     float *buf_out = out + (size_t)ch * roi_out->width * j;
-    float cam[3];
-    const __m128 cm0 = _mm_set_ps(0.0f, cmat[6], cmat[3], cmat[0]);
-    const __m128 cm1 = _mm_set_ps(0.0f, cmat[7], cmat[4], cmat[1]);
-    const __m128 cm2 = _mm_set_ps(0.0f, cmat[8], cmat[5], cmat[2]);
-
-    const __m128 nm0 = _mm_set_ps(0.0f, nmat[6], nmat[3], nmat[0]);
-    const __m128 nm1 = _mm_set_ps(0.0f, nmat[7], nmat[4], nmat[1]);
-    const __m128 nm2 = _mm_set_ps(0.0f, nmat[8], nmat[5], nmat[2]);
-
-    const __m128 lm0 = _mm_set_ps(0.0f, lmat[6], lmat[3], lmat[0]);
-    const __m128 lm1 = _mm_set_ps(0.0f, lmat[7], lmat[4], lmat[1]);
-    const __m128 lm2 = _mm_set_ps(0.0f, lmat[8], lmat[5], lmat[2]);
+    dt_aligned_pixel_t cam;
 
     for(int i = 0; i < roi_out->width; i++, buf_in += ch, buf_out += ch)
     {
@@ -1462,7 +1405,7 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
   {
     dt_iop_image_copy_by_size(ovoid, ivoid, roi_out->width, roi_out->height, piece->colors);
   }
-  else if(!isnan(d->cmatrix[0]))
+  else if(!isnan(d->cmatrix[0][0]))
   {
     process_sse2_cmatrix(self, piece, ivoid, ovoid, roi_in, roi_out);
   }
@@ -1530,7 +1473,7 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
     d->xform_nrgb_Lab = NULL;
   }
 
-  d->cmatrix[0] = d->nmatrix[0] = d->lmatrix[0] = NAN;
+  d->cmatrix[0][0] = d->nmatrix[0][0] = d->lmatrix[0][0] = NAN;
   d->lut[0][0] = -1.0f;
   d->lut[1][0] = -1.0f;
   d->lut[2][0] = -1.0f;
@@ -1677,7 +1620,7 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
                                                     LUT_SAMPLES))
     {
       piece->process_cl_ready = 0;
-      d->cmatrix[0] = NAN;
+      d->cmatrix[0][0] = NAN;
       d->xform_cam_Lab = cmsCreateTransform(d->input, input_format, Lab, TYPE_LabA_FLT, p->intent, 0);
       d->xform_cam_nrgb = cmsCreateTransform(d->input, input_format, d->nrgb, TYPE_RGBA_FLT, p->intent, 0);
       d->xform_nrgb_Lab = cmsCreateTransform(d->nrgb, TYPE_RGBA_FLT, Lab, TYPE_LabA_FLT, p->intent, 0);
@@ -1685,9 +1628,9 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
     else
     {
       float lutr[1], lutg[1], lutb[1];
-      float omat[9];
+      dt_colormatrix_t omat;
       dt_colorspaces_get_matrix_from_output_profile(d->nrgb, omat, lutr, lutg, lutb, 1);
-      mat3mul(d->nmatrix, omat, d->cmatrix);
+      dt_colormatrix_mul(d->nmatrix, omat, d->cmatrix);
       dt_colorspaces_get_matrix_from_input_profile(d->nrgb, d->lmatrix, lutr, lutg, lutb, 1);
     }
   }
@@ -1698,13 +1641,13 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
                                                     LUT_SAMPLES))
     {
       piece->process_cl_ready = 0;
-      d->cmatrix[0] = NAN;
+      d->cmatrix[0][0] = NAN;
       d->xform_cam_Lab = cmsCreateTransform(d->input, input_format, Lab, TYPE_LabA_FLT, p->intent, 0);
     }
   }
 
   // we might have failed generating the clipping transformations, check that:
-  if(d->nrgb && ((!d->xform_cam_nrgb && isnan(d->nmatrix[0])) || (!d->xform_nrgb_Lab && isnan(d->lmatrix[0]))))
+  if(d->nrgb && ((!d->xform_cam_nrgb && isnan(d->nmatrix[0][0])) || (!d->xform_nrgb_Lab && isnan(d->lmatrix[0][0]))))
   {
     if(d->xform_cam_nrgb)
     {
@@ -1720,7 +1663,7 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   }
 
   // user selected a non-supported input profile, check that:
-  if(!d->xform_cam_Lab && isnan(d->cmatrix[0]))
+  if(!d->xform_cam_Lab && isnan(d->cmatrix[0][0]))
   {
     if(p->type == DT_COLORSPACE_FILE)
       fprintf(stderr, "[colorin] unsupported input profile `%s' has been replaced by linear Rec709 RGB!\n", p->filename);
@@ -1735,7 +1678,7 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
                                                     LUT_SAMPLES))
     {
       piece->process_cl_ready = 0;
-      d->cmatrix[0] = NAN;
+      d->cmatrix[0][0] = NAN;
       d->xform_cam_Lab = cmsCreateTransform(d->input, TYPE_RGBA_FLT, Lab, TYPE_LabA_FLT, p->intent, 0);
     }
   }
@@ -1905,7 +1848,6 @@ void reload_defaults(dt_iop_module_t *module)
     {
       img->profile_size = dt_imageio_j2k_read_profile(filename, &img->profile);
       color_profile = (img->profile_size > 0) ? DT_COLORSPACE_EMBEDDED_ICC : DT_COLORSPACE_NONE;
-
     }
 #endif
     // the ldr test just checks for magics in the file header
@@ -1922,26 +1864,27 @@ void reload_defaults(dt_iop_module_t *module)
 #ifdef HAVE_LIBAVIF
     else if(!strcmp(ext, "avif"))
     {
-      struct avif_color_profile cp = {
-          .type = DT_COLORSPACE_NONE,
-      };
-      const dt_imageio_retval_t ret =
-          dt_imageio_avif_read_color_profile(filename, &cp);
-      if (ret != DT_IMAGEIO_OK)
-      {
-        g_free(ext);
-        return;
-      }
-      if (cp.type != DT_COLORSPACE_NONE)
-      {
-        color_profile = cp.type;
-      }
-      else
-      {
-        img->profile_size = cp.icc_profile_size;
-        img->profile      = cp.icc_profile;
+      dt_colorspaces_cicp_t cicp;
+      img->profile_size = dt_imageio_avif_read_profile(filename, &img->profile, &cicp);
+      /* try the nclx box before falling back to any ICC profile */
+      if((color_profile = dt_colorspaces_cicp_to_type(&cicp, filename)) == DT_COLORSPACE_NONE)
         color_profile = (img->profile_size > 0) ? DT_COLORSPACE_EMBEDDED_ICC : DT_COLORSPACE_NONE;
-      }
+    }
+#endif
+#ifdef HAVE_LIBHEIF
+    else if(!strcmp(ext, "heif")
+         || !strcmp(ext, "heic")
+         || !strcmp(ext, "hif")
+  #ifndef HAVE_LIBAVIF
+         || !strcmp(ext, "avif")
+  #endif
+         )
+    {
+      dt_colorspaces_cicp_t cicp;
+      img->profile_size = dt_imageio_heif_read_profile(filename, &img->profile, &cicp);
+      /* try the nclx box before falling back to any ICC profile */
+      if((color_profile = dt_colorspaces_cicp_to_type(&cicp, filename)) == DT_COLORSPACE_NONE)
+        color_profile = (img->profile_size > 0) ? DT_COLORSPACE_EMBEDDED_ICC : DT_COLORSPACE_NONE;
     }
 #endif
     g_free(ext);

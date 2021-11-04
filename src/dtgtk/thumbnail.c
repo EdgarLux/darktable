@@ -89,13 +89,13 @@ static void _image_update_group_tooltip(dt_thumbnail_t *thumb)
 
   // the group leader
   if(thumb->imgid == thumb->groupid)
-    tt = dt_util_dstrcat(tt, "\n<b>%s (%s)</b>", _("current"), _("leader"));
+    tt = g_strdup_printf("\n<b>%s (%s)</b>", _("current"), _("leader"));
   else
   {
     const dt_image_t *img = dt_image_cache_get(darktable.image_cache, thumb->groupid, 'r');
     if(img)
     {
-      tt = dt_util_dstrcat(tt, "\n<b>%s (%s)</b>", img->filename, _("leader"));
+      tt = g_strdup_printf("\n<b>%s (%s)</b>", img->filename, _("leader"));
       dt_image_cache_read_release(darktable.image_cache, img);
     }
   }
@@ -126,12 +126,28 @@ static void _image_update_group_tooltip(dt_thumbnail_t *thumb)
   sqlite3_finalize(stmt);
 
   // and the number of grouped images
-  gchar *ttf = dt_util_dstrcat(NULL, "%d %s\n%s", nb, _("grouped images"), tt);
+  gchar *ttf = g_strdup_printf("%d %s\n%s", nb, _("grouped images"), tt);
   g_free(tt);
 
   // let's apply the tooltip
   gtk_widget_set_tooltip_markup(thumb->w_group, ttf);
   g_free(ttf);
+}
+
+static void _thumb_update_rating_class(dt_thumbnail_t *thumb)
+{
+  if(!thumb->w_main) return;
+
+  GtkStyleContext *context = gtk_widget_get_style_context(thumb->w_main);
+  for(int i = DT_VIEW_DESERT; i <= DT_VIEW_REJECT; i++)
+  {
+    gchar *cn = g_strdup_printf("dt_thumbnail_rating_%d", i);
+    if(thumb->rating == i)
+      gtk_style_context_add_class(context, cn);
+    else
+      gtk_style_context_remove_class(context, cn);
+    g_free(cn);
+  }
 }
 
 static void _image_get_infos(dt_thumbnail_t *thumb)
@@ -141,6 +157,7 @@ static void _image_get_infos(dt_thumbnail_t *thumb)
 
   // we only get here infos that might change, others(exif, ...) are cached on widget creation
 
+  const int old_rating = thumb->rating;
   thumb->rating = 0;
   const dt_image_t *img = dt_image_cache_get(darktable.image_cache, thumb->imgid, 'r');
   if(img)
@@ -154,6 +171,11 @@ static void _image_get_infos(dt_thumbnail_t *thumb)
     thumb->groupid = img->group_id;
 
     dt_image_cache_read_release(darktable.image_cache, img);
+  }
+  // if the rating as changed, update the rejected
+  if(old_rating != thumb->rating)
+  {
+    _thumb_update_rating_class(thumb);
   }
 
   // colorlabels
@@ -231,12 +253,16 @@ static void _thumb_draw_image(dt_thumbnail_t *thumb, cairo_t *cr)
   if(thumb->img_surf && cairo_surface_get_reference_count(thumb->img_surf) >= 1)
   {
     cairo_save(cr);
-    float scaler = 1.0f / darktable.gui->ppd_thb;
+    const float scaler = 1.0f / darktable.gui->ppd_thb;
     cairo_scale(cr, scaler, scaler);
 
     cairo_set_source_surface(cr, thumb->img_surf, thumb->zoomx * darktable.gui->ppd,
                              thumb->zoomy * darktable.gui->ppd);
-    cairo_paint(cr);
+
+    // get the transparency value
+    GdkRGBA im_color;
+    gtk_style_context_get_color(context, gtk_widget_get_state_flags(thumb->w_image), &im_color);
+    cairo_paint_with_alpha(cr, im_color.alpha);
 
     // and eventually the image border
     gtk_render_frame(context, cr, 0, 0, w * darktable.gui->ppd_thb, h * darktable.gui->ppd_thb);
@@ -272,14 +298,11 @@ static void _thumb_write_extension(dt_thumbnail_t *thumb)
 {
   // fill the file extension label
   const char *ext = thumb->filename + strlen(thumb->filename);
-  gchar *ext2 = NULL;
   while(ext > thumb->filename && *ext != '.') ext--;
   ext++;
   gchar *uext = dt_view_extend_modes_str(ext, thumb->is_hdr, thumb->is_bw, thumb->is_bw_flow);
-  ext2 = dt_util_dstrcat(ext2, "%s", uext);
-  gtk_label_set_text(GTK_LABEL(thumb->w_ext), ext2);
+  gtk_label_set_text(GTK_LABEL(thumb->w_ext), uext);
   g_free(uext);
-  g_free(ext2);
 }
 
 static gboolean _event_cursor_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data)
@@ -498,7 +521,9 @@ static gboolean _event_image_draw(GtkWidget *widget, cairo_t *cr, gpointer user_
   }
 
   // if image surface has no more ref. let's samitize it's value to NULL
-  if(thumb->img_surf && cairo_surface_get_reference_count(thumb->img_surf) < 1) thumb->img_surf = NULL;
+  if(thumb->img_surf
+     && cairo_surface_get_reference_count(thumb->img_surf) < 1)
+    thumb->img_surf = NULL;
 
   // if we don't have it in memory, we want the image surface
   dt_view_surface_value_t res = DT_VIEW_SURFACE_OK;
@@ -509,7 +534,8 @@ static gboolean _event_image_draw(GtkWidget *widget, cairo_t *cr, gpointer user_
     _thumb_set_image_area(thumb, IMG_TO_FIT);
     gtk_widget_get_size_request(thumb->w_image_box, &image_w, &image_h);
 
-    if(v->view(v) == DT_VIEW_DARKROOM && dev->preview_pipe->output_imgid == thumb->imgid
+    if(v->view(v) == DT_VIEW_DARKROOM
+       && dev->preview_pipe->output_imgid == thumb->imgid
        && dev->preview_pipe->output_backbuf)
     {
       // the current thumb is the one currently developed in darkroom
@@ -575,7 +601,8 @@ static gboolean _event_image_draw(GtkWidget *widget, cairo_t *cr, gpointer user_
       cairo_surface_t *img_surf = NULL;
       if(thumb->zoomable)
       {
-        if(thumb->zoom > 1.0f) thumb->zoom = MIN(thumb->zoom, dt_thumbnail_get_zoom100(thumb));
+        if(thumb->zoom > 1.0f)
+          thumb->zoom = MIN(thumb->zoom, dt_thumbnail_get_zoom100(thumb));
         res = dt_view_image_get_surface(thumb->imgid, image_w * thumb->zoom, image_h * thumb->zoom, &img_surf, FALSE);
       }
       else
@@ -588,7 +615,8 @@ static gboolean _event_image_draw(GtkWidget *widget, cairo_t *cr, gpointer user_
         // if we succeed to get an image (even a smaller one)
         cairo_surface_t *tmp_surf = thumb->img_surf;
         thumb->img_surf = img_surf;
-        if(tmp_surf && cairo_surface_get_reference_count(tmp_surf) > 0) cairo_surface_destroy(tmp_surf);
+        if(tmp_surf && cairo_surface_get_reference_count(tmp_surf) > 0)
+          cairo_surface_destroy(tmp_surf);
       }
     }
 
@@ -621,7 +649,8 @@ static gboolean _event_image_draw(GtkWidget *widget, cairo_t *cr, gpointer user_
           = CLAMP(thumb->zoomy, (nhi * darktable.gui->ppd_thb - thumb->img_height) / darktable.gui->ppd_thb, 0);
 
       // for overlay block, we need to resize it
-      if(thumb->over == DT_THUMBNAIL_OVERLAYS_HOVER_BLOCK) _thumb_resize_overlays(thumb);
+      if(thumb->over == DT_THUMBNAIL_OVERLAYS_HOVER_BLOCK)
+        _thumb_resize_overlays(thumb);
     }
 
     // if we don't have the right size of the image now, we reload it again
@@ -667,7 +696,9 @@ static gboolean _event_image_draw(GtkWidget *widget, cairo_t *cr, gpointer user_
     }
 
     // and we can also set the zooming level if needed
-    if(res == DT_VIEW_SURFACE_OK && thumb->zoomable && thumb->over == DT_THUMBNAIL_OVERLAYS_HOVER_BLOCK)
+    if(res == DT_VIEW_SURFACE_OK
+       && thumb->zoomable
+       && thumb->over == DT_THUMBNAIL_OVERLAYS_HOVER_BLOCK)
     {
       if(thumb->zoom_100 < 1.0 || thumb->zoom <= 1.0f)
       {
@@ -675,7 +706,7 @@ static gboolean _event_image_draw(GtkWidget *widget, cairo_t *cr, gpointer user_
       }
       else
       {
-        gchar *z = dt_util_dstrcat(NULL, "%.0f%%", thumb->zoom * 100.0 / thumb->zoom_100);
+        gchar *z = g_strdup_printf("%.0f%%", thumb->zoom * 100.0 / thumb->zoom_100);
         gtk_label_set_text(GTK_LABEL(thumb->w_zoom), z);
         g_free(z);
       }
@@ -1158,6 +1189,7 @@ GtkWidget *dt_thumbnail_create_widget(dt_thumbnail_t *thumb, float zoom_ratio)
   // main widget (overlay)
   thumb->w_main = gtk_overlay_new();
   gtk_widget_set_name(thumb->w_main, "thumb_main");
+  _thumb_update_rating_class(thumb);
   gtk_widget_set_size_request(thumb->w_main, thumb->width, thumb->height);
 
   if(thumb->imgid > 0)
@@ -1271,7 +1303,7 @@ GtkWidget *dt_thumbnail_create_widget(dt_thumbnail_t *thumb, float zoom_ratio)
     if(thumb->over == DT_THUMBNAIL_OVERLAYS_ALWAYS_EXTENDED || thumb->over == DT_THUMBNAIL_OVERLAYS_HOVER_EXTENDED
        || thumb->over == DT_THUMBNAIL_OVERLAYS_MIXED || thumb->over == DT_THUMBNAIL_OVERLAYS_HOVER_BLOCK)
     {
-      gchar *lb = dt_util_dstrcat(NULL, "%s", thumb->info_line);
+      gchar *lb = g_strdup(thumb->info_line);
       thumb->w_bottom = gtk_label_new(NULL);
       gtk_label_set_markup(GTK_LABEL(thumb->w_bottom), lb);
       g_free(lb);
@@ -1724,7 +1756,7 @@ void dt_thumbnail_resize(dt_thumbnail_t *thumb, int width, int height, gboolean 
   if(thumb->container == DT_THUMBNAIL_CONTAINER_LIGHTTABLE)
   {
     // we get the corresponding size
-    gchar *txt = dt_conf_get_string("plugins/lighttable/thumbnail_sizes");
+    const char *txt = dt_conf_get_string_const("plugins/lighttable/thumbnail_sizes");
     gchar **ts = g_strsplit(txt, "|", -1);
     int i = 0;
     while(ts[i])
@@ -1734,9 +1766,8 @@ void dt_thumbnail_resize(dt_thumbnail_t *thumb, int width, int height, gboolean 
       i++;
     }
     g_strfreev(ts);
-    g_free(txt);
 
-    gchar *cl = dt_util_dstrcat(NULL, "dt_thumbnails_%d", i);
+    gchar *cl = g_strdup_printf("dt_thumbnails_%d", i);
     GtkStyleContext *context = gtk_widget_get_style_context(thumb->w_image);
     if(!gtk_style_context_has_class(context, cl))
     {
@@ -1972,7 +2003,7 @@ void dt_thumbnail_reload_infos(dt_thumbnail_t *thumb)
   gchar *lb = NULL;
   if(thumb->over == DT_THUMBNAIL_OVERLAYS_ALWAYS_EXTENDED || thumb->over == DT_THUMBNAIL_OVERLAYS_HOVER_EXTENDED
      || thumb->over == DT_THUMBNAIL_OVERLAYS_MIXED || thumb->over == DT_THUMBNAIL_OVERLAYS_HOVER_BLOCK)
-    lb = dt_util_dstrcat(NULL, "%s", thumb->info_line);
+    lb = g_strdup(thumb->info_line);
 
   // we set the text
   gtk_label_set_markup(GTK_LABEL(thumb->w_bottom), lb);

@@ -316,6 +316,10 @@ GtkWidget *dt_bauhaus_combobox_from_params(dt_iop_module_t *self, const char *pa
             dt_bauhaus_combobox_add_full(combobox, gettext(iter->description), DT_BAUHAUS_COMBOBOX_ALIGN_RIGHT, GINT_TO_POINTER(iter->value), NULL, TRUE);
         }
 
+        dt_action_t *action = dt_action_locate(&self->so->actions, (gchar **)(const gchar *[]){ *f->header.description ? f->header.description : f->header.field_name, NULL}, FALSE);
+        if(action && f->Enum.values)
+          g_hash_table_insert(darktable.control->combo_introspection, action, f->Enum.values);
+
         g_signal_connect(G_OBJECT(combobox), "value-changed", G_CALLBACK(dt_iop_combobox_enum_callback), p + f->header.offset);
       }
       else
@@ -436,6 +440,12 @@ GtkWidget *dt_iop_button_new(dt_iop_module_t *self, const gchar *label,
   if(GTK_IS_BOX(box)) gtk_box_pack_start(GTK_BOX(box), button, TRUE, TRUE, 0);
 
   return button;
+}
+
+gboolean dt_mask_scroll_increases(int up)
+{
+  const gboolean mask_down = dt_conf_get_bool("masks_scroll_down_increases");
+  return up ? !mask_down : mask_down;
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

@@ -310,7 +310,7 @@ static void _new_button_clicked(GtkButton *button, dt_lib_module_t *self)
   while(dt_map_location_name_exists(new_name))
   {
     g_free(new_name);
-    new_name = dt_util_dstrcat(NULL,"%s %d", name, i);
+    new_name = g_strdup_printf("%s %d", name, i);
     i++;
   }
 
@@ -763,7 +763,7 @@ static gboolean _set_location_collection(dt_lib_module_t *self)
   {
     char *name;
     gtk_tree_model_get(model, &iter, DT_MAP_LOCATION_COL_PATH, &name, -1);
-    char *collection = dt_util_dstrcat(NULL, "1:0:%d:%s|%s$",
+    char *collection = g_strdup_printf("1:0:%d:%s|%s$",
                                        DT_COLLECTION_PROP_GEOTAGGING,
                                        _("tagged"), name);
     dt_collection_deserialize(collection);
@@ -832,14 +832,7 @@ static void _pop_menu_view(GtkWidget *view, GdkEventButton *event, dt_lib_module
 
   gtk_widget_show_all(GTK_WIDGET(menu));
 
-#if GTK_CHECK_VERSION(3, 22, 0)
   gtk_menu_popup_at_pointer(GTK_MENU(menu), (GdkEvent *)event);
-#else
-  /* Note: event can be NULL here when called from view_onPopupMenu;
-   *  gdk_event_get_time() accepts a NULL argument */
-  gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, (event != NULL) ? event->button : 0,
-                 gdk_event_get_time((GdkEvent *)event));
-#endif
 }
 
 static gboolean _force_selection_changed(gpointer user_data)

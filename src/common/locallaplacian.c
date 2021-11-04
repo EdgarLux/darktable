@@ -169,7 +169,7 @@ static inline void gauss_expand(
 #if defined(__SSE2__)
 static inline __m128 convolve14641_vert(const float *in, const int wd)
 {
-  float four[4] = { 4.f, 4.f, 4.f, 4.f };
+  const dt_aligned_pixel_t four = { 4.f, 4.f, 4.f, 4.f };
   __m128 r0 = _mm_loadu_ps(in);
   __m128 r1 = _mm_loadu_ps(in + wd);
   __m128 r2 = _mm_loadu_ps(in + 2*wd);
@@ -565,7 +565,7 @@ void local_laplacian_internal(
     float *const out,           // output buffer with colour
     const int wd,               // width and
     const int ht,               // height of the input buffer
-    const float sigma,          // user param: separate shadows/midtones/highlights
+    const float sigma,          // user param: separate shadows/mid-tones/highlights
     const float shadows,        // user param: lift shadows
     const float highlights,     // user param: compress highlights
     const float clarity,        // user param: increase clarity/local contrast

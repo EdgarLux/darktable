@@ -70,7 +70,7 @@ typedef struct dt_iop_borders_params_t
                                DEFAULT: "constant border" */
   int aspect_orient;        /* aspect ratio orientation
                                $DEFAULT: 0 $DESCRIPTION: "orientation" */
-  float size;               /* border width relative to overal frame width
+  float size;               /* border width relative to overall frame width
                                $MIN: 0.0 $MAX: 0.5 $DEFAULT: 0.1 $DESCRIPTION: "border size" */
   float pos_h;              /* picture horizontal position ratio into the final image
                                $MIN: 0.0 $MAX: 1.0 $DEFAULT: 0.5 $DESCRIPTION: "horizontal offset" */
@@ -120,7 +120,7 @@ int legacy_params(dt_iop_module_t *self, const void *const old_params, const int
     {
       float color[3]; // border color
       float aspect;   // aspect ratio of the outer frame w/h
-      float size;     // border width relative to overal frame width
+      float size;     // border width relative to overall frame width
     } dt_iop_borders_params_v1_t;
 
     dt_iop_borders_params_v1_t *o = (dt_iop_borders_params_v1_t *)old_params;
@@ -146,7 +146,7 @@ int legacy_params(dt_iop_module_t *self, const void *const old_params, const int
       float aspect;         // aspect ratio of the outer frame w/h
       char aspect_text[20]; // aspect ratio of the outer frame w/h (user string version)
       int aspect_orient;    // aspect ratio orientation
-      float size;           // border width relative to overal frame width
+      float size;           // border width relative to overall frame width
       float pos_h;          // picture horizontal position ratio into the final image
       char pos_h_text[20];  // picture horizontal position ratio into the final image (user string version)
       float pos_v;          // picture vertical position ratio into the final image
@@ -203,7 +203,7 @@ int operation_tags()
 
 int flags()
 {
-  return IOP_FLAGS_ALLOW_TILING | IOP_FLAGS_TILING_FULL_ROI;
+  return IOP_FLAGS_ALLOW_TILING | IOP_FLAGS_TILING_FULL_ROI | IOP_FLAGS_GUIDES_WIDGET;
 }
 
 int default_colorspace(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece)
@@ -380,8 +380,8 @@ void modify_roi_in(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *
 
 struct border_positions_t
 {
-  float DT_ALIGNED_PIXEL bcolor[4];
-  float DT_ALIGNED_PIXEL flcolor[4];
+  dt_aligned_pixel_t bcolor;
+  dt_aligned_pixel_t flcolor;
   int border_top;		// 0..bt is rows of top border outside the frameline
   int fl_top;			//bt..ft is the top frameline
   int image_top;		//ft..it is the top border inside the frameline
@@ -400,7 +400,7 @@ struct border_positions_t
 };
 
 // this will be called from inside an OpenMP parallel section, so no need to parallelize further
-static inline void set_pixels(float *buf, const float color[4], const int npixels)
+static inline void set_pixels(float *buf, const dt_aligned_pixel_t color, const int npixels)
 {
   for (int i = 0; i < npixels; i++)
   {

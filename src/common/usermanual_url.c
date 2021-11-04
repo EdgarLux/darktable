@@ -78,7 +78,7 @@ dt_help_url urls_db[] =
   {"lighttable_filemanager",     "lighttable/lighttable-modes/filemanager/"},
   {"lighttable_zoomable",        "lighttable/lighttable-modes/zoomable-lighttable/"},
   {"darkroom_bottom_panel",      "darkroom/darkroom-view-layout/#bottom-panel"},
-  {"module_interacting",         "darkroom/interacting-with-modules/"},
+  {"module_header",              "darkroom/processing-modules/module-header/"},
   {"tethering_session",          "module-reference/utility-modules/tethering/session/"},
   {"tethering_live_view",        "module-reference/utility-modules/tethering/live-view/"},
   {"module_toolbox",             NULL},
@@ -96,7 +96,7 @@ dt_help_url urls_db[] =
   {"gamut",                      "module-reference/utility-modules/darkroom/gamut/"},
 
   // iop links
-  {"ashift",                     "module-reference/processing-modules/perspective-correction/"},
+  {"ashift",                     "module-reference/processing-modules/rotate-perspective/"},
   {"atrous",                     "module-reference/processing-modules/contrast-equalizer/"},
   {"basecurve",                  "module-reference/processing-modules/base-curve/"},
   {"bilateral",                  "module-reference/processing-modules/surface-blur/"},

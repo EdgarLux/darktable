@@ -873,7 +873,7 @@ static gboolean _area_draw_callback(GtkWidget *widget, cairo_t *crf, dt_iop_modu
       const dt_iop_order_iccprofile_info_t *const work_profile
           = dt_ioppr_get_iop_work_profile_info(self, self->dev->iop);
 
-      float DT_ALIGNED_PIXEL picker_mean[4], picker_min[4], picker_max[4];
+      dt_aligned_pixel_t picker_mean, picker_min, picker_max;
 
       // the global live samples ...
       GSList *samples = darktable.lib->proxy.colorpicker.live_samples;
@@ -889,9 +889,9 @@ static gboolean _area_draw_callback(GtkWidget *widget, cairo_t *crf, dt_iop_modu
             // this functions need a 4c image
             for(int k = 0; k < 3; k++)
             {
-              picker_mean[k] = sample->picked_color_rgb_mean[k];
-              picker_min[k] = sample->picked_color_rgb_min[k];
-              picker_max[k] = sample->picked_color_rgb_max[k];
+              picker_mean[k] = sample->scope[DT_LIB_COLORPICKER_STATISTIC_MEAN][k];
+              picker_min[k] = sample->scope[DT_LIB_COLORPICKER_STATISTIC_MIN][k];
+              picker_max[k] = sample->scope[DT_LIB_COLORPICKER_STATISTIC_MAX][k];
             }
             picker_mean[3] = picker_min[3] = picker_max[3] = 1.f;
 
@@ -1389,7 +1389,7 @@ void gui_init(struct dt_iop_module_t *self)
 
   // color pickers
   g->colorpicker = dt_color_picker_new(self, DT_COLOR_PICKER_POINT_AREA, hbox);
-  gtk_widget_set_tooltip_text(g->colorpicker, _("pick GUI color from image\nctrl+click to select an area"));
+  gtk_widget_set_tooltip_text(g->colorpicker, _("pick GUI color from image\nctrl+click or right-click to select an area"));
   gtk_widget_set_name(g->colorpicker, "keep-active");
   g->colorpicker_set_values = dt_color_picker_new(self, DT_COLOR_PICKER_AREA, hbox);
   dtgtk_togglebutton_set_paint(DTGTK_TOGGLEBUTTON(g->colorpicker_set_values),

@@ -282,7 +282,7 @@ void dt_iop_clip_and_zoom_mosaic_half_size_f(float *const out, const float *cons
 
     for(int x = 0; x < roi_out->width; x++)
     {
-      float col[4] = { 0, 0, 0, 0 };
+      dt_aligned_pixel_t col = { 0, 0, 0, 0 };
 
       const float fx = (x + roi_out->x) * px_footprint;
       int px = (int)fx & ~1;
@@ -291,7 +291,7 @@ void dt_iop_clip_and_zoom_mosaic_half_size_f(float *const out, const float *cons
 
       const int maxi = MIN(((roi_in->width - 5) & ~1u) + rggbx, px + 2 * samples);
 
-      float p[4];
+      dt_aligned_pixel_t p;
       float num = 0;
 
       // upper left 2x2 block of sampling region
@@ -704,7 +704,7 @@ void dt_iop_clip_and_zoom_demosaic_half_size_f(float *out, const float *const in
 
     for(int x = 0; x < roi_out->width; x++)
     {
-      float col[4] = { 0, 0, 0, 0 };
+      dt_aligned_pixel_t col = { 0, 0, 0, 0 };
 
       const float fx = (x + roi_out->x) * px_footprint;
       int px = (int)fx & ~1;
@@ -713,7 +713,7 @@ void dt_iop_clip_and_zoom_demosaic_half_size_f(float *out, const float *const in
 
       const int maxi = MIN(((roi_in->width - 5) & ~1u) + rggbx, px + 2 * samples);
 
-      float p[3];
+      dt_aligned_pixel_t p;
       float num = 0;
 
       // upper left 2x2 block of sampling region
@@ -874,7 +874,7 @@ void dt_iop_clip_and_zoom_demosaic_third_size_xtrans_f(float *out, const float *
 
     for(int x = 0; x < roi_out->width; x++, outc += 4)
     {
-      float col[3] = { 0.0f };
+      dt_aligned_pixel_t col = { 0.0f };
       int num = 0;
       const int px = CLAMPS((int)round((x + roi_out->x - 0.5f) * px_footprint), 0, roi_in->width - 3);
       const int xmax = MIN(roi_in->width - 3, px + 3 * samples);
@@ -895,14 +895,14 @@ void dt_iop_clip_and_zoom_demosaic_third_size_xtrans_f(float *out, const float *
   }
 }
 
-void dt_iop_RGB_to_YCbCr(const float *rgb, float *yuv)
+void dt_iop_RGB_to_YCbCr(const dt_aligned_pixel_t rgb, dt_aligned_pixel_t yuv)
 {
   yuv[0] = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
   yuv[1] = -0.147 * rgb[0] - 0.289 * rgb[1] + 0.437 * rgb[2];
   yuv[2] = 0.615 * rgb[0] - 0.515 * rgb[1] - 0.100 * rgb[2];
 }
 
-void dt_iop_YCbCr_to_RGB(const float *yuv, float *rgb)
+void dt_iop_YCbCr_to_RGB(const dt_aligned_pixel_t yuv, dt_aligned_pixel_t rgb)
 {
   rgb[0] = yuv[0] + 1.140 * yuv[2];
   rgb[1] = yuv[0] - 0.394 * yuv[1] - 0.581 * yuv[2];
@@ -976,7 +976,7 @@ static inline void mat4inv(const float X[][4], float R[][4])
             / det;
 }
 
-static void mat4mulv(float *dst, float mat[][4], const float *const v)
+static void mat4mulv(float dst[4], const float mat[4][4], const float v[4])
 {
   for(int k = 0; k < 4; k++)
   {
@@ -986,7 +986,7 @@ static void mat4mulv(float *dst, float mat[][4], const float *const v)
   }
 }
 
-void dt_iop_estimate_cubic(const float *const x, const float *const y, float *a)
+void dt_iop_estimate_cubic(const float x[4], const float y[4], float a[4])
 {
   // we want to fit a spline
   // [y]   [x^3 x^2 x^1 1] [a^3]
