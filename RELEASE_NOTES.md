@@ -192,6 +192,12 @@ You are strongly advised to take a backup first.
 - Add a borderless requirement indicator in the print module when the user's
   selected margins are below the hardware margins.
 
+- Add an option to show all modules in the history into the active
+  module group regardeless of whether or not they are currently
+  enabled.
+
+- Add a search box in preset preferences and shortcuts.
+
 ## Bug Fixes
 
 - Multiple memory leaks have been fixed.
@@ -235,7 +241,7 @@ You are strongly advised to take a backup first.
 
 - Fix the image loader flag, which was not properly set at import time.
 
-- Add a search box in preset preferences and shortcuts.
+- Fix possible wrong setting in Color Calibration when switching from Jpeg to RAW files.
 
 ## Notes
 
