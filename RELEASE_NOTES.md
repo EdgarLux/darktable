@@ -62,6 +62,9 @@ You are strongly advised to take a backup first.
 - The composition guides from the crop module are now available globally and do
   not require the crop module to be activated.
 
+- The Canon raw CR3 format is now supported (see list of supported cameras in the
+  section below).
+
 ## Other New Features And Changes
 
 - The denoise (profiled) module now uses wavelets mode by default and its default
@@ -268,12 +271,35 @@ You are strongly advised to take a backup first.
 
 ### Base Support
 
+- Canon EOS R
+- Canon EOS RP
+- Canon EOS R5
+- Canon EOS R6
+- Canon EOS 250D
+- Canon EOS 850D
+- Canon EOS 90D
+- Canon EOS 1D X Mark III
+- Canon EOS M6 Mark II
+- Canon EOS M50
+- Canon EOS M50 Mark II
+- Canon EOS M200
+- Canon PowerShot G5 X Mark II
+- Canon PowerShot G7 X Mark III
 
 ### White Balance Presets
 
+- Canon EOS R (with fine-tuning)
+- Canon EOS RP (with fine-tuning)
+- Canon EOS R5 (with fine-tuning)
+- Canon EOS R6
+- Canon EOS M50 (with fine-tuning)
 
 ### Noise Profiles
 
+- Canon EOS R
+- Canon EOS RP
+- Canon EOS R5
+- Canon EOS R6
 
 ### Custom Color matrices
 
