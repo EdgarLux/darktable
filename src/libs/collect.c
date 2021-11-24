@@ -826,6 +826,7 @@ static gboolean tree_expand(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter 
   }
   else if(_combo_get_active_collection(dr->combo) == DT_COLLECTION_PROP_FOLDERS)
   {
+    if(g_str_has_suffix(needle, "*")) needle[strlen(needle) - 1] = '\0';
     if(g_str_has_suffix(needle, "/")) needle[strlen(needle) - 1] = '\0';
     if(g_str_has_suffix(haystack, "/")) haystack[strlen(haystack) - 1] = '\0';
   }
@@ -860,7 +861,8 @@ static gboolean tree_expand(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter 
     gtk_tree_view_expand_to_path(d->view, path);
     expanded = TRUE;
   }
-  else if(g_str_has_prefix(haystack, needle))
+  else if((dr->typing || _combo_get_active_collection(dr->combo) != DT_COLLECTION_PROP_FOLDERS)
+          && g_str_has_prefix(haystack, needle))
   {
     gtk_tree_view_expand_to_path(d->view, path);
     expanded = TRUE;
