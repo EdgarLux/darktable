@@ -75,35 +75,30 @@ static gint _sort_segment(gconstpointer a, gconstpointer b)
 
 dt_gpx_t *dt_gpx_new(const gchar *filename)
 {
-  dt_gpx_t *gpx = NULL;
-  GMarkupParseContext *ctx = NULL;
   GError *err = NULL;
-  GMappedFile *gpxmf = NULL;
-  gchar *gpxmf_content = NULL;
-  gint gpxmf_size = 0;
   gint bom_offset = 0;
-
+  GMarkupParseContext *ctx = NULL;
+  dt_gpx_t *gpx = NULL;
 
   /* map gpx file to parse into memory */
-  gpxmf = g_mapped_file_new(filename, FALSE, &err);
+  GMappedFile *gpxmf = g_mapped_file_new(filename, FALSE, &err);
   if(err) goto error;
 
-  gpxmf_content = g_mapped_file_get_contents(gpxmf);
-  gpxmf_size = g_mapped_file_get_length(gpxmf);
+  gchar *gpxmf_content = g_mapped_file_get_contents(gpxmf);
+  const gint gpxmf_size = g_mapped_file_get_length(gpxmf);
   if(!gpxmf_content || gpxmf_size < 10) goto error;
 
   /* allocate new dt_gpx_t context */
   gpx = g_malloc0(sizeof(dt_gpx_t));
 
   /* skip UTF-8 BOM */
-  if(gpxmf_size > 3 && gpxmf_content[0] == '\xef' && gpxmf_content[1] == '\xbb' && gpxmf_content[2] == '\xbf')
+  if(gpxmf_content[0] == '\xef' && gpxmf_content[1] == '\xbb' && gpxmf_content[2] == '\xbf')
     bom_offset = 3;
 
   /* initialize the parser and start parse gpx xml data */
   ctx = g_markup_parse_context_new(&_gpx_parser, 0, gpx, NULL);
   g_markup_parse_context_parse(ctx, gpxmf_content + bom_offset, gpxmf_size - bom_offset, &err);
   if(err) goto error;
-
 
   /* cleanup and return gpx context */
   g_markup_parse_context_free(ctx);
@@ -177,7 +172,7 @@ gboolean dt_gpx_get_location(struct dt_gpx_t *gpx, GDateTime *timestamp, dt_imag
     dt_gpx_track_point_t *tp_next = (dt_gpx_track_point_t *)item->next->data;
     /* check if timestamp is within current and next trackpoint */
     const gint cmp_n = g_date_time_compare(timestamp, tp_next->time);
-    if((cmp >= 0) && (item->next && cmp_n <= 0))
+    if(item->next && cmp_n <= 0)
     {
       GTimeSpan seg_diff = g_date_time_difference(tp_next->time, tp->time);
       GTimeSpan diff = g_date_time_difference(timestamp, tp->time);
