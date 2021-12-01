@@ -37,10 +37,12 @@ You are strongly advised to take a backup first.
   Please note that any shortcuts you have previously created are not transferred
   to the new functionality and will need to be redefined in darktable 3.8.
 
-- New diffuse and sharpen module, allowing to simulate or to revert diffusion
-  processes to reconstruct images from lens blur, hazing, sensor low-pass filter, or
-  noise. It can also be used to simulate watercolour smudges, increase local contrast, simulate blooming or apply surface blur. Special rules can be defined
-  to specifically diffuse across or along edges, as well as to avoid sharpening or
+- New diffuse and sharpen module, allowing to simulate or to revert
+  diffusion processes to reconstruct images from lens blur, hazing,
+  sensor low-pass filter, or noise. It can also be used to simulate
+  watercolour smudges, increase local contrast, simulate blooming or
+  apply surface blur. Special rules can be defined to specifically
+  diffuse across or along edges, as well as to avoid sharpening or
   blurring them.
 
 - New scene-referred blurs module, to synthesize motion and lens blurs in a parametric
@@ -254,14 +256,49 @@ You are strongly advised to take a backup first.
 
 - Fix the image loader flag, which was not properly set at import time.
 
-- Fix possible wrong setting in Color Calibration when switching from Jpeg to RAW files.
+- Fix possible wrong setting in Color Calibration when switching from
+  Jpeg to RAW files.
+
+- Fix a rare but possible wrong White Balance just after importing a
+  picture or while resetting the development history.
+
+## Lua
+
+- Moved from Lua 5.3 to Lua 5.4
+
+- Lua API is now 8.0.0
+
+- Added darktable.print_toast() and darktable.print_hinter() functions
+  to print toast and hinter messages respectively
+
+- Added is_altered() field to dt_lua_image data type to determine if
+  and image has been altered since being imported
+
+- Added generate_cache() function to the dt_lua_image data type so
+  that a mipmap cache image can be generated without having to run
+  darktable-generate-cache
+
+- Added function darktable.gui.libs.snapshots.clear_snapshots() to delete any snapshots.
+
+- Added event darkroom-image-loaded that is triggered when an image is
+  loaded into darkroom view.  The image is returned.
+
+- Added event darkroom-image-history-changed that is triggered when an
+  the image history is changed in darkroom view.  The image is
+  returned.
 
 ## Notes
 
-- The 3.8.x series of darktable releases will be the last which supports macOS 10.7 and building with Xcode 11.
-  The next major release will require at least macOS 10.14 to run and Xcode 12 to build.
+- The 3.8.x series of darktable releases will be the last which
+  supports macOS 10.7 and building with Xcode 11.
 
-- The module deprecated in 3.4 have now been removed from the deprecated module group. The modules are: Zone System, Invert, Channel Mixer, Global Tonemap, Relight, Tonemap, Vibrance and Basic Adjustements.
+  The next major release will require at least macOS 10.14 to run and
+  Xcode 12 to build.
+
+- The module deprecated in 3.4 have now been removed from the
+  deprecated module group. The modules are: Zone System, Invert,
+  Channel Mixer, Global Tonemap, Relight, Tonemap, Vibrance and Basic
+  Adjustements.
 
 ## Changed Dependencies
 
