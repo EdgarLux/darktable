@@ -22,9 +22,9 @@ You are strongly advised to take a backup first.
 
 #### Important note: to make sure that darktable can keep on supporting the raw file format for your camera, *please* read [this post](https://discuss.pixls.us/t/raw-samples-wanted/5420?u=lebedevri) on how/what raw samples you can contribute to ensure that we have the *full* raw sample set for your camera under CC0 license!
 
-- Almost 2680 commits to darktable+rawspeed since 3.6
-- 954 pull requests handled
-- 110 issues closed
+- Almost 3915 commits to darktable+rawspeed since 3.6
+- 571 pull requests handled
+- 265 issues closed
 
 ## The Big Ones
 
@@ -68,10 +68,10 @@ You are strongly advised to take a backup first.
   section below). This support is done by LibRaw and requires at least exiv2 version
   0.27.4 with BMFF support activated.
 
-- The color checker profiling tool, introduced in darktable 3.4 as part of the 
-  color calibration module, is now normalized patch-wise in exposure to discard the effect 
-  of uneven lighting and fall-off when shooting color checkers hand-held and on-location. 
-  This robustly decreases the residual average dE after calibration and noticeably 
+- The color checker profiling tool, introduced in darktable 3.4 as part of the
+  color calibration module, is now normalized patch-wise in exposure to discard the effect
+  of uneven lighting and fall-off when shooting color checkers hand-held and on-location.
+  This robustly decreases the residual average dE after calibration and noticeably
   helps to recover natural dark blues while preventing yellow shifts in highlights.
 
 ## Other New Features And Changes
@@ -128,7 +128,7 @@ You are strongly advised to take a backup first.
     orientation, and rotate and perspective modules.
 
     Note that the new crop module is now placed after the retouch module
-    to ensure that the full image can be used a source area.
+    to ensure that the full image can be used as a source area.
 
 - A new option has been added to allow you to choose when to start writing
   changes to the XMP sidecar files. Choose to (a) never write XMP,
@@ -331,6 +331,14 @@ You are strongly advised to take a backup first.
 - Canon EOS M200
 - Canon PowerShot G5 X Mark II
 - Canon PowerShot G7 X Mark III
+- Fujifilm GFX50S II (compressed)
+- Leica C (Typ 112) (3:2)
+- Leica Digilux 3 (4:3)
+- Leica M10 (dng)
+- Ricoh GR II
+- Sony DSC-HX95
+- Sony ILCE-7M4
+- Sony ZV-E10
 
 ### White Balance Presets
 
@@ -339,6 +347,7 @@ You are strongly advised to take a backup first.
 - Canon EOS R5 (with fine-tuning)
 - Canon EOS R6
 - Canon EOS M50 (with fine-tuning)
+- Ricoh GR II
 
 ### Noise Profiles
 
@@ -346,8 +355,65 @@ You are strongly advised to take a backup first.
 - Canon EOS RP
 - Canon EOS R5
 - Canon EOS R6
+- Fujifilm X100V
+- Leica D-Lux 7
+- Leica M10
+- Leica SL (Typ 601)
+- Panasonic DC-S5
+- Panasonic DC-FZ91
+- Panasonic DC-FZ92
+- Panasonic DC-FZ93
+- Panasonic DC-TZ90
+- Panasonic DC-TZ91
+- Panasonic DC-ZS70
 
-### Custom Color matrices
+### Custom Color Matrices
 
+### Suspended Support
+
+No samples on raw.pixls.us
+
+- Canon EOS M2
+- Creo/Leaf Aptus 22(LF3779)/Hasselblad H1
+- Fujifilm FinePix HS50EXR
+- Fujifilm FinePix S6000fd
+- Fujifilm FinePix S9600fd
+- Fujifilm IS-1
+- GoPro FUSION
+- Kodak EasyShare Z980
+- Leaf Aptus-II 5(LI300059)/Mamiya 645 AFD
+- Leaf Credo 60
+- Leaf Credo 80
+- Leica D-LUX 6
+- Minolta DiMAGE 5
+- Nikon 1 J4
+- Nikon 1 S1
+- Nikon Coolpix P7700
+- Nikon D1H
+- Nikon D2H
+- Nikon D3S
+- Olympus E-10
+- Olympus SP320
+- Olympus SP570UZ
+- Panasonic DMC-FX150
+- Panasonic DMC-G2
+- Pentax K200D
+- Pentax K2000
+- Pentax Q10
+- Phase One IQ250
+- Samsung GX10
+- Samsung GX20
+- Samsung NX5
+- Samsung NX10
+- Samsung NX11
+- Samsung NX20
+- Samsung NX2000
+- Samsung EK-GN120
+- Samsung SM-G920F
+- Samsung SM-G935F
+- Sinar Hy6/ Sinarback eXact
+- Sony DSLR-A380
+- Sony DSLR-A560
+- ST Micro STV680
 
 ## Translations
