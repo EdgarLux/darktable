@@ -201,7 +201,7 @@ static dt_job_t *dt_control_generic_images_job_create(dt_job_execute_callback ex
   }
   if(progress_type != PROGRESS_NONE)
     dt_control_job_add_progress(job, _(message), progress_type == PROGRESS_CANCELLABLE);
-  params->index = g_list_copy((GList *)dt_view_get_images_to_act_on(only_visible, TRUE, FALSE));
+  params->index = dt_act_on_get_images(only_visible, TRUE, FALSE);
 
   dt_control_job_set_params(job, params, dt_control_image_enumerator_cleanup);
 
@@ -490,7 +490,10 @@ static int32_t dt_control_merge_hdr_job_run(dt_job_t *job)
 
     const uint32_t imgid = GPOINTER_TO_INT(t->data);
 
-    dt_imageio_export_with_flags(imgid, "unused", &buf, (dt_imageio_module_data_t *)&dat, TRUE, FALSE, FALSE, TRUE,
+    const gboolean is_scaling =
+      dt_conf_is_equal("plugins/lighttable/export/resizing", "scaling");
+
+    dt_imageio_export_with_flags(imgid, "unused", &buf, (dt_imageio_module_data_t *)&dat, TRUE, FALSE, FALSE, TRUE, is_scaling,
                                  FALSE, "pre:rawprepare", FALSE, FALSE, DT_COLORSPACE_NONE, NULL, DT_INTENT_LAST, NULL,
                                  NULL, num, total, NULL);
 
@@ -581,7 +584,11 @@ static int32_t dt_control_duplicate_images_job_run(dt_job_t *job)
     const int newimgid = dt_image_duplicate(imgid);
     if(newimgid != -1)
     {
-      dt_history_copy_and_paste_on_image(imgid, newimgid, FALSE, NULL, TRUE, TRUE);
+      if(GPOINTER_TO_INT(params->data))
+        dt_history_delete_on_image(newimgid);
+      else
+        dt_history_copy_and_paste_on_image(imgid, newimgid, FALSE, NULL, TRUE, TRUE);
+
       // a duplicate should keep the change time stamp of the original
       dt_image_cache_set_change_timestamp_from_image(darktable.image_cache, newimgid, imgid);
 
@@ -1495,7 +1502,7 @@ static dt_job_t *_control_gpx_apply_job_create(const gchar *filename, int32_t fi
   if(filmid != -1)
     dt_control_image_enumerator_job_film_init(params, filmid);
   else if(!imgs)
-    params->index = g_list_copy((GList *)dt_view_get_images_to_act_on(TRUE, TRUE, FALSE));
+    params->index = dt_act_on_get_images(TRUE, TRUE, FALSE);
   else
     params->index = imgs;
   dt_control_gpx_apply_t *data = params->data;
@@ -1518,11 +1525,11 @@ void dt_control_gpx_apply(const gchar *filename, int32_t filmid, const gchar *tz
                      _control_gpx_apply_job_create(filename, filmid, tz, imgs));
 }
 
-void dt_control_duplicate_images()
+void dt_control_duplicate_images(gboolean virgin)
 {
   dt_control_add_job(darktable.control, DT_JOB_QUEUE_USER_FG,
                      dt_control_generic_images_job_create(&dt_control_duplicate_images_job_run,
-                                                          N_("duplicate images"), 0, NULL, PROGRESS_SIMPLE, TRUE));
+                                                          N_("duplicate images"), 0, GINT_TO_POINTER(virgin), PROGRESS_SIMPLE, TRUE));
 }
 
 void dt_control_flip_images(const int32_t cw)
@@ -2035,7 +2042,7 @@ static dt_job_t *dt_control_datetime_job_create(const long int offset, const cha
   if(imgs)
     params->index = imgs;
   else
-    params->index = g_list_copy((GList *)dt_view_get_images_to_act_on(TRUE, TRUE, FALSE));
+    params->index = dt_act_on_get_images(TRUE, TRUE, FALSE);
 
   dt_control_datetime_t *data = params->data;
   data->offset = offset;

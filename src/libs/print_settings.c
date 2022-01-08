@@ -150,8 +150,8 @@ position()
   return 990;
 }
 
-/* get paper dimention for the orientation (in mm) */
-static void _get_page_dimention(dt_print_info_t *prt, float *width, float *height)
+/* get paper dimension for the orientation (in mm) */
+static void _get_page_dimension(dt_print_info_t *prt, float *width, float *height)
 {
   if(prt->page.landscape)
   {
@@ -176,17 +176,17 @@ static float to_mm(dt_lib_print_settings_t *ps, double value)
 static float _mm_to_hscreen(dt_lib_print_settings_t *ps, const float value, const gboolean offset)
 {
   float width, height;
-  _get_page_dimention(&ps->prt, &width, &height);
+  _get_page_dimension(&ps->prt, &width, &height);
 
   return (offset ? ps->imgs.screen.page.x : 0)
     + (ps->imgs.screen.page.width * value / width);
 }
 
-// vertial mm to pixels
+// vertical mm to pixels
 static float _mm_to_vscreen(dt_lib_print_settings_t *ps, const float value, const gboolean offset)
 {
   float width, height;
-  _get_page_dimention(&ps->prt, &width, &height);
+  _get_page_dimension(&ps->prt, &width, &height);
 
   return (offset ? ps->imgs.screen.page.y : 0)
     + (ps->imgs.screen.page.height * value / height);
@@ -195,7 +195,7 @@ static float _mm_to_vscreen(dt_lib_print_settings_t *ps, const float value, cons
 static float _hscreen_to_mm(dt_lib_print_settings_t *ps, const float value, const gboolean offset)
 {
   float width, height;
-  _get_page_dimention(&ps->prt, &width, &height);
+  _get_page_dimension(&ps->prt, &width, &height);
 
   return width * (value - (offset ? ps->imgs.screen.page.x : 0.0f))
     / ps->imgs.screen.page.width;
@@ -204,7 +204,7 @@ static float _hscreen_to_mm(dt_lib_print_settings_t *ps, const float value, cons
 static float _vscreen_to_mm(dt_lib_print_settings_t *ps, const float value, const gboolean offset)
 {
   float width, height;
-  _get_page_dimention(&ps->prt, &width, &height);
+  _get_page_dimension(&ps->prt, &width, &height);
 
   return height * (value - (offset ? ps->imgs.screen.page.y : 0.0f))
     / ps->imgs.screen.page.height;
@@ -304,10 +304,11 @@ static int _export_image(dt_job_t *job, dt_image_box *img)
   const gboolean high_quality = TRUE;
   const gboolean upscale = TRUE;
   const gboolean export_masks = FALSE;
+  const gboolean is_scaling = FALSE;
 
   dt_imageio_export_with_flags
     (img->imgid, "unused", &buf, (dt_imageio_module_data_t *)&dat, TRUE, FALSE,
-     high_quality, upscale, FALSE, NULL, FALSE, export_masks, params->buf_icc_type,
+     high_quality, upscale, is_scaling, FALSE, NULL, FALSE, export_masks, params->buf_icc_type,
      params->buf_icc_profile, params->buf_icc_intent,  NULL, NULL, 1, 1, NULL);
 
   img->exp_width = dat.head.width;
@@ -420,7 +421,7 @@ void _fill_box_values(dt_lib_print_settings_t *ps)
     dt_image_box *box = &ps->imgs.box[ps->last_selected];
 
     float width, height;
-    _get_page_dimention(&ps->prt, &width, &height);
+    _get_page_dimension(&ps->prt, &width, &height);
 
     x       = _percent_unit_of(ps, width, box->pos.x);
     y       = _percent_unit_of(ps, height, box->pos.y);
@@ -453,7 +454,7 @@ static int _export_and_setup_pos(dt_job_t *job, dt_image_box *img, const int32_t
   dt_lib_print_job_t *params = dt_control_job_get_params(job);
 
   float width, height;
-  _get_page_dimention(&params->prt, &width, &height);
+  _get_page_dimension(&params->prt, &width, &height);
 
   dt_printing_setup_page(&params->imgs, width, height, params->prt.printer.resolution);
 
@@ -504,7 +505,7 @@ static int _print_job_run(dt_job_t *job)
   close(fd);
 
   float width, height;
-  _get_page_dimention(&params->prt, &width, &height);
+  _get_page_dimension(&params->prt, &width, &height);
 
   _create_pdf(job, params->imgs, width, height);
 
@@ -513,7 +514,7 @@ static int _print_job_run(dt_job_t *job)
 
   // send to CUPS
 
-  dt_print_file (imgid, params->pdf_filename, params->job_title, &params->prt);
+  dt_print_file(imgid, params->pdf_filename, params->job_title, &params->prt);
   dt_control_job_set_progress(job, 1.0);
 
   // add tag for this image
@@ -709,82 +710,31 @@ static void _set_printer(const dt_lib_module_t *self, const char *printer_name)
 
   dt_conf_set_string("plugins/print/print/printer", printer_name);
 
-  const char *default_paper = dt_conf_get_string_const("plugins/print/print/paper");
-
-  // next add corresponding papers
-
-  // first clear current list
-
+  // add papers for the given printer
   dt_bauhaus_combobox_clear(ps->papers);
-
-  // then add papers for the given printer
-
   if(ps->paper_list) g_list_free_full(ps->paper_list, free);
-
   ps->paper_list = dt_get_papers (&ps->prt.printer);
-  int np = 0;
-  gboolean ispaperset = FALSE;
-
   for(const GList *papers = ps->paper_list; papers; papers = g_list_next (papers))
   {
     const dt_paper_info_t *p = (dt_paper_info_t *)papers->data;
     dt_bauhaus_combobox_add(ps->papers, p->common_name);
-
-    if(ispaperset == FALSE && (!g_strcmp0(default_paper, p->common_name) || default_paper[0] == '\0'))
-    {
-      dt_bauhaus_combobox_set(ps->papers, np);
-      ispaperset = TRUE;
-    }
-
-    np++;
   }
+  const char *default_paper = dt_conf_get_string_const("plugins/print/print/paper");
+  if(!dt_bauhaus_combobox_set_from_text(ps->papers, default_paper))
+    dt_bauhaus_combobox_set(ps->papers, 0);
 
-  //  paper not found in this printer
-  if(!ispaperset) dt_bauhaus_combobox_set(ps->papers, 0);
-
-  const dt_paper_info_t *paper = dt_get_paper(ps->paper_list, default_paper);
-
-  if(paper)
-    memcpy(&ps->prt.paper, paper, sizeof(dt_paper_info_t));
-
-  // next add corresponding supported media
-
-  const char *default_medium = dt_conf_get_string_const("plugins/print/print/medium");
-
-  // first clear current list
-
+  // add corresponding supported media
   dt_bauhaus_combobox_clear(ps->media);
-
-  // then add papers for the given printer
-
   if(ps->media_list) g_list_free_full(ps->media_list, free);
-
-  ps->media_list = dt_get_media_type (&ps->prt.printer);
-  gboolean ismediaset = FALSE;
-
-  np = 0;
-
+  ps->media_list = dt_get_media_type(&ps->prt.printer);
   for(const GList *media = ps->media_list; media; media = g_list_next (media))
   {
     const dt_medium_info_t *m = (dt_medium_info_t *)media->data;
     dt_bauhaus_combobox_add(ps->media, m->common_name);
-
-    if(ismediaset == FALSE && (!g_strcmp0(default_medium, m->common_name) || default_medium[0] == '\0'))
-    {
-      dt_bauhaus_combobox_set(ps->media, np);
-      ismediaset = TRUE;
-    }
-
-    np++;
   }
-
-  //  media not found in this printer
-  if(!ismediaset) dt_bauhaus_combobox_set(ps->media, 0);
-
-  const dt_medium_info_t *medium = dt_get_medium(ps->media_list, default_medium);
-
-  if(medium)
-    memcpy(&ps->prt.medium, medium, sizeof(dt_medium_info_t));
+  const char *default_medium = dt_conf_get_string_const("plugins/print/print/medium");
+  if(!dt_bauhaus_combobox_set_from_text(ps->media, default_medium))
+    dt_bauhaus_combobox_set(ps->media, 0);
 
   dt_view_print_settings(darktable.view_manager, &ps->prt, &ps->imgs);
 }
@@ -813,7 +763,7 @@ _paper_changed(GtkWidget *combo, const dt_lib_module_t *self)
     memcpy(&ps->prt.paper, paper, sizeof(dt_paper_info_t));
 
   float width, height;
-  _get_page_dimention(&ps->prt, &width, &height);
+  _get_page_dimension(&ps->prt, &width, &height);
 
   dt_printing_setup_page(&ps->imgs, width, height, ps->prt.printer.resolution);
 
@@ -1261,7 +1211,7 @@ static void _load_image_full_page(dt_lib_print_settings_t *ps, int32_t imgid)
                         ps->imgs.screen.page.x, ps->imgs.screen.page.y,
                         ps->imgs.screen.page.width, ps->imgs.screen.page.height);
   float width, height;
-  _get_page_dimention(&ps->prt, &width, &height);
+  _get_page_dimension(&ps->prt, &width, &height);
 
   dt_printing_setup_page(&ps->imgs, width, height, ps->prt.printer.resolution);
 
@@ -1874,10 +1824,10 @@ void gui_post_expose(struct dt_lib_module_t *self, cairo_t *cr, int32_t width, i
       x2      = ps->x2;
       y2      = ps->y2;
 
-      dx1     = _hscreen_to_mm(ps, ps->x1, TRUE);
-      dy1     = _vscreen_to_mm(ps, ps->y1, TRUE);
-      dx2     = _hscreen_to_mm(ps, ps->x2, TRUE);
-      dy2     = _vscreen_to_mm(ps, ps->y2, TRUE);
+      dx1     = _hscreen_to_mm(ps, ps->x1, TRUE) * units[ps->unit];
+      dy1     = _vscreen_to_mm(ps, ps->y1, TRUE) * units[ps->unit];
+      dx2     = _hscreen_to_mm(ps, ps->x2, TRUE) * units[ps->unit];
+      dy2     = _vscreen_to_mm(ps, ps->y2, TRUE) * units[ps->unit];
       dwidth  = fabsf(dx2 - dx1);
       dheight = fabsf(dy2 - dy1);
     }
@@ -1886,11 +1836,11 @@ void gui_post_expose(struct dt_lib_module_t *self, cairo_t *cr, int32_t width, i
       const dt_image_box *box = &ps->imgs.box[ps->selected];
 
       // we could use a simpler solution but we want to use the same formulae used
-      // to fill the editable box values to avoid discrepencies between values due
+      // to fill the editable box values to avoid discrepancies between values due
       // to rounding errors.
 
       float pwidth, pheight;
-      _get_page_dimention(&ps->prt, &pwidth, &pheight);
+      _get_page_dimension(&ps->prt, &pwidth, &pheight);
 
       dx1     = _percent_unit_of(ps, pwidth, box->pos.x);
       dy1     = _percent_unit_of(ps, pheight, box->pos.y);
@@ -1920,10 +1870,7 @@ void gui_post_expose(struct dt_lib_module_t *self, cairo_t *cr, int32_t width, i
 
     snprintf(dimensions, sizeof(dimensions),
              "(%.2f %.2f) -> (%.2f %.2f) | (%.2f x %.2f)",
-             dx1 * units[ps->unit],    dy1 * units[ps->unit],
-             dx2 * units[ps->unit],    dy2 * units[ps->unit],
-             dwidth * units[ps->unit], dheight * units[ps->unit]);
-
+             dx1, dy1, dx2, dy2, dwidth, dheight);
     pango_layout_set_text(layout, dimensions, -1);
     pango_layout_get_pixel_extents(layout, NULL, &ext);
     const float text_w = ext.width;
@@ -1932,7 +1879,7 @@ void gui_post_expose(struct dt_lib_module_t *self, cairo_t *cr, int32_t width, i
     const float xp = (x1 + x2 - text_w) * .5f;
     float yp = y1 - text_h - (margin * 2.0f);
 
-    // put text in the center if not enought space on top
+    // put text in the center if not enough space on top
     if(yp < text_h)
       yp = (y1 + y2 - text_h) * .5f;
 
@@ -2604,10 +2551,6 @@ void gui_init(dt_lib_module_t *self)
   // Let's start the printer discovery now
 
   dt_printers_discovery(_new_printer_callback, self);
-}
-
-void init_presets(dt_lib_module_t *self)
-{
 }
 
 void *legacy_params(dt_lib_module_t *self, const void *const old_params, const size_t old_params_size,

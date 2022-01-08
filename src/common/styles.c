@@ -98,8 +98,9 @@ void dt_style_item_free(gpointer data)
 static gboolean _apply_style_shortcut_callback(GtkAccelGroup *accel_group, GObject *acceleratable,
                                                guint keyval, GdkModifierType modifier, gpointer data)
 {
-  const GList *imgs = dt_view_get_images_to_act_on(TRUE, TRUE, FALSE);
+  GList *imgs = dt_act_on_get_images(TRUE, TRUE, FALSE);
   dt_styles_apply_to_list(data, imgs, FALSE);
+  g_list_free(imgs);
   return TRUE;
 }
 
@@ -1110,14 +1111,16 @@ GList *dt_styles_get_item_list(const char *name, gboolean params, int imgid)
 
         if(multi_name && *multi_name && strcmp(multi_name, "0") != 0) has_multi_name = TRUE;
 
+        char *itname = dt_history_item_as_string
+          (dt_iop_get_localized_name((char *)sqlite3_column_text(stmt, 3)),
+           sqlite3_column_int(stmt, 4));
+
         if(has_multi_name)
-          g_snprintf(iname, sizeof(iname), "%s %s (%s)",
-                     dt_iop_get_localized_name((gchar *)sqlite3_column_text(stmt, 3)), multi_name,
-                     (sqlite3_column_int(stmt, 4) != 0) ? _("on") : _("off"));
+          g_snprintf(iname, sizeof(iname), "%s %s", itname, multi_name);
         else
-          g_snprintf(iname, sizeof(iname), "%s (%s)",
-                     dt_iop_get_localized_name((gchar *)sqlite3_column_text(stmt, 3)),
-                     (sqlite3_column_int(stmt, 4) != 0) ? _("on") : _("off"));
+          g_snprintf(iname, sizeof(iname), "%s", itname);
+
+        g_free(itname);
 
         item->params = NULL;
         item->blendop_params = NULL;

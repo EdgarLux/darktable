@@ -1331,7 +1331,7 @@ static GDateTime *_get_image_datetime(dt_lib_module_t *self)
   dt_lib_geotagging_t *d = (dt_lib_geotagging_t *)self->data;
   GList *selected = dt_collection_get_selected(darktable.collection, 1);
   const int selid = selected ? GPOINTER_TO_INT(selected->data) : 0;
-  const int imgid = dt_view_get_image_to_act_on();
+  const int imgid = dt_act_on_get_main_image();
   GDateTime *datetime = NULL;
   if((selid != 0) || ((selid == 0) && (imgid != -1)))
   {
@@ -1751,7 +1751,7 @@ void gui_init(dt_lib_module_t *self)
   gtk_grid_attach(grid, label, 0, line, 2, 1);
 
   d->timezone = gtk_entry_new();
-  gtk_widget_set_tooltip_text(d->timezone, _("start typing to show a list of permitted values and select your timezone.\npress enter to confirm, so that the asterisk * disappers"));
+  gtk_widget_set_tooltip_text(d->timezone, _("start typing to show a list of permitted values and select your timezone.\npress enter to confirm, so that the asterisk * disappears"));
   d->timezone_changed = dt_ui_label_new("");
 
   GtkWidget *timezone_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);

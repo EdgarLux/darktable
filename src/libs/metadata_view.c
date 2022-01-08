@@ -505,7 +505,7 @@ static void _metadata_view_update_values(dt_lib_module_t *self)
     }
     else
     {
-      images = dt_view_get_images_to_act_on_query(FALSE);
+      images = dt_act_on_get_query(FALSE);
       sqlite3_stmt *stmt;
       gchar *query = g_strdup_printf("SELECT id, COUNT(id) "
                                      "FROM main.images "
@@ -536,7 +536,7 @@ static void _metadata_view_update_values(dt_lib_module_t *self)
 
   if(count > 1)
   {
-    if(!images) images = dt_view_get_images_to_act_on_query(FALSE);
+    if(!images) images = dt_act_on_get_query(FALSE);
     sqlite3_stmt *stmt = NULL;
     gchar *query = g_strdup_printf("SELECT COUNT(DISTINCT film_id), "
                                          "2, " //id always different
@@ -1350,10 +1350,6 @@ void set_preferences(void *menu, dt_lib_module_t *self)
   GtkWidget *mi = gtk_menu_item_new_with_label(_("preferences..."));
   g_signal_connect(G_OBJECT(mi), "activate", G_CALLBACK(_menuitem_preferences), self);
   gtk_menu_shell_append(GTK_MENU_SHELL(menu), mi);
-}
-
-void init_presets(dt_lib_module_t *self)
-{
 }
 
 void *get_params(dt_lib_module_t *self, int *size)

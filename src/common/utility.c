@@ -308,7 +308,15 @@ gboolean dt_util_test_writable_dir(const char *path)
   if(path == NULL) return FALSE;
 #ifdef _WIN32
   struct _stati64 stats;
-  if(_stati64(path, &stats)) return FALSE;
+
+  wchar_t *wpath = g_utf8_to_utf16(path, -1, NULL, NULL, NULL);
+  const int result = _wstati64(wpath, &stats);
+  g_free(wpath);
+
+  if(result)
+  { // error while testing path:
+    return FALSE;
+  }
 #else
   struct stat stats;
   if(stat(path, &stats)) return FALSE;
@@ -903,10 +911,18 @@ RsvgDimensionData dt_get_svg_dimension(RsvgHandle *svg)
     }
     else
     {
+#define VIEWPORT_SIZE 32767 //use maximum cairo surface size to have enough precision when size is converted to int
+      const RsvgRectangle viewport = {
+        .x = 0,
+        .y = 0,
+        .width = VIEWPORT_SIZE,
+        .height = VIEWPORT_SIZE,
+      };
+#undef VIEWPORT_SIZE
       RsvgRectangle rectangle;
-      rsvg_handle_get_geometry_for_element(svg, NULL, NULL, &rectangle, NULL);
-      dimension.width = lround(rectangle.width + rectangle.x);
-      dimension.height = lround(rectangle.height + rectangle.y);
+      rsvg_handle_get_geometry_for_layer(svg, NULL, &viewport, NULL, &rectangle, NULL);
+      dimension.width = lround(rectangle.width);
+      dimension.height = lround(rectangle.height);
     }
   #else
     rsvg_handle_get_dimensions(svg, &dimension);

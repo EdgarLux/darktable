@@ -65,8 +65,6 @@ static void _import_session_cleanup_filmroll(dt_import_session_t *self)
 
 static gboolean _import_session_initialize_filmroll(dt_import_session_t *self, const char *path)
 {
-  int32_t film_id;
-
   /* cleanup of previously used filmroll */
   _import_session_cleanup_filmroll(self);
 
@@ -80,7 +78,7 @@ static gboolean _import_session_initialize_filmroll(dt_import_session_t *self, c
 
   /* open one or initialize a filmroll for the session */
   self->film = (dt_film_t *)g_malloc0(sizeof(dt_film_t));
-  film_id = dt_film_new(self->film, path);
+  const int32_t film_id = dt_film_new(self->film, path);
   if(film_id == 0)
   {
     fprintf(stderr, "[import_session] Failed to initialize film roll.\n");
@@ -116,17 +114,9 @@ static gchar *_import_session_path_pattern()
 #ifdef WIN32
   gchar *s1 = dt_str_replace(base, "/", "\\\\");
   gchar *s2 = dt_str_replace(sub, "/", "\\\\");
-  gchar *s1d = g_ascii_strdown(s1, -1);
-  if(s1d && (strlen(s1d) > 1))
-  {
-    const char first = g_ascii_toupper(s1d[0]);
-    if(first >= 'A' && first <= 'Z' && s1d[1] == ':') // path format is <drive letter>:\path\to\file
-      s1d[0] = first;                                 // drive letter in uppercase looks nicer
-  }
-  res = g_build_path("\\\\", s1d, s2, (char *)NULL);
+  res = g_build_path("\\\\", s1, s2, (char *)NULL);
   g_free(s1);
   g_free(s2);
-  g_free(s1d);
 #else
   res = g_build_path(G_DIR_SEPARATOR_S, base, sub, (char *)NULL);
 #endif
@@ -250,16 +240,13 @@ const char *dt_import_session_name(struct dt_import_session_t *self)
 */
 const char *dt_import_session_filename(struct dt_import_session_t *self, gboolean use_filename)
 {
-  const char *path;
-  char *fname, *previous_fname;
-  gchar *pattern;
-  gchar *result_fname;
+  gchar *result_fname = NULL;
 
   /* expand next filename */
   g_free((void *)self->current_filename);
   self->current_filename = NULL;
 
-  pattern = _import_session_filename_pattern();
+  char *pattern = _import_session_filename_pattern();
   if(pattern == NULL)
   {
     fprintf(stderr, "[import_session] Failed to get session filaname pattern.\n");
@@ -267,14 +254,15 @@ const char *dt_import_session_filename(struct dt_import_session_t *self, gboolea
   }
 
   /* verify that expanded path and filename yields a unique file */
-  path = dt_import_session_path(self, TRUE);
+  const char *path = dt_import_session_path(self, TRUE);
 
   if(use_filename)
     result_fname = g_strdup(self->vp->filename);
   else
     result_fname = dt_variables_expand(self->vp, pattern, TRUE);
 
-  previous_fname = fname = g_build_path(G_DIR_SEPARATOR_S, path, result_fname, (char *)NULL);
+  char *fname = g_build_path(G_DIR_SEPARATOR_S, path, result_fname, (char *)NULL);
+  char *previous_fname = fname;
   if(g_file_test(fname, G_FILE_TEST_EXISTS) == TRUE)
   {
     fprintf(stderr, "[import_session] File %s exists.\n", fname);
@@ -313,8 +301,6 @@ const char *dt_import_session_filename(struct dt_import_session_t *self, gboolea
 
 static const char *_import_session_path(struct dt_import_session_t *self, gboolean current)
 {
-  gchar *pattern;
-  char *new_path;
   const gboolean currentok = dt_util_test_writable_dir(self->current_path);
   fprintf(stderr, " _import_session_path testing `%s' %i", self->current_path, currentok);
 
@@ -327,20 +313,36 @@ static const char *_import_session_path(struct dt_import_session_t *self, gboole
     return NULL;
   }
   /* check if expanded path differs from current */
-  pattern = _import_session_path_pattern();
+  gchar *pattern = _import_session_path_pattern();
   if(pattern == NULL)
   {
     fprintf(stderr, "[import_session] Failed to get session path pattern.\n");
     return NULL;
   }
 
-  new_path = dt_variables_expand(self->vp, pattern, FALSE);
+
+#ifdef WIN32
+  gchar *s1 = dt_variables_expand(self->vp, pattern, FALSE);
+  gchar *new_path = g_ascii_strdown(s1, -1);
+  if(new_path && (strlen(new_path) > 1))
+  {
+    const char first = g_ascii_toupper(new_path[0]);
+    if(first >= 'A' && first <= 'Z' && new_path[1] == ':') // path format is <drive letter>:\path\to\file
+      new_path[0] = first;                                 // drive letter in uppercase looks nicer
+  g_free(s1);
+  }
+#else 
+  gchar *new_path = dt_variables_expand(self->vp, pattern, FALSE);
+#endif
+
   g_free(pattern);
+
 
   /* did the session path change ? */
   if(self->current_path && strcmp(self->current_path, new_path) == 0)
   {
     g_free(new_path);
+    new_path = NULL;
     if(currentok) return self->current_path;
   }
 
