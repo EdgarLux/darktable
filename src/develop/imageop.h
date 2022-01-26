@@ -420,11 +420,11 @@ gboolean dt_iop_is_first_instance(GList *modules, dt_iop_module_t *module);
 
 
 /** get module flags, works in dev and lt mode */
-int get_module_flags(const char *op);
+int dt_iop_get_module_flags(const char *op);
 
 /** returns the localized plugin name for a given op name. must not be freed. */
-gchar *dt_iop_get_localized_name(const gchar *op);
-gchar *dt_iop_get_localized_aliases(const gchar *op);
+const gchar *dt_iop_get_localized_name(const gchar *op);
+const gchar *dt_iop_get_localized_aliases(const gchar *op);
 
 /** set multi_priority and update raster mask links */
 void dt_iop_update_multi_priority(dt_iop_module_t *module, int new_priority);
@@ -502,6 +502,9 @@ gboolean dt_iop_have_required_input_format(const int required_ch, struct dt_iop_
                                            const int actual_pipe_ch,
                                            const void *const __restrict__ ivoid, void *const __restrict__ ovoid,
                                            const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out);
+
+/* bring up module rename dialog */
+void dt_iop_gui_rename_module(dt_iop_module_t *module);
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent

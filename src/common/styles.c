@@ -1078,16 +1078,18 @@ GList *dt_styles_get_item_list(const char *name, gboolean params, int imgid)
 
       item->enabled = sqlite3_column_int(stmt, 4);
 
+      const char *multi_name = (const char *)sqlite3_column_text(stmt, 7);
+      const gboolean has_multi_name = multi_name && *multi_name && (strcmp(multi_name, "0") != 0);
+
       if(params)
       {
         // when we get the parameters we do not want to get the operation localized as this
         // is used to compare against the internal module name.
-        const char *multi_name = (const char *)sqlite3_column_text(stmt, 7);
 
-        if(!(multi_name && *multi_name))
-          g_snprintf(iname, sizeof(iname), "%s", sqlite3_column_text(stmt, 3));
-        else
+        if(has_multi_name)
           g_snprintf(iname, sizeof(iname), "%s %s", sqlite3_column_text(stmt, 3), multi_name);
+        else
+          g_snprintf(iname, sizeof(iname), "%s", sqlite3_column_text(stmt, 3));
 
         const unsigned char *op_blob = sqlite3_column_blob(stmt, 5);
         const int32_t op_len = sqlite3_column_bytes(stmt, 5);
@@ -1106,21 +1108,12 @@ GList *dt_styles_get_item_list(const char *name, gboolean params, int imgid)
       }
       else
       {
-        const char *multi_name = (const char *)sqlite3_column_text(stmt, 7);
-        gboolean has_multi_name = FALSE;
-
-        if(multi_name && *multi_name && strcmp(multi_name, "0") != 0) has_multi_name = TRUE;
-
-        char *itname = dt_history_item_as_string
-          (dt_iop_get_localized_name((char *)sqlite3_column_text(stmt, 3)),
-           sqlite3_column_int(stmt, 4));
+        const gchar *itname = dt_iop_get_localized_name((char *)sqlite3_column_text(stmt, 3));
 
         if(has_multi_name)
           g_snprintf(iname, sizeof(iname), "%s %s", itname, multi_name);
         else
           g_snprintf(iname, sizeof(iname), "%s", itname);
-
-        g_free(itname);
 
         item->params = NULL;
         item->blendop_params = NULL;
@@ -1573,8 +1566,10 @@ void dt_init_styles_key_accels()
     for(GList *res_iter = result; res_iter; res_iter = g_list_next(res_iter))
     {
       dt_style_t *style = (dt_style_t *)res_iter->data;
+      gchar* tmp_name = g_strdelimit(g_strdup(style->name), "/", '-');
       char tmp_accel[1024];
-      snprintf(tmp_accel, sizeof(tmp_accel), C_("accel", "styles/apply %s"), style->name);
+      snprintf(tmp_accel, sizeof(tmp_accel), C_("accel", "styles/apply %s"), tmp_name);
+      g_free(tmp_name);
       dt_accel_register_global(tmp_accel, 0, 0);
     }
     g_list_free_full(result, dt_style_free);
@@ -1592,8 +1587,10 @@ void dt_connect_styles_key_accels()
       dt_style_t *style = (dt_style_t *)res_iter->data;
       closure = g_cclosure_new(G_CALLBACK(_apply_style_shortcut_callback), g_strdup(style->name),
                                _destroy_style_shortcut_callback);
+      gchar* tmp_name = g_strdelimit(g_strdup(style->name), "/", '-');
       char tmp_accel[1024];
-      snprintf(tmp_accel, sizeof(tmp_accel), C_("accel", "styles/apply %s"), style->name);
+      snprintf(tmp_accel, sizeof(tmp_accel), C_("accel", "styles/apply %s"), tmp_name);
+      g_free(tmp_name);
       dt_accel_connect_global(tmp_accel, closure);
     }
     g_list_free_full(result, dt_style_free);

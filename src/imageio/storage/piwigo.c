@@ -58,6 +58,7 @@ typedef struct _piwigo_api_context_t
   gchar *server;
   gchar *username;
   gchar *password;
+  gchar *pwg_token;
   gboolean error_occured;
 } _piwigo_api_context_t;
 
@@ -142,6 +143,7 @@ static _piwigo_api_context_t *_piwigo_ctx_init(void)
   ctx->url = NULL;
   ctx->cookie_file = NULL;
   ctx->error_occured = FALSE;
+  ctx->pwg_token = NULL;
   return ctx;
 }
 
@@ -157,6 +159,7 @@ static void _piwigo_ctx_destroy(_piwigo_api_context_t **ctx)
     g_free((*ctx)->server);
     g_free((*ctx)->username);
     g_free((*ctx)->password);
+    g_free((*ctx)->pwg_token);
     free(*ctx);
     *ctx = NULL;
   }
@@ -341,7 +344,7 @@ static int _piwigo_api_post_internal(_piwigo_api_context_t *ctx, GList *args, ch
     g_string_free(gargs, TRUE);
   }
 
-  int res = curl_easy_perform(ctx->curl_ctx);
+  const int res = curl_easy_perform(ctx->curl_ctx);
 
 #if piwigo_EXTRA_VERBOSE == TRUE
   g_printf("curl_easy_perform status %d\n", res);
@@ -388,6 +391,23 @@ static void _piwigo_api_authenticate(_piwigo_api_context_t *ctx)
     ctx->url = g_strdup_printf("https://%s/ws.php?format=json", ctx->server);
 
   _piwigo_api_post(ctx, args, NULL, TRUE);
+
+  g_list_free(args);
+
+  //  getStatus to retrieve the pwd_token
+
+  args = NULL;
+
+  args = _piwigo_query_add_arguments(args, "method", "pwg.session.getStatus");
+
+  _piwigo_api_post(ctx, args, NULL, TRUE);
+
+  if(ctx->response && !ctx->error_occured)
+  {
+    JsonObject *result = json_node_get_object(json_object_get_member(ctx->response, "result"));
+    const gchar *pwg_token = json_object_get_string_member(result, "pwg_token");
+    ctx->pwg_token = g_strdup(pwg_token);
+  }
 
   g_list_free(args);
 }
@@ -514,7 +534,10 @@ static void _piwigo_album_changed(GtkComboBox *cb, gpointer data)
   dt_storage_piwigo_gui_data_t *ui = (dt_storage_piwigo_gui_data_t *)data;
   const gchar *value = dt_bauhaus_combobox_get_text(ui->album_list);
 
-  if(value != NULL && strcmp(value, _("create new album")) == 0)
+  // early return if the combo is not yet populated
+  if(value == NULL) return;
+
+  if(strcmp(value, _("create new album")) == 0)
   {
     gtk_widget_set_no_show_all(GTK_WIDGET(ui->create_box), FALSE);
     gtk_widget_show_all(GTK_WIDGET(ui->create_box));
@@ -523,17 +546,17 @@ static void _piwigo_album_changed(GtkComboBox *cb, gpointer data)
   {
     gtk_widget_hide(GTK_WIDGET(ui->create_box));
 
-    // As the album name is have spaces as prefix (for indentation) and a
+    // As the album name has spaces as prefix (for indentation) and a
     // count of entries in parenthesis as suffix, we need to do some clean-up.
     gchar *v = g_strstrip(g_strdup(value));
     gchar *p = v + strlen(v) - 1;
     if(*p == ')')
     {
-      while(*p && *p != '(') p--;
+      while(p != v && *p != '(') p--;
       if(*p == '(')
       {
         p--;
-        *p = '\0';
+        if(p >= v) *p = '\0';
       }
     }
     dt_conf_set_string("storage/piwigo/last_album", v);
@@ -620,6 +643,7 @@ static void _piwigo_refresh_albums(dt_storage_piwigo_gui_data_t *ui, const gchar
 
       if(!isroot)
       {
+        // Ids of parent albums coma separated
         const char *hierarchy = json_object_get_string_member(album, "uppercats");
         char const *p = hierarchy;
         while(*p++) if(*p == ',') indent++;
@@ -667,7 +691,7 @@ static gboolean _piwigo_api_create_new_album(dt_storage_piwigo_params_t *p)
 
   g_list_free(args);
 
-  if (!p->api->response || p->api->error_occured)
+  if(!p->api->response || p->api->error_occured)
   {
     return FALSE;
   }
@@ -688,6 +712,8 @@ static gboolean _piwigo_api_upload_photo(dt_storage_piwigo_params_t *p, gchar *f
   char cat[10];
   char privacy[10];
 
+  // upload picture
+
   snprintf(cat, sizeof(cat), "%"PRId64, p->album_id);
   snprintf(privacy, sizeof(privacy), "%d", p->privacy);
 
@@ -707,6 +733,7 @@ static gboolean _piwigo_api_upload_photo(dt_storage_piwigo_params_t *p, gchar *f
 
   if(p->tags && strlen(p->tags)>0)
     args = _piwigo_query_add_arguments(args, "tags", p->tags);
+
   _piwigo_api_post(p->api, args, fname, FALSE);
 
   g_list_free(args);
@@ -895,7 +922,23 @@ void gui_reset(dt_imageio_module_storage_t *self)
 static gboolean _finalize_store(gpointer user_data)
 {
   dt_storage_piwigo_gui_data_t *g = (dt_storage_piwigo_gui_data_t *)user_data;
+
+  // notify that uploads are completed to empty the lounge
+
+  if(!g->api->error_occured)
+  {
+    GList *args = NULL;
+
+    args = _piwigo_query_add_arguments(args, "method", "pwg.images.uploadCompleted");
+    args = _piwigo_query_add_arguments(args, "pwg_token", g->api->pwg_token);
+
+    _piwigo_api_post(g->api, args, NULL, FALSE);
+
+    g_list_free(args);
+  }
+
   _piwigo_refresh_albums(g, dt_bauhaus_combobox_get_text(g->album_list));
+
   return FALSE;
 }
 
@@ -937,7 +980,7 @@ int store(dt_imageio_module_storage_t *self, dt_imageio_module_data_t *sdata, co
   }
   close(fd);
 
-  if ((metadata->flags & DT_META_METADATA) && !(metadata->flags & DT_META_CALCULATED))
+  if((metadata->flags & DT_META_METADATA) && !(metadata->flags & DT_META_CALCULATED))
   {
     const dt_image_t *img = dt_image_cache_get(darktable.image_cache, imgid, 'r');
   // If title is not existing, then use the filename without extension. If not, then use title instead
@@ -1004,14 +1047,14 @@ int store(dt_imageio_module_storage_t *self, dt_imageio_module_data_t *sdata, co
         dt_control_log(_("could not upload to piwigo!"));
         result = 1;
       }
-      else if (p->new_album)
+      else if(p->new_album)
       {
         // we do not want to create more albums when multiple upload
         p->new_album = FALSE;
         _piwigo_refresh_albums(ui, p->album);
       }
     }
-    if (p->tags)
+    if(p->tags)
     {
       g_free(p->tags);
       p->tags = NULL;
@@ -1079,6 +1122,7 @@ void *get_params(dt_imageio_module_storage_t *self)
     p->api->server = g_strdup(ui->api->server);
     p->api->username = g_strdup(ui->api->username);
     p->api->password = g_strdup(ui->api->password);
+
     _piwigo_api_authenticate(p->api);
 
     int index = dt_bauhaus_combobox_get(ui->album_list);

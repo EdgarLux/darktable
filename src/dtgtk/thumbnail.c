@@ -1184,6 +1184,26 @@ static gboolean _event_main_drag_motion(GtkWidget *widget, GdkDragContext *dc, g
   return TRUE;
 }
 
+static void _event_image_style_updated(GtkWidget *w, dt_thumbnail_t *thumb)
+{
+  // for some reason the style has changed. We have to recompute margins and resize the overlays
+
+  // we retrieve the eventual new margins
+  const int oldt = thumb->img_margin->top;
+  const int oldr = thumb->img_margin->right;
+  const int oldb = thumb->img_margin->bottom;
+  const int oldl = thumb->img_margin->left;
+  _thumb_retrieve_margins(thumb);
+
+  if(oldt != thumb->img_margin->top
+     || oldr != thumb->img_margin->right
+     || oldb != thumb->img_margin->bottom
+     || oldl != thumb->img_margin->left)
+  {
+    _thumb_resize_overlays(thumb);
+  }
+}
+
 GtkWidget *dt_thumbnail_create_widget(dt_thumbnail_t *thumb, float zoom_ratio)
 {
   // main widget (overlay)
@@ -1274,6 +1294,7 @@ GtkWidget *dt_thumbnail_create_widget(dt_thumbnail_t *thumb, float zoom_ratio)
     g_signal_connect(G_OBJECT(thumb->w_image), "motion-notify-event", G_CALLBACK(_event_main_motion), thumb);
     g_signal_connect(G_OBJECT(thumb->w_image), "enter-notify-event", G_CALLBACK(_event_image_enter_leave), thumb);
     g_signal_connect(G_OBJECT(thumb->w_image), "leave-notify-event", G_CALLBACK(_event_image_enter_leave), thumb);
+    g_signal_connect(G_OBJECT(thumb->w_image), "style-updated", G_CALLBACK(_event_image_style_updated), thumb);
     gtk_widget_show(thumb->w_image);
     gtk_overlay_add_overlay(GTK_OVERLAY(thumb->w_image_box), thumb->w_image);
     gtk_overlay_add_overlay(GTK_OVERLAY(thumb->w_main), thumb->w_image_box);
@@ -1529,19 +1550,21 @@ static void _thumb_resize_overlays(dt_thumbnail_t *thumb)
   int height = 0;
 
   int max_size = darktable.gui->icon_size;
-  if(max_size < 2) max_size = round(1.2f * darktable.bauhaus->line_height); // fallback if toolbar icons are not realized
+  if(max_size < 2)
+    max_size = round(1.2f * darktable.bauhaus->line_height); // fallback if toolbar icons are not realized
 
   if(thumb->over != DT_THUMBNAIL_OVERLAYS_HOVER_BLOCK)
   {
     gtk_widget_get_size_request(thumb->w_main, &width, &height);
-    // we need to squeeze 5 stars + 1 reject + 1 colorlabels symbols on a thumbnail width
-    // stars + reject having a width of 2 * r1 and spaced by r1 => 18 * r1
-    // colorlabels => 3 * r1 + space r1
+    // we need to squeeze reject + space + stars + space + colorlabels icons on a thumbnail width
+    // that means a width of 4 + MAX_STARS icons size
+    // all icons and spaces having a width of 2.5 * r1
     // inner margins are defined in css (margin_* values)
 
     // retrieves the size of the main icons in the top panel, thumbtable overlays shall not exceed that
-    const float r1 = fminf(max_size / 2.0f, (width - thumb->img_margin->left - thumb->img_margin->right) / 22.0f);
-    const float icon_size = 2.5 * r1;
+    const float r1 = fminf(max_size / 2.0f,
+                           (width - thumb->img_margin->left - thumb->img_margin->right) / (2.5 * (4 + MAX_STARS)));
+    const int icon_size = roundf(2.5 * r1);
 
     // file extension
     gtk_widget_set_margin_top(thumb->w_ext, thumb->img_margin->top);
@@ -1576,7 +1599,7 @@ static void _thumb_resize_overlays(dt_thumbnail_t *thumb)
     const int margin_b_icons = MAX(0, thumb->img_margin->bottom - icon_size * 0.125 - 1);
     gtk_widget_set_size_request(thumb->w_reject, icon_size, icon_size);
     gtk_widget_set_valign(thumb->w_reject, GTK_ALIGN_END);
-    int pos = MAX(0, MAX(thumb->img_margin->left - icon_size * 0.125, (width - 15.0 * r1) * 0.5 - 4 * 3.0 * r1));
+    int pos = MAX(0, thumb->img_margin->left - icon_size * 0.125); // align on the left of the thumb
     gtk_widget_set_margin_start(thumb->w_reject, pos);
     gtk_widget_set_margin_bottom(thumb->w_reject, margin_b_icons);
 
@@ -1587,9 +1610,10 @@ static void _thumb_resize_overlays(dt_thumbnail_t *thumb)
       gtk_widget_set_valign(thumb->w_stars[i], GTK_ALIGN_END);
       gtk_widget_set_margin_bottom(thumb->w_stars[i], margin_b_icons);
       gtk_widget_set_margin_start(
-          thumb->w_stars[i], thumb->img_margin->left
-                                 + (width - thumb->img_margin->left - thumb->img_margin->right - 13.0 * r1) * 0.5
-                                 + i * 2.5 * r1);
+          thumb->w_stars[i],
+          thumb->img_margin->left
+              + (width - thumb->img_margin->left - thumb->img_margin->right - MAX_STARS * icon_size) * 0.5
+              + i * icon_size);
     }
 
     // the color labels
@@ -1597,8 +1621,7 @@ static void _thumb_resize_overlays(dt_thumbnail_t *thumb)
     gtk_widget_set_valign(thumb->w_color, GTK_ALIGN_END);
     gtk_widget_set_halign(thumb->w_color, GTK_ALIGN_START);
     gtk_widget_set_margin_bottom(thumb->w_color, margin_b_icons);
-    pos = MIN(width - (thumb->img_margin->right - icon_size * 0.125 + icon_size),
-              (width - 15.0 * r1) * 0.5 + 8.25 * 3.0 * r1);
+    pos = width - thumb->img_margin->right - icon_size + icon_size * 0.125; // align on the right
     gtk_widget_set_margin_start(thumb->w_color, pos);
 
     // the local copy indicator
@@ -1796,7 +1819,8 @@ void dt_thumbnail_resize(dt_thumbnail_t *thumb, int width, int height, gboolean 
 
   // retrieves the size of the main icons in the top panel, thumbtable overlays shall not exceed that
   int max_size = darktable.gui->icon_size;
-  if(max_size < 2) max_size = round(1.2f * darktable.bauhaus->line_height); // fallback if toolbar icons are not realized
+  if(max_size < 2)
+    max_size = round(1.2f * darktable.bauhaus->line_height); // fallback if toolbar icons are not realized
 
   const int fsize = fminf(max_size, (height - thumb->img_margin->top - thumb->img_margin->bottom) / 11.0f);
 

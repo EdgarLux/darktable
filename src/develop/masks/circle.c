@@ -221,7 +221,8 @@ static int _circle_events_button_pressed(struct dt_iop_module_t *module, float p
     return 1;
   }
   else if(gui->creation && which == 1
-          && ((dt_modifier_is(state, GDK_CONTROL_MASK | GDK_SHIFT_MASK)) || dt_modifier_is(state, GDK_SHIFT_MASK)))
+          && ((dt_modifier_is(state, GDK_CONTROL_MASK | GDK_SHIFT_MASK))
+              || dt_modifier_is(state, GDK_SHIFT_MASK)))
   {
     // set some absolute or relative position for the source of the clone mask
     if(form->type & DT_MASKS_CLONE) dt_masks_set_source_pos_initial_state(gui, state, pzx, pzy);
@@ -448,6 +449,13 @@ static int _circle_events_button_released(struct dt_iop_module_t *module, float 
       darktable.develop->form_gui->creation = TRUE;
       darktable.develop->form_gui->creation_module = gui->creation_continuous_module;
     }
+
+    // and select the source as default, if the mouse is not moved we are inside the
+    // source and so want to move the source.
+    gui->form_selected = TRUE;
+    gui->source_selected = TRUE;
+    gui->border_selected = FALSE;
+
     return 1;
   }
   return 0;
