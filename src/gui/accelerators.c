@@ -515,9 +515,9 @@ static gchar *_shortcut_description(dt_shortcut_t *s)
 
   add_hint("%s%s", key_name, s->key_device || s->key ? "" : move_name);
 
-  if(s->press & DT_SHORTCUT_DOUBLE) add_hint(" %s", _("double"));
-  if(s->press & DT_SHORTCUT_TRIPLE) add_hint(" %s", _("triple"));
   if(s->press & DT_SHORTCUT_LONG  ) add_hint(" %s", _("long"));
+  if(s->press & DT_SHORTCUT_DOUBLE) add_hint(" %s", _("double-press")); else
+  if(s->press & DT_SHORTCUT_TRIPLE) add_hint(" %s", _("triple-press")); else
   if(s->press) add_hint(" %s", _("press"));
   if(s->button)
   {
@@ -525,10 +525,10 @@ static gchar *_shortcut_description(dt_shortcut_t *s)
     if(s->button & DT_SHORTCUT_LEFT  ) add_hint(" %s", C_("accel", "left"));
     if(s->button & DT_SHORTCUT_RIGHT ) add_hint(" %s", C_("accel", "right"));
     if(s->button & DT_SHORTCUT_MIDDLE) add_hint(" %s", C_("accel", "middle"));
-    if(s->click  & DT_SHORTCUT_DOUBLE) add_hint(" %s", C_("accel", "double"));
-    if(s->click  & DT_SHORTCUT_TRIPLE) add_hint(" %s", C_("accel", "triple"));
     if(s->click  & DT_SHORTCUT_LONG  ) add_hint(" %s", C_("accel", "long"));
-    add_hint(" %s", _("click"));
+    if(s->click  & DT_SHORTCUT_DOUBLE) add_hint(" %s", C_("accel", "double-click")); else
+    if(s->click  & DT_SHORTCUT_TRIPLE) add_hint(" %s", C_("accel", "triple-click")); else
+      add_hint(" %s", _("click"));
   }
 
   if(*move_name && (s->key_device || s->key))
@@ -628,19 +628,24 @@ GHashTable *dt_shortcut_category_lists(dt_view_type_flags_t v)
   return ht;
 }
 
-static gboolean _shortcut_tooltip_callback(GtkWidget *widget, gint x, gint y, gboolean keyboard_mode,
-                                           GtkTooltip *tooltip, gpointer user_data)
+gboolean dt_shortcut_tooltip_callback(GtkWidget *widget, gint x, gint y, gboolean keyboard_mode,
+                                      GtkTooltip *tooltip, gpointer user_data)
 {
   gchar *markup_text = NULL;
   gchar *description = NULL;
   dt_action_t *action = NULL;
+  int show_element = 0;
 
-  if(GTK_IS_TREE_VIEW(widget))
+  gchar *original_markup = gtk_widget_get_tooltip_markup(widget);
+
+  const gchar *widget_name = gtk_widget_get_name(widget);
+  if(!strcmp(widget_name, "actions_view") || !strcmp(widget_name, "shortcuts_view"))
   {
     if(!gtk_widget_is_sensitive(widget)) return FALSE;
-    if(user_data) // shortcuts treeview
+
+    if(!strcmp(widget_name, "shortcuts_view"))
     {
-      gtk_tooltip_set_text(tooltip, _("press Del to delete selected shortcut\ndouble click to add new shortcut\nstart typing for incremental search"));
+      gtk_tooltip_set_text(tooltip, _("press Del to delete selected shortcut\ndouble-click to add new shortcut\nstart typing for incremental search"));
       return TRUE;
     }
 
@@ -650,15 +655,22 @@ static gboolean _shortcut_tooltip_callback(GtkWidget *widget, gint x, gint y, gb
     if(!gtk_tree_view_get_tooltip_context(GTK_TREE_VIEW(widget), &x, &y, keyboard_mode, &model, &path, &iter))
       return FALSE;
 
+    show_element = 1;
     gtk_tree_model_get(model, &iter, 0, &action, -1);
     gtk_tree_view_set_tooltip_row(GTK_TREE_VIEW(widget), tooltip, path);
     gtk_tree_path_free(path);
 
-    markup_text = g_markup_escape_text(_("click to filter shortcut list\ndouble click to define new shortcut\nstart typing for incremental search"), -1);
+    markup_text = g_markup_escape_text(_("click to filter shortcut list\ndouble-click to define new shortcut\nstart typing for incremental search"), -1);
   }
   else
   {
     action = g_hash_table_lookup(darktable.control->widgets, widget);
+    if(!action)
+    {
+      widget = gtk_widget_get_parent(widget);
+      action = g_hash_table_lookup(darktable.control->widgets, widget);
+      show_element = -1;
+    }
 
     if(darktable.control->mapping_widget == widget)
     {
@@ -678,7 +690,7 @@ static gboolean _shortcut_tooltip_callback(GtkWidget *widget, gint x, gint y, gb
   const dt_action_def_t *def = _action_find_definition(action);
   const gboolean has_fallbacks = def && def->fallbacks;
 
-  if(def && (darktable.control->element || !has_fallbacks))
+  if(def && (darktable.control->element || !has_fallbacks) && show_element == 0)
   {
     const gchar *element_name = NULL;
     for(int i = 0; i <= darktable.control->element; i++)
@@ -700,7 +712,7 @@ static gboolean _shortcut_tooltip_callback(GtkWidget *widget, gint x, gint y, gb
         (s->element == DT_ACTION_ELEMENT_DEFAULT && has_fallbacks)))
     {
       gchar *sc_escaped = g_markup_escape_text(_shortcut_description(s), -1);
-      gchar *ac_escaped = g_markup_escape_text(_action_description(s, 0), -1);
+      gchar *ac_escaped = g_markup_escape_text(_action_description(s, show_element > 0 ? 1 : 0), -1);
       description = dt_util_dstrcat(description, "%s<b><big>%s</big></b><i>%s</i>",
                                                  description ? "\n" : "",
                                                  sc_escaped, ac_escaped);
@@ -709,21 +721,16 @@ static gboolean _shortcut_tooltip_callback(GtkWidget *widget, gint x, gint y, gb
     }
   }
 
-  gchar *original_markup = gtk_widget_get_tooltip_markup(widget);
-  if(description || (original_markup && markup_text))
+  if(description || original_markup || markup_text)
   {
     markup_text = dt_util_dstrcat(markup_text, "%s%s%s%s",
-                                  markup_text? "\n\n" : "",
+                                  markup_text && (original_markup || description) ? "\n\n" : "",
                                   original_markup ? original_markup : "",
                                   original_markup && description ? "\n" : "",
                                   description ? description : "");
-    g_free(description);
-  }
-  g_free(original_markup);
-
-  if(markup_text)
-  {
     gtk_tooltip_set_markup(tooltip, markup_text);
+    g_free(description);
+    g_free(original_markup);
     g_free(markup_text);
 
     return TRUE;
@@ -2032,7 +2039,7 @@ GtkWidget *dt_shortcuts_prefs(GtkWidget *widget)
   gtk_tree_selection_set_select_function(gtk_tree_view_get_selection(shortcuts_view),
                                          _shortcut_selection_function, NULL, NULL);
   g_object_set(shortcuts_view, "has-tooltip", TRUE, NULL);
-  g_signal_connect(G_OBJECT(shortcuts_view), "query-tooltip", G_CALLBACK(_shortcut_tooltip_callback), GINT_TO_POINTER(TRUE));
+  gtk_widget_set_name(GTK_WIDGET(shortcuts_view), "shortcuts_view");
   g_signal_connect(G_OBJECT(shortcuts_view), "row-activated", G_CALLBACK(_shortcut_row_activated), filtered_shortcuts);
   g_signal_connect(G_OBJECT(shortcuts_view), "key-press-event", G_CALLBACK(_shortcut_key_pressed), NULL);
   g_signal_connect(G_OBJECT(shortcuts_view), "key-press-event", G_CALLBACK(dt_gui_search_start), search_shortcuts);
@@ -2121,7 +2128,7 @@ GtkWidget *dt_shortcuts_prefs(GtkWidget *widget)
   gtk_tree_view_set_search_entry(actions_view, GTK_ENTRY(search_actions));
 
   g_object_set(actions_view, "has-tooltip", TRUE, NULL);
-  g_signal_connect(G_OBJECT(actions_view), "query-tooltip", G_CALLBACK(_shortcut_tooltip_callback), NULL);
+  gtk_widget_set_name(GTK_WIDGET(actions_view), "actions_view");
   g_signal_connect(G_OBJECT(actions_view), "row-activated", G_CALLBACK(_action_row_activated), _actions_store);
   g_signal_connect(G_OBJECT(actions_view), "button-press-event", G_CALLBACK(_action_view_click), _actions_store);
   g_signal_connect(G_OBJECT(actions_view), "key-press-event", G_CALLBACK(dt_gui_search_start), search_actions);
@@ -3423,29 +3430,14 @@ void dt_shortcut_key_release(dt_input_device_t id, guint time, guint key)
 
 gboolean dt_shortcut_key_active(dt_input_device_t id, guint key)
 {
-  dt_shortcut_t base_key
-    = { .key_device = id,
-        .key   = key,
-        .views = darktable.view_manager->current_view->view(darktable.view_manager->current_view) };
+  dt_shortcut_t saved_sc = _sc;
+  _sc = (dt_shortcut_t) {.key_device = id, .key = key};
 
-  GSequenceIter *existing = g_sequence_lookup(darktable.control->shortcuts, &base_key,
-                                              _shortcut_compare_func, GINT_TO_POINTER(base_key.views));
-  if(existing)
-  {
-    dt_shortcut_t *s = g_sequence_get(existing);
+  float value = dt_shortcut_move(DT_SHORTCUT_DEVICE_KEYBOARD_MOUSE, 0, DT_SHORTCUT_MOVE_NONE, NAN);
 
-    if(s && s->action && s->action->type >= DT_ACTION_TYPE_WIDGET)
-    {
-      const dt_action_def_t *definition = _action_find_definition(s->action);
-      if(definition && definition->process)
-      {
-        float value = definition->process(s->action->target, s->element, s->effect, NAN);
-        return fmodf(value, 1) <= DT_VALUE_PATTERN_ACTIVE || fmodf(value, 2) > .5;
-      }
-    }
-  }
+  _sc = saved_sc;
 
-  return FALSE;
+  return fmodf(value, 1) <= DT_VALUE_PATTERN_ACTIVE || fmodf(value, 2) > .5;
 }
 
 static guint _fix_keyval(GdkEvent *event)
@@ -3783,7 +3775,6 @@ dt_action_t *dt_action_define(dt_action_t *owner, const gchar *section, const gc
       g_hash_table_insert(darktable.control->widgets, widget, ac);
 
       gtk_widget_set_has_tooltip(widget, TRUE);
-      g_signal_connect(G_OBJECT(widget), "query-tooltip", G_CALLBACK(_shortcut_tooltip_callback), NULL);
       g_signal_connect(G_OBJECT(widget), "destroy", G_CALLBACK(_remove_widget_from_hashtable), NULL);
     }
   }

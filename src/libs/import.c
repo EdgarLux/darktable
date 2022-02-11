@@ -23,6 +23,7 @@
 #include "common/debug.h"
 #include "common/exif.h"
 #include "common/metadata.h"
+#include "common/datetime.h"
 #include "control/conf.h"
 #include "control/control.h"
 #ifdef HAVE_GPHOTO2
@@ -686,6 +687,10 @@ static guint _import_set_file_list(const gchar *folder, const int folder_lgth,
 
   GFileInfo *info = NULL;
   guint nb = n;
+  /* get filmroll id for current directory. if not present, checking the db whether
+    the image has alread been imported can be skipped */
+  int32_t filmroll_id = dt_film_get_id(folder);
+
   const gboolean recursive = dt_conf_get_bool("ui_last/import_recursive");
   const gboolean include_jpegs = !dt_conf_get_bool("ui_last/import_ignore_jpegs");
   while((info = g_file_enumerator_next_file(dir_files, NULL, &error)))
@@ -712,7 +717,13 @@ static guint _import_set_file_list(const gchar *folder, const int folder_lgth,
       if(include_jpegs || (ext && g_ascii_strncasecmp(ext, ".jpg", sizeof(".jpg"))
                                && g_ascii_strncasecmp(ext, ".jpeg", sizeof(".jpeg"))))
       {
-        const gboolean already_imported = dt_images_already_imported(fullname);
+        /* check if image is already imported, using previously fetched filroll id */
+        gboolean already_imported = FALSE;
+        if(filmroll_id != -1)
+        {
+          already_imported = dt_image_get_id(filmroll_id, filename) != -1 ? TRUE : FALSE;
+        }
+
         GtkTreeIter iter;
         gtk_list_store_append(d->from.store, &iter);
         gtk_list_store_set(d->from.store, &iter,
@@ -771,18 +782,6 @@ static void _update_layout(dt_lib_module_t* self)
 static void _usefn_toggled(GtkWidget *widget, dt_lib_module_t* self)
 {
   _update_layout(self);
-}
-
-static time_t _parse_date_time(const char *date_time_text)
-{
-  struct tm t;
-  memset(&t, 0, sizeof(t));
-
-  const char *end = NULL;
-  if((end = strptime(date_time_text, "%Y-%m-%dT%T", &t)) && *end == 0) return mktime(&t);
-  if((end = strptime(date_time_text, "%Y-%m-%d", &t)) && *end == 0) return mktime(&t);
-
-  return 0;
 }
 
 static gboolean _update_files_list(gpointer user_data)
@@ -1550,17 +1549,6 @@ static void _lib_import_select_folder(GtkWidget *widget, dt_lib_module_t *self)
   _update_files_list(self);
 }
 
-static gboolean _handle_enter(GtkWidget *widget, GdkEventKey *event, dt_lib_module_t* self)
-{
-  dt_lib_import_t *d = (dt_lib_import_t *)self->data;
-  if((d->from.nb) && (event->keyval == GDK_KEY_Return || event->keyval == GDK_KEY_KP_Enter))
-  {
-    gtk_dialog_response(GTK_DIALOG(d->from.dialog), GTK_RESPONSE_ACCEPT);
-    return TRUE;
-  }
-  return FALSE;
-}
-
 static void _set_files_list(GtkWidget *rbox, dt_lib_module_t* self)
 {
   dt_lib_import_t *d = (dt_lib_import_t *)self->data;
@@ -1753,7 +1741,7 @@ static void _import_from_dialog_new(dt_lib_module_t* self)
   gtk_window_set_transient_for(GTK_WINDOW(d->from.dialog), GTK_WINDOW(win));
   GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(d->from.dialog));
   g_signal_connect(d->from.dialog, "check-resize", G_CALLBACK(_resize_dialog), self);
-  g_signal_connect(d->from.dialog, "key-press-event", G_CALLBACK(_handle_enter), self);
+  g_signal_connect(d->from.dialog, "key-press-event", G_CALLBACK(dt_handle_dialog_enter), self);
 
   // images numbers in action-box
   GtkWidget *box = dt_gui_container_first_child(GTK_CONTAINER(d->from.dialog));
@@ -1932,13 +1920,15 @@ static void _import_from_dialog_run(dt_lib_module_t* self)
     {
       const gboolean unique = !imgs->next;
       imgs = g_list_reverse(imgs);
-      time_t datetime_override = 0;
+      char datetime_override[DT_DATETIME_LENGTH] = {0};
       if(d->import_case != DT_IMPORT_INPLACE)
       {
-        char *dto = g_strdup(gtk_entry_get_text(GTK_ENTRY(d->from.datetime)));
-        dto = g_strstrip(dto);
-        datetime_override = dto[0] ? _parse_date_time(dto) : 0;
-        g_free(dto);
+        const char *entry = gtk_entry_get_text(GTK_ENTRY(d->from.datetime));
+        if(entry[0] && !dt_datetime_entry_to_exif(datetime_override, sizeof(datetime_override), entry))
+        {
+          dt_control_log(_("invalid override date/time format"));
+          break;
+        }
         dt_gui_preferences_string_reset(d->from.datetime);
       }
 #ifdef HAVE_GPHOTO2

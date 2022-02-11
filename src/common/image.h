@@ -189,7 +189,7 @@ typedef struct dt_image_geoloc_t
 
 struct dt_cache_entry_t;
 
-#define DT_DATETIME_LENGTH 20
+#define DT_DATETIME_LENGTH 24
 
 // TODO: add color labels and such as cacheable
 // __attribute__ ((aligned (128)))
@@ -309,8 +309,10 @@ int dt_image_get_xmp_rating(const dt_image_t *img);
 int dt_image_get_xmp_rating_from_flags(const int flags);
 /** finds all xmp duplicates for the given image in the database. */
 GList* dt_image_find_duplicates(const char* filename);
-/** check if an image with the given filename is already imported */
-gboolean dt_images_already_imported(const gchar *filename);
+/** get image id by filename */
+int32_t dt_image_get_id_full_path(const gchar *filename);
+/** get image id by film_id and filename */
+int32_t dt_image_get_id(uint32_t film_id, const gchar *filename);
 /** imports a new image from raw/etc file and adds it to the data base and image cache. Use from threads other than lua.*/
 uint32_t dt_image_import(int32_t film_id, const char *filename, gboolean override_ignore_jpegs,
                          gboolean raise_signals);
