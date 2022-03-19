@@ -2203,7 +2203,7 @@ static void _lib_collect_gui_update(dt_lib_module_t *self)
       gtk_entry_set_text(GTK_ENTRY(d->rule[i].text), text);
       gtk_editable_set_position(GTK_EDITABLE(d->rule[i].text), -1);
       g_signal_handlers_unblock_matched(d->rule[i].text, G_SIGNAL_MATCH_FUNC, 0, 0, NULL, entry_changed, NULL);
-      d->rule[i].typing = TRUE;
+      d->rule[i].typing = FALSE;
     }
 
     GtkDarktableButton *button = DTGTK_BUTTON(d->rule[i].button);
@@ -3012,6 +3012,8 @@ void gui_init(dt_lib_module_t *self)
     gtk_widget_set_events(w, GDK_BUTTON_PRESS_MASK);
     g_signal_connect(G_OBJECT(w), "button-press-event", G_CALLBACK(popup_button_callback), d->rule + i);
     gtk_box_pack_start(box, w, FALSE, FALSE, 0);
+    GtkStyleContext *context = gtk_widget_get_style_context(w);
+    gtk_style_context_add_class(context, "dt_transparent_background");
   }
 
   GtkTreeView *view = GTK_TREE_VIEW(gtk_tree_view_new());

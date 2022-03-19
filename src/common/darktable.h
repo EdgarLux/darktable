@@ -156,7 +156,8 @@ typedef unsigned int u_int;
 // version of current performance configuration version
 // if you want to run an updated version of the performance configuration later
 // bump this number and make sure you have an updated logic in dt_configure_performance()
-#define DT_CURRENT_PERFORMANCE_CONFIGURE_VERSION 4
+#define DT_CURRENT_PERFORMANCE_CONFIGURE_VERSION 5
+#define DT_PERF_INFOSIZE 4096
 
 // every module has to define this:
 #ifdef _DEBUG
@@ -268,7 +269,9 @@ typedef enum dt_debug_thread_t
   DT_DEBUG_SIGNAL         = 1 << 20,
   DT_DEBUG_PARAMS         = 1 << 21,
   DT_DEBUG_DEMOSAIC       = 1 << 22,
-  DT_DEBUG_ACT_ON         = 1 << 23
+  DT_DEBUG_ACT_ON         = 1 << 23,
+  DT_DEBUG_TILING         = 1 << 24,
+  DT_DEBUG_VERBOSE        = 1 << 25
 } dt_debug_thread_t;
 
 typedef struct dt_codepath_t
@@ -282,9 +285,11 @@ typedef struct dt_sys_resources_t
 {
   size_t total_memory;
   size_t mipmap_memory;
-  int *fractions; // fractions are calculated as res=input / 1024  * fraction
+  int *fractions;   // fractions are calculated as res=input / 1024  * fraction
+  int *refresource; // for the debug resource modes we use fixed settings
   int group;
   int level;
+  int tunecl;
 } dt_sys_resources_t;
 
 typedef struct darktable_t
@@ -356,6 +361,7 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
 void dt_get_sysresource_level();
 void dt_cleanup();
 void dt_print(dt_debug_thread_t thread, const char *msg, ...) __attribute__((format(printf, 2, 3)));
+void dt_vprint(dt_debug_thread_t thread, const char *msg, ...) __attribute__((format(printf, 2, 3)));
 int dt_worker_threads();
 size_t dt_get_available_mem();
 size_t dt_get_singlebuffer_mem();
@@ -613,8 +619,7 @@ static inline const GList *g_list_prev_wraparound(const GList *list)
 
 void dt_print_mem_usage();
 
-void dt_configure_performance();
-
+void dt_configure_runtime_performance(const int version, char *config_info);
 // helper function which loads whatever image_to_load points to: single image files or whole directories
 // it tells you if it was a single image or a directory in single_image (when it's not NULL)
 int dt_load_from_string(const gchar *image_to_load, gboolean open_image_in_dr, gboolean *single_image);
