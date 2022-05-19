@@ -128,7 +128,7 @@ void gui_init(dt_lib_module_t *self)
       {
         GtkWidget *sep = gtk_label_new("|");
         gtk_widget_set_halign(sep, GTK_ALIGN_START);
-        gtk_widget_set_name(sep, "view_label");
+        gtk_widget_set_name(sep, "view-label");
         gtk_box_pack_start(GTK_BOX(self->widget), sep, FALSE, FALSE, 0);
       }
     }
@@ -139,7 +139,7 @@ void gui_init(dt_lib_module_t *self)
       {
         model = gtk_list_store_new(N_COLUMNS, G_TYPE_STRING, G_TYPE_POINTER, G_TYPE_BOOLEAN);
         d->dropdown = gtk_combo_box_new_with_model(GTK_TREE_MODEL(model));
-        gtk_widget_set_name(d->dropdown, "view_dropdown");
+        gtk_widget_set_name(d->dropdown, "view-dropdown");
         GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
         gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(d->dropdown), renderer, FALSE);
         gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(d->dropdown), renderer, "markup", TEXT_COLUMN,
@@ -258,7 +258,7 @@ static GtkWidget *_lib_viewswitcher_create_label(dt_view_t *view)
   gtk_widget_set_halign(b, GTK_ALIGN_START);
   g_object_set_data(G_OBJECT(b), "view-label", (gchar *)view->name(view));
   g_object_set_data(G_OBJECT(eb), "view-label", (gchar *)view->name(view));
-  gtk_widget_set_name(b, "view_label");
+  gtk_widget_set_name(b, "view-label");
   gtk_widget_set_state_flags(b, GTK_STATE_FLAG_NORMAL, TRUE);
 
   /* connect button press handler */
@@ -290,6 +290,9 @@ static gboolean _lib_viewswitcher_button_press_callback(GtkWidget *w, GdkEventBu
 }
 
 
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on
+

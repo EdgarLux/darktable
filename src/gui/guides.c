@@ -654,7 +654,7 @@ static void _settings_flip_changed(GtkWidget *w, _guides_settings_t *gw)
 void dt_guides_set_overlay_colors()
 {
   const int overlay_color = dt_conf_get_int("darkroom/ui/overlay_color");
-  
+
   darktable.gui->overlay_contrast = dt_conf_get_float("darkroom/ui/overlay_contrast");
 
   darktable.gui->overlay_red = darktable.gui->overlay_green = darktable.gui->overlay_blue = 0.0f;
@@ -699,7 +699,7 @@ GtkWidget *dt_guides_popover(dt_view_t *self, GtkWidget *button)
   // title
   GtkWidget *lb = gtk_label_new(_("global guide overlay settings"));
   gtk_label_set_justify(GTK_LABEL(lb), GTK_JUSTIFY_CENTER);
-  gtk_widget_set_name(lb, "guides_menu_title");
+  dt_gui_add_class(lb, "dt_section_label");
   gtk_box_pack_start(GTK_BOX(vbox), lb, TRUE, TRUE, 0);
 
   // global guides section
@@ -889,7 +889,7 @@ void dt_guides_init_module_widget(GtkWidget *iopw, struct dt_iop_module_t *modul
 
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   GtkWidget *cb = module->guides_combo = gtk_check_button_new_with_label(_("show guides"));
-  gtk_widget_set_name(box, "guides_module_combobox");
+  gtk_widget_set_name(box, "guides-module-combobox");
   gtk_label_set_ellipsize(GTK_LABEL(gtk_bin_get_child(GTK_BIN(cb))), PANGO_ELLIPSIZE_START);
 
   gchar *key = _conf_get_path(module->op, "autoshow", NULL);
@@ -898,7 +898,7 @@ void dt_guides_init_module_widget(GtkWidget *iopw, struct dt_iop_module_t *modul
 
   g_signal_connect(G_OBJECT(cb), "toggled", G_CALLBACK(_settings_autoshow_change2), module);
   gtk_widget_set_tooltip_text(cb, _("show guide overlay when this module has focus"));
-  GtkWidget *ic = dtgtk_button_new(dtgtk_cairo_paint_grid, CPF_STYLE_FLAT, NULL);
+  GtkWidget *ic = dtgtk_button_new(dtgtk_cairo_paint_grid, 0, NULL);
   gtk_widget_set_tooltip_text(ic, _("change global guide settings\nnote that these settings are applied globally "
                                     "and will impact any module that shows guide overlays"));
   g_signal_connect(G_OBJECT(ic), "clicked", G_CALLBACK(_settings_autoshow_menu), module);
@@ -935,6 +935,9 @@ void dt_guides_update_popover_values()
   dt_bauhaus_combobox_set(darktable.view_manager->guides_colors, dt_conf_get_int("darkroom/ui/overlay_color"));
   dt_bauhaus_slider_set(darktable.view_manager->guides_contrast, dt_conf_get_float("darkroom/ui/overlay_contrast"));
 }
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on
+

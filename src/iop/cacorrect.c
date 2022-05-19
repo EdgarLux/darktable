@@ -82,7 +82,7 @@ const char *name()
   return _("raw chromatic aberrations");
 }
 
-const char *description(struct dt_iop_module_t *self)
+const char **description(struct dt_iop_module_t *self)
 {
   return dt_iop_set_description(self, _("correct chromatic aberrations for Bayer sensors"),
                                       _("corrective"),
@@ -1334,7 +1334,7 @@ static void _display_ca_error(struct dt_iop_module_t *self)
 
   if(g->error == CACORRECT_ERROR_CFA)
     dt_iop_set_module_trouble_message(self, _("error"),
-                                      _("raw CA correction supports only standard RGB bayer filter arrays"), NULL);
+                                      _("raw CA correction supports only standard RGB Bayer filter arrays"), NULL);
   else if(g->error == CACORRECT_ERROR_MATH)
      dt_iop_set_module_trouble_message(self, _("bypassed while zooming in"),
                                       _("while calculating the correction parameters the internal maths failed so module is bypassed.\n"
@@ -1462,11 +1462,14 @@ void gui_init(dt_iop_module_t *self)
   gtk_stack_set_homogeneous(GTK_STACK(self->widget), FALSE);
   gtk_stack_add_named(GTK_STACK(self->widget), box_raw, "raw");
 
-  GtkWidget *label_non_raw = dt_ui_label_new(_("automatic chromatic aberration correction\nonly for bayer raw files"));
+  GtkWidget *label_non_raw = dt_ui_label_new(_("automatic chromatic aberration correction\nonly for Bayer raw files"));
   gtk_stack_add_named(GTK_STACK(self->widget), label_non_raw, "non_raw");
 }
 
 #undef CA_SIZE_MINIMUM
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on
+

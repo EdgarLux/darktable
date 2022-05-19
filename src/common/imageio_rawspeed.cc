@@ -272,9 +272,9 @@ dt_imageio_retval_t dt_imageio_open_rawspeed(dt_image_t *img, const char *filena
 
     // FIXME: grab r->metadata.colorMatrix.
 
-    // Get DefaultUserCrop
-    if (img->flags & DT_IMAGE_HAS_USERCROP)
-      dt_exif_img_check_usercrop(img, filename);
+    // Get additional exif tags that are not cached in the database
+    if (img->flags & DT_IMAGE_HAS_ADDITIONAL_DNG_TAGS)
+      dt_exif_img_check_additional_tags(img, filename);
 
     if(r->getDataType() == TYPE_FLOAT32)
     {
@@ -567,6 +567,9 @@ dt_imageio_retval_t dt_imageio_open_rawspeed_sraw(dt_image_t *img, RawImage r, d
   return DT_IMAGEIO_OK;
 }
 
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on
+

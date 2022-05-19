@@ -84,8 +84,9 @@ typedef enum
   DT_IMAGE_4BAYER = 16384,
   // image was detected as monochrome
   DT_IMAGE_MONOCHROME = 32768,
-  // image has usercrop information
-  DT_IMAGE_HAS_USERCROP = 65536,
+  // DNG image has exif tags which are not cached in the database but must be read and stored in dt_image_t
+  // when the image is loaded.
+  DT_IMAGE_HAS_ADDITIONAL_DNG_TAGS = 65536,
   // image is an sraw
   DT_IMAGE_S_RAW = 1 << 17,
   // image has a monochrome preview tested
@@ -189,8 +190,6 @@ typedef struct dt_image_geoloc_t
 
 struct dt_cache_entry_t;
 
-#define DT_DATETIME_LENGTH 24
-
 // TODO: add color labels and such as cacheable
 // __attribute__ ((aligned (128)))
 typedef struct dt_image_t
@@ -208,7 +207,7 @@ typedef struct dt_image_t
   char exif_maker[64];
   char exif_model[64];
   char exif_lens[128];
-  char exif_datetime_taken[DT_DATETIME_LENGTH];
+  GTimeSpan exif_datetime_taken;
 
   char camera_maker[64];
   char camera_model[64];
@@ -230,7 +229,7 @@ typedef struct dt_image_t
   int32_t num, flags, film_id, id, group_id, version;
 
   //timestamps
-  time_t import_timestamp, change_timestamp, export_timestamp, print_timestamp;
+  GTimeSpan import_timestamp, change_timestamp, export_timestamp, print_timestamp;
 
   dt_image_loader_t loader;
 
@@ -263,6 +262,10 @@ typedef struct dt_image_t
 
   /* DefaultUserCrop */
   dt_boundingbox_t usercrop;
+
+  /* GainMaps from DNG OpcodeList2 exif tag */
+  GList *dng_gain_maps;
+
   /* convenience pointer back into the image cache, so we can return dt_image_t* there directly. */
   struct dt_cache_entry_t *cache_entry;
 } dt_image_t;
@@ -444,6 +447,9 @@ float dt_image_get_exposure_bias(const struct dt_image_t *image_storage);
 char *dt_image_camera_missing_sample_message(const struct dt_image_t *img, gboolean logmsg);
 void dt_image_check_camera_missing_sample(const struct dt_image_t *img);
 
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on
+

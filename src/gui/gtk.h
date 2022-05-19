@@ -97,6 +97,11 @@ typedef enum dt_gui_color_t
   DT_GUI_COLOR_MAP_LOC_SHAPE_HIGH,
   DT_GUI_COLOR_MAP_LOC_SHAPE_LOW,
   DT_GUI_COLOR_MAP_LOC_SHAPE_DEF,
+  DT_GUI_COLOR_RANGE_BG,
+  DT_GUI_COLOR_RANGE_GRAPH,
+  DT_GUI_COLOR_RANGE_SELECTION,
+  DT_GUI_COLOR_RANGE_CURSOR,
+  DT_GUI_COLOR_RANGE_ICONS,
   DT_GUI_COLOR_LAST
 } dt_gui_color_t;
 
@@ -188,6 +193,10 @@ static inline cairo_surface_t *dt_gdk_cairo_surface_create_from_pixbuf(const Gdk
 static inline GdkPixbuf *dt_gdk_pixbuf_new_from_file_at_size(const char *filename, int width, int height, GError **error) {
   return gdk_pixbuf_new_from_file_at_size(filename, width * darktable.gui->ppd, height * darktable.gui->ppd, error);
 }
+
+// call class function to add or remove CSS classes (need to be set on top of this file as first function is used in this file)
+void dt_gui_add_class(GtkWidget *widget, const gchar *class_name);
+void dt_gui_remove_class(GtkWidget *widget, const gchar *class_name);
 
 int dt_gui_gtk_init(dt_gui_gtk_t *gui);
 void dt_gui_gtk_run(dt_gui_gtk_t *gui);
@@ -362,7 +371,7 @@ static inline void dt_ui_section_label_set(GtkWidget *label)
   gtk_widget_set_halign(label, GTK_ALIGN_FILL); // make it span the whole available width
   gtk_label_set_xalign (GTK_LABEL(label), 0.5f);
   gtk_label_set_ellipsize(GTK_LABEL(label), PANGO_ELLIPSIZE_END); // ellipsize labels
-  gtk_widget_set_name(label, "section_label"); // make sure that we can style these easily
+  dt_gui_add_class(label, "dt_section_label"); // make sure that we can style these easily
 }
 
 static inline GtkWidget *dt_ui_section_label_new(const gchar *str)
@@ -416,16 +425,6 @@ guint dt_gui_translated_key_state(GdkEventKey *event);
 // return modifier keys currently pressed, independent of any key event
 GdkModifierType dt_key_modifier_state();
 
-// create an ellipsized button with label, tooltip and help link
-static inline GtkWidget *dt_ui_button_new(const gchar *label, const gchar *tooltip, const gchar *help)
-{
-  GtkWidget *button = gtk_button_new_with_label(label);
-  gtk_label_set_ellipsize(GTK_LABEL(gtk_bin_get_child(GTK_BIN(button))), PANGO_ELLIPSIZE_END);
-  if(tooltip) gtk_widget_set_tooltip_text(button, tooltip);
-  if(help) dt_gui_add_help_link(button, help);
-  return button;
-};
-
 GtkWidget *dt_ui_scroll_wrap(GtkWidget *w, gint min_size, char *config_str);
 
 // check whether the given container has any user-added children
@@ -466,6 +465,9 @@ void dt_gui_update_collapsible_section(dt_gui_collapsible_section_t *cs);
 // routine to hide the collapsible section
 void dt_gui_hide_collapsible_section(dt_gui_collapsible_section_t *cs);
 
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on
+

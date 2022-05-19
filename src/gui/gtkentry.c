@@ -202,8 +202,8 @@ const dt_gtkentry_completion_spec *dt_gtkentry_get_default_path_compl_list()
           { "EXIF.YEAR", N_("$(EXIF.YEAR) - EXIF year") },
           { "EXIF.YEAR.SHORT", N_("$(EXIF.YEAR.SHORT) - EXIF year without century") },
           { "EXIF.MONTH", N_("$(EXIF.MONTH) - EXIF month") },
-          { "EXIF.MONTH.SHORT", N_("$(EXIF.MONTH.SHORT) - abbreviated exif month name according to the current locale") },
-          { "EXIF.MONTH.LONG", N_("$(EXIF.MONTH.LONG) - full exif month name according to the current locale") },
+          { "EXIF.MONTH.SHORT", N_("$(EXIF.MONTH.SHORT) - abbreviated EXIF month name according to the current locale") },
+          { "EXIF.MONTH.LONG", N_("$(EXIF.MONTH.LONG) - full EXIF month name according to the current locale") },
           { "EXIF.DAY", N_("$(EXIF.DAY) - EXIF day") },
           { "EXIF.HOUR", N_("$(EXIF.HOUR) - EXIF hour") },
           { "EXIF.HOUR.AMPM", N_("$(EXIF.HOUR.AMPM) - EXIF hour, 12-hour clock") },
@@ -274,6 +274,9 @@ gchar *dt_gtkentry_build_completion_tooltip_text(const gchar *header,
 }
 
 
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on
+

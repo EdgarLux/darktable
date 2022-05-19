@@ -92,48 +92,13 @@ static void process_common_setup(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *
   // 4BAYER is not supported by this module yet anyway.
   const int ch = (dev->image_storage.flags & DT_IMAGE_4BAYER) ? 4 : 3;
 
-  float threshold;
-
-  // the clipping is detected as >1.0 after white level normalization
-
-  /*
-   * yes, technically, sensor clipping needs to be detected not accounting
-   * for white balance.
-   *
-   * but we are not after technical sensor clipping.
-   *
-   * pick some image that is overexposed, disable highlight clipping, apply
-   * negative exposure compensation. you'll see magenta highlight.
-   * if comment-out that ^ wb division, the module would not mark that
-   * area with magenta highlights as clipped, because technically
-   * the channels are not clipped, even though the colour is wrong.
-   *
-   * but we do want to see those magenta highlights marked...
-   */
-
-  if(piece->pipe->dsc.temperature.enabled)
-  {
-    threshold = FLT_MAX;
-
-    // so to detect the color clipping, we need to take white balance into account.
-    for(int k = 0; k < ch; k++) threshold = fminf(threshold, piece->pipe->dsc.temperature.coeffs[k]);
-  }
-  else
-  {
-    threshold = 1.0f;
-  }
-
-  threshold *= dev->rawoverexposed.threshold;
+  // the clipping is detected as (raw value > threshold) 
+  float threshold = dev->rawoverexposed.threshold;
 
   for(int k = 0; k < ch; k++)
   {
     // here is our threshold
     float chthr = threshold;
-
-    // but we check it on the raw input buffer, so we need backtransform threshold
-
-    // "undo" temperature iop
-    if(piece->pipe->dsc.temperature.enabled) chthr /= piece->pipe->dsc.temperature.coeffs[k];
 
     // "undo" rawprepare iop
     chthr *= piece->pipe->dsc.rawprepare.raw_white_point - piece->pipe->dsc.rawprepare.raw_black_level;
@@ -142,9 +107,6 @@ static void process_common_setup(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *
     // and this is that threshold, but in raw input buffer values
     d->threshold[k] = (unsigned int)chthr;
   }
-
-  // printf("d->threshold[] = { %i, %i, %i, %i }\n", d->threshold[0], d->threshold[1], d->threshold[2],
-  // d->threshold[3]);
 }
 
 void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid, void *const ovoid,
@@ -386,7 +348,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   dev_thresholds = dt_opencl_copy_host_to_device_constant(devid, sizeof(unsigned int) * 4, (void *)d->threshold);
   if(dev_thresholds == NULL) goto error;
 
-  size_t sizes[2] = { ROUNDUPWD(width), ROUNDUPHT(height) };
+  size_t sizes[2] = { ROUNDUPDWD(width, devid), ROUNDUPDHT(height, devid) };
   dt_opencl_set_kernel_arg(devid, kernel, 0, sizeof(cl_mem), &dev_in);
   dt_opencl_set_kernel_arg(devid, kernel, 1, sizeof(cl_mem), &dev_out);
   dt_opencl_set_kernel_arg(devid, kernel, 2, sizeof(cl_mem), &dev_coord);
@@ -519,6 +481,9 @@ void init(dt_iop_module_t *module)
   module->gui_data = NULL;
 }
 
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on
+

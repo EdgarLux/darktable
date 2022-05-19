@@ -398,11 +398,12 @@ static void init_tab_general(GtkWidget *dialog, GtkWidget *stack, dt_gui_themetw
   //scrollable textarea with save button to allow user to directly modify user.css file
   GtkWidget *usercssbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_box_pack_start(GTK_BOX(container), usercssbox, TRUE, TRUE, 0);
-  gtk_widget_set_name(usercssbox, "usercss_box");
+  gtk_widget_set_name(usercssbox, "usercss-box");
 
   GtkTextBuffer *buffer = gtk_text_buffer_new(NULL);
   tw->css_text_view= gtk_text_view_new_with_buffer(buffer);
   gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(tw->css_text_view), GTK_WRAP_WORD);
+  dt_gui_add_class(tw->css_text_view, "dt_monospace");
   gtk_widget_set_hexpand(tw->css_text_view, TRUE);
   gtk_widget_set_halign(tw->css_text_view, GTK_ALIGN_FILL);
 
@@ -496,16 +497,16 @@ void dt_gui_preferences_show()
   dt_osx_disallow_fullscreen(_preferences_dialog);
 #endif
   gtk_window_set_position(GTK_WINDOW(_preferences_dialog), GTK_WIN_POS_CENTER_ON_PARENT);
-  gtk_widget_set_name(_preferences_dialog, "preferences_notebook");
+  gtk_widget_set_name(_preferences_dialog, "preferences-notebook");
 
   //grab the content area of the dialog
   GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(_preferences_dialog));
-  gtk_widget_set_name(content, "preferences_content");
+  gtk_widget_set_name(content, "preferences-content");
   gtk_container_set_border_width(GTK_CONTAINER(content), 0);
 
   //place a box in the content area
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-  gtk_widget_set_name(box, "preferences_box");
+  gtk_widget_set_name(box, "preferences-box");
   gtk_container_set_border_width(GTK_CONTAINER(box), 0);
   gtk_box_pack_start(GTK_BOX(content), box, TRUE, TRUE, 0);
 
@@ -597,13 +598,14 @@ static void tree_insert_presets(GtkTreeStore *tree_model)
                                                      DT_PIXEL_APPLY_DPI(ICON_SIZE), DT_PIXEL_APPLY_DPI(ICON_SIZE),
                                                      cairo_image_surface_get_stride(check_cst),
                                                      cairo_destroy_from_pixbuf, check_cr);
-
+  // clang-format off
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
                               "SELECT rowid, name, operation, autoapply, model, maker, lens, iso_min, "
                               "iso_max, exposure_min, exposure_max, aperture_min, aperture_max, "
                               "focal_length_min, focal_length_max, writeprotect FROM data.presets ORDER BY "
                               "operation, name",
                               -1, &stmt, NULL);
+  // clang-format on
   while(sqlite3_step(stmt) == SQLITE_ROW)
   {
     const gint rowid = sqlite3_column_int(stmt, 0);
@@ -1378,6 +1380,9 @@ GtkWidget *dt_gui_preferences_string(GtkGrid *grid, const char *key, const guint
   return w;
 }
 
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on
+

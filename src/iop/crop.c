@@ -133,7 +133,7 @@ const char *aliases()
   return _("reframe|distortion");
 }
 
-const char *description(struct dt_iop_module_t *self)
+const char **description(struct dt_iop_module_t *self)
 {
   return dt_iop_set_description(self, _("change the framing"), _("corrective or creative"),
                                 _("linear, RGB, scene-referred"), _("geometric, RGB"),
@@ -176,10 +176,11 @@ static int _gui_has_focus(struct dt_iop_module_t *self)
 static void _commit_box(dt_iop_module_t *self, dt_iop_crop_gui_data_t *g, dt_iop_crop_params_t *p)
 {
   if(darktable.gui->reset) return;
+  if(self->dev->preview_status != DT_DEV_PIXELPIPE_VALID) return;
+
   g->cropping = 0;
   const dt_boundingbox_t old = { p->cx, p->cy, p->cw, p->ch };
   const float eps = 1e-6f; // threshold to avoid rounding errors
-
   if(!self->enabled)
   {
     // first time crop, if any data is stored in p, it's obsolete:
@@ -196,6 +197,7 @@ static void _commit_box(dt_iop_module_t *self, dt_iop_crop_gui_data_t *g, dt_iop
     dt_dev_pixelpipe_iop_t *piece = dt_dev_distort_get_iop_pipe(self->dev, self->dev->preview_pipe, self);
     if(piece)
     {
+      if(piece->buf_out.width < 1 || piece->buf_out.height < 1) return;
       p->cx = points[0] / (float)piece->buf_out.width;
       p->cy = points[1] / (float)piece->buf_out.height;
       p->cw = points[2] / (float)piece->buf_out.width;
@@ -218,6 +220,7 @@ static int _set_max_clip(struct dt_iop_module_t *self)
   dt_iop_crop_params_t *p = (dt_iop_crop_params_t *)self->params;
 
   if(g->clip_max_pipe_hash == self->dev->preview_pipe->backbuf_hash) return 1;
+  if(self->dev->preview_status != DT_DEV_PIXELPIPE_VALID) return 1;
 
   // we want to know the size of the actual buffer
   dt_dev_pixelpipe_iop_t *piece = dt_dev_distort_get_iop_pipe(self->dev, self->dev->preview_pipe, self);
@@ -387,11 +390,11 @@ static void _event_preview_updated_callback(gpointer instance, dt_iop_module_t *
   dt_iop_crop_gui_data_t *g = (dt_iop_crop_gui_data_t *)self->gui_data;
   if(!g) return; // seems that sometimes, g can be undefined for some reason...
   g->preview_ready = TRUE;
+  DT_DEBUG_CONTROL_SIGNAL_DISCONNECT(darktable.signals, G_CALLBACK(_event_preview_updated_callback), self);
   if(self->dev->gui_module != self)
   {
     dt_image_update_final_size(self->dev->preview_pipe->output_imgid);
   }
-  DT_DEBUG_CONTROL_SIGNAL_DISCONNECT(darktable.signals, G_CALLBACK(_event_preview_updated_callback), self);
   // force max size to be recomputed
   g->clip_max_pipe_hash = 0;
 }
@@ -415,7 +418,7 @@ void gui_focus(struct dt_iop_module_t *self, gboolean in)
       g->clip_h = CLAMPF(p->ch - p->cy, 0.1f, 1.0f - g->clip_y);
       g->preview_ready = FALSE;
     }
-    else
+    else if(g->preview_ready)
     {
       // hack : commit_box use distort_transform routines with gui values to get params
       // but this values are accurate only if crop is the gui_module...
@@ -976,33 +979,24 @@ void gui_update(struct dt_iop_module_t *self)
   dt_gui_update_collapsible_section(&g->cs);
 }
 
-static void _event_key_swap(GtkAccelGroup *accel_group, GObject *acceleratable, guint keyval,
-                            GdkModifierType modifier, gpointer d)
+static void _event_key_swap(dt_iop_module_t *self)
 {
-  (void)accel_group;
-  (void)acceleratable;
-  (void)keyval;
-  (void)modifier;
-  dt_iop_module_t *self = (dt_iop_module_t *)d;
   dt_iop_crop_params_t *p = (dt_iop_crop_params_t *)self->params;
   p->ratio_d = -p->ratio_d;
   _aspect_apply(self, GRAB_HORIZONTAL);
   dt_control_queue_redraw_center();
 }
 
-static gboolean _event_key_commit(GtkAccelGroup *accel_group, GObject *acceleratable, guint keyval,
-                                  GdkModifierType modifier, gpointer data)
+static void _event_commit_clicked(GtkButton *button, dt_iop_module_t *self)
 {
-  dt_iop_module_t *self = (dt_iop_module_t *)data;
   dt_iop_crop_gui_data_t *g = (dt_iop_crop_gui_data_t *)self->gui_data;
   dt_iop_crop_params_t *p = (dt_iop_crop_params_t *)self->params;
   _commit_box(self, g, p);
-  return TRUE;
 }
 
 static void _event_aspect_flip(GtkWidget *button, dt_iop_module_t *self)
 {
-  _event_key_swap(NULL, NULL, 0, 0, self);
+  _event_key_swap(self);
 }
 
 static gint _aspect_ratio_cmp(const dt_iop_crop_aspect_t *a, const dt_iop_crop_aspect_t *b)
@@ -1167,6 +1161,9 @@ void gui_init(struct dt_iop_module_t *self)
   dt_bauhaus_widget_set_quad_paint(g->aspect_presets, dtgtk_cairo_paint_aspectflip, 0, NULL);
   g_signal_connect(G_OBJECT(g->aspect_presets), "quad-pressed", G_CALLBACK(_event_aspect_flip), self);
   gtk_box_pack_start(GTK_BOX(box_enabled), g->aspect_presets, TRUE, TRUE, 0);
+
+  GtkWidget *commit = dt_action_button_new((dt_lib_module_t *)self, N_("commit"), _event_commit_clicked, self, _("commit changes"), GDK_KEY_Return, 0);
+  gtk_box_pack_end(GTK_BOX(box_enabled), commit, TRUE, TRUE, 0);
 
   // we put margins values under an expander
   dt_gui_new_collapsible_section
@@ -1635,16 +1632,6 @@ int button_pressed(struct dt_iop_module_t *self, double x, double y, double pres
     return 0;
 }
 
-void init_key_accels(dt_iop_module_so_t *self)
-{
-  dt_accel_register_iop(self, TRUE, N_("commit"), GDK_KEY_Return, 0);
-}
-
-void connect_key_accels(dt_iop_module_t *self)
-{
-  dt_accel_connect_iop(self, "commit", g_cclosure_new(G_CALLBACK(_event_key_commit), (gpointer)self, NULL));
-}
-
 GSList *mouse_actions(struct dt_iop_module_t *self)
 {
   GSList *lm = NULL;
@@ -1657,6 +1644,8 @@ GSList *mouse_actions(struct dt_iop_module_t *self)
 // #undef PHI
 // #undef INVPHI
 
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on

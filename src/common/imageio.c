@@ -78,6 +78,45 @@
 #include "lua/image.h"
 #endif
 
+// note `dng` is not included anywhere as it can be anything. For this images we'll need to open it for "real"
+static const gchar *_supported_raw[]
+    = { "3fr", "ari", "arw", "bay", "cr2", "cr3", "crw", "dc2", "dcr", "erf", "fff",
+        "ia",  "iiq", "k25", "kc2", "kdc", "mdc", "mef", "mos", "mrw", "nef", "nrw",
+        "orf", "pef", "raf", "raw", "rw2", "rwl", "sr2", "srf", "srw", "sti", "x3f" };
+static const gchar *_supported_ldr[]
+    = { "bmp",  "bmq", "cap", "cine", "cs1", "dcm", "gif", "gpr", "j2c", "j2k", "jng", "jp2", "jpc", "jpeg", "jpg",
+        "miff", "mng", "ori", "pbm",  "pfm", "pgm", "png", "pnm", "ppm", "pxn", "qtk", "rdc", "tif", "tiff" };
+static const gchar *_supported_hdr[] = { "avif", "exr", "hdr", "heic", "heif", "hif", "pfm" };
+
+// get the type of image from its extension
+dt_image_flags_t dt_imageio_get_type_from_extension(const char *extension)
+{
+  const char *ext = g_str_has_prefix(extension, ".") ? extension + 1 : extension;
+  for(const char **i = _supported_raw; *i != NULL; i++)
+  {
+    if(!g_ascii_strncasecmp(ext, *i, strlen(*i)))
+    {
+      return DT_IMAGE_RAW;
+    }
+  }
+  for(const char **i = _supported_hdr; *i != NULL; i++)
+  {
+    if(!g_ascii_strncasecmp(ext, *i, strlen(*i)))
+    {
+      return DT_IMAGE_HDR;
+    }
+  }
+  for(const char **i = _supported_ldr; *i != NULL; i++)
+  {
+    if(!g_ascii_strncasecmp(ext, *i, strlen(*i)))
+    {
+      return DT_IMAGE_LDR;
+    }
+  }
+  // default to 0
+  return 0;
+}
+
 // load a full-res thumbnail:
 int dt_imageio_large_thumbnail(const char *filename, uint8_t **buffer, int32_t *width, int32_t *height,
                                dt_colorspaces_color_profile_type_t *color_space)
@@ -1269,6 +1308,9 @@ gboolean dt_imageio_lookup_makermodel(const char *maker, const char *model,
   return found;
 }
 
-// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
+// clang-format off
+// modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
+// clang-format on
+
