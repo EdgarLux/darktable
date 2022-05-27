@@ -1282,7 +1282,7 @@
     <type>string</type>
     <default>120|400</default>
     <shortdescription>delimiters for size categories</shortdescription>
-    <longdescription>size categories are used to be able to set different overlays and css values depending of the size of the thumbnail, separated by |. for example, 120|400 means 3 categories of thumbnails : 0px->120px, 120px->400px and >400px</longdescription>
+    <longdescription>size categories are used to be able to set different overlays and css values depending of the size of the thumbnail, separated by |. for example, 120|400 means 3 categories of thumbnails: 0px->120px, 120px->400px and >400px</longdescription>
   </dtconfig>
   <dtconfig prefs="lighttable" section="thumbs">
     <name>plugins/lighttable/extended_pattern</name>
@@ -2498,6 +2498,18 @@
     <type>float</type>
     <default>300</default>
     <shortdescription/>
+    <longdescription/>
+  </dtconfig>
+  <dtconfig>
+    <name>plugins/imageio/format/pdf/bpp</name>
+    <type>
+      <enum>
+        <option>8</option>
+        <option>16</option>
+      </enum>
+    </type>
+    <default>8</default>
+    <shortdescription>PDF bit depth (bpp)</shortdescription>
     <longdescription/>
   </dtconfig>
   <dtconfig>
