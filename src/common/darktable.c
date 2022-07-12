@@ -125,9 +125,9 @@ static int usage(const char *argv0)
   printf("  --cachedir <user cache directory>\n");
   printf("  --conf <key>=<value>\n");
   printf("  --configdir <user config directory>\n");
-  printf("  -d {all,cache,camctl,camsupport,control,dev,fswatch,imageio,input,\n");
-  printf("      ioporder,lighttable,lua,masks,memory,nan,opencl,params,perf,demosaic\n");
-  printf("      pwstorage,print,signal,sql,undo,act_on,tiling,verbose}\n");
+  printf("  -d {all,act_on,cache,camctl,camsupport,control,demosaic,dev,imageio,\n");
+  printf("      input,ioporder,lighttable,lua,masks,memory,nan,opencl,params,\n");
+  printf("      perf,print,pwstorage,signal,sql,tiling,undo,verbose}\n");
   printf("  --d-signal <signal> \n");
   printf("  --d-signal-act <all,raise,connect,disconnect");
   // clang-format on
@@ -1066,6 +1066,7 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
   {
     darktable.gui = (dt_gui_gtk_t *)calloc(1, sizeof(dt_gui_gtk_t));
     darktable.gui->grouping = dt_conf_get_bool("ui_last/grouping");
+    memset(darktable.gui->scroll_to, 0, sizeof(darktable.gui->scroll_to));
     dt_film_set_folder_status();
   }
 
