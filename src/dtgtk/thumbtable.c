@@ -746,15 +746,17 @@ static dt_thumbnail_t *_thumbtable_get_thumb(dt_thumbtable_t *table, int imgid)
   return NULL;
 }
 
-// change zoom value for the zoomable tumbtable
+// change zoom value for the zoomable thumbtable
 static void _zoomable_zoom(dt_thumbtable_t *table, int oldzoom, int newzoom)
 {
+  // nothing to do if thumbtable is empty
+  if(!table->list) return;
   // determine the center of the zoom
   int x = 0;
   int y = 0;
   if(table->mouse_inside)
   {
-    // if the mouse is inside the table, let's use his position
+    // if the mouse is inside the table, let's use its position
     gdk_window_get_origin(gtk_widget_get_window(table->widget), &x, &y);
     x = table->last_x - x;
     y = table->last_y - y;
@@ -808,6 +810,7 @@ static void _zoomable_zoom(dt_thumbtable_t *table, int oldzoom, int newzoom)
   if(changed > 0) _pos_compute_area(table);
 
   // we update all the values
+  // chained dereference is dangerous, but there was a check above in the code
   dt_thumbnail_t *first = (dt_thumbnail_t *)table->list->data;
   table->offset = first->rowid;
   table->offset_imgid = first->imgid;
@@ -2668,10 +2671,14 @@ gboolean dt_thumbtable_key_move(dt_thumbtable_t *table, dt_thumbtable_move_t mov
 
 gboolean dt_thumbtable_reset_first_offset(dt_thumbtable_t *table)
 {
+  // nothing to do if thumbtable is empty
+  if(!table->list) return FALSE;
+
   if(table->mode != DT_THUMBTABLE_MODE_FILEMANAGER
      && table->mode != DT_THUMBTABLE_MODE_ZOOM)
     return FALSE;
 
+  // chained dereference is dangerous, but there was a check above in the code
   dt_thumbnail_t *first = (dt_thumbnail_t *)table->list->data;
   const int offset = table->thumbs_per_row - ((first->rowid - 1) % table->thumbs_per_row);
   if(offset == 0) return FALSE;
