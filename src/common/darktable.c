@@ -463,7 +463,7 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
   pthread_mutexattr_t recursive_locking;
   pthread_mutexattr_init(&recursive_locking);
   pthread_mutexattr_settype(&recursive_locking, PTHREAD_MUTEX_RECURSIVE);
-  for (int k=0; k<DT_IMAGE_DBLOCKS; k++)
+  for(int k=0; k<DT_IMAGE_DBLOCKS; k++)
   {
     dt_pthread_mutex_init(&(darktable.db_image[k]),&(recursive_locking));
   }
@@ -725,7 +725,7 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
       {
         gchar *str = g_ascii_strup(argv[k+1], -1);
 
-        #define CHKSIGDBG(sig) else if(!g_strcmp0(str, #sig)) do {darktable.unmuted_signal_dbg[sig] = TRUE;} while (0)
+        #define CHKSIGDBG(sig) else if(!g_strcmp0(str, #sig)) do {darktable.unmuted_signal_dbg[sig] = TRUE;} while(0)
         if(!g_strcmp0(str, "ALL"))
         {
           for(int sig=0; sig<DT_SIGNAL_COUNT; sig++)
@@ -997,7 +997,7 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
   }
   else if(!dt_database_get_lock_acquired(darktable.db))
   {
-    if (init_gui)
+    if(init_gui)
     {
       gboolean image_loaded_elsewhere = FALSE;
 #ifndef MAC_INTEGRATION
@@ -1131,10 +1131,14 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
 
 #ifdef HAVE_GRAPHICSMAGICK
   /* GraphicsMagick init */
+#ifndef MAGICK_OPT_NO_SIGNAL_HANDER
   InitializeMagick(darktable.progname);
 
   // *SIGH*
   dt_set_signal_handlers();
+#else
+  InitializeMagickEx(darktable.progname, MAGICK_OPT_NO_SIGNAL_HANDER, NULL);
+#endif
 #elif defined HAVE_IMAGEMAGICK
   /* ImageMagick init */
   MagickWandGenesis();
@@ -1143,6 +1147,7 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
   darktable.opencl = (dt_opencl_t *)calloc(1, sizeof(dt_opencl_t));
 #ifdef HAVE_OPENCL
   dt_opencl_init(darktable.opencl, exclude_opencl, print_statistics);
+  dt_opencl_update_settings();
 #endif
 
   darktable.points = (dt_points_t *)calloc(1, sizeof(dt_points_t));
@@ -1279,12 +1284,12 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
 #ifndef MAC_INTEGRATION
     // load image(s) specified on cmdline.
     // this has to happen after lua is initialized as image import can run lua code
-    if (argc == 2)
+    if(argc == 2)
     {
       // If only one image is listed, attempt to load it in darkroom
       (void)dt_load_from_string(argv[1], TRUE, NULL);
     }
-    else if (argc > 2)
+    else if(argc > 2)
     {
       // when multiple names are given, fire up a background job to import them
       dt_control_add_job(darktable.control, DT_JOB_QUEUE_USER_BG, dt_pathlist_import_create(argc,argv));
@@ -1347,7 +1352,7 @@ void dt_get_sysresource_level()
   res->level = oldlevel = level;
   oldtunecl = tunecl;
   res->tunemode = tunecl;
-  if(mod && (darktable.unmuted & (DT_DEBUG_MEMORY | DT_DEBUG_OPENCL)))
+  if(mod && (darktable.unmuted & (DT_DEBUG_MEMORY | DT_DEBUG_OPENCL | DT_DEBUG_DEV)))
   {
     const int oldgrp = res->group;
     res->group = 4 * level;
@@ -1356,6 +1361,7 @@ void dt_get_sysresource_level()
     fprintf(stderr,"  mipmap cache:    %luMB\n", _get_mipmap_size() / 1024lu / 1024lu);
     fprintf(stderr,"  available mem:   %luMB\n", dt_get_available_mem() / 1024lu / 1024lu);
     fprintf(stderr,"  singlebuff:      %luMB\n", dt_get_singlebuffer_mem() / 1024lu / 1024lu);
+    fprintf(stderr,"  iop cache:       %luMB\n", dt_get_iopcache_mem() / 1024lu / 1024lu);
 #ifdef HAVE_OPENCL
     fprintf(stderr,"  OpenCL tune mem: %s\n", ((tunecl & DT_OPENCL_TUNE_MEMSIZE) && (level >= 0)) ? "WANTED" : "OFF");
     fprintf(stderr,"  OpenCL pinned:   %s\n", ((tunecl & DT_OPENCL_TUNE_PINNED) && (level >= 0)) ? "WANTED" : "OFF");
@@ -1483,7 +1489,7 @@ void dt_cleanup()
     dt_bauhaus_cleanup();
   }
 
-  if (darktable.noiseprofile_parser)
+  if(darktable.noiseprofile_parser)
   {
     g_object_unref(darktable.noiseprofile_parser);
     darktable.noiseprofile_parser = NULL;
@@ -1491,7 +1497,7 @@ void dt_cleanup()
 
   dt_capabilities_cleanup();
 
-  for (int k=0; k<DT_IMAGE_DBLOCKS; k++)
+  for(int k=0; k<DT_IMAGE_DBLOCKS; k++)
   {
     dt_pthread_mutex_destroy(&(darktable.db_image[k]));
   }
@@ -1586,7 +1592,7 @@ void dt_free_align(void *mem)
 void dt_free_align(void *mem)
 {
   // on a debug build, we deliberately offset the returned pointer from dt_alloc_align, so eliminate the offset
-  if (mem)
+  if(mem)
   {
     short offset = ((short*)mem)[-1];
     free(((char*)mem)-offset);
@@ -1662,6 +1668,13 @@ size_t dt_get_singlebuffer_mem()
   return MAX(2lu * 1024lu * 1024lu, total_mem / 1024lu * fraction);
 }
 
+size_t dt_get_iopcache_mem()
+{
+  dt_sys_resources_t *res = &darktable.dtresources;
+  const size_t cachemb = res->total_memory / 1024lu / 1024lu / 20lu;
+  return MIN(6000lu, MAX(400lu, cachemb)) * 1024lu * 1024lu;
+}
+
 void dt_configure_runtime_performance(const int old, char *info)
 {
   const size_t threads = dt_get_num_threads();
@@ -1687,17 +1700,26 @@ void dt_configure_runtime_performance(const int old, char *info)
 
   if(!dt_conf_key_not_empty("plugins/darkroom/demosaic/quality"))
   {
-    dt_conf_set_string("plugins/darkroom/demosaic/quality", (sufficient) ? "at most RCD (reasonable)" : "always bilinear (fast)");
+    dt_conf_set_string("plugins/darkroom/demosaic/quality", (sufficient) ? "default" : "always bilinear (fast)");
     dt_print(DT_DEBUG_DEV, "[dt_configure_runtime_performance] plugins/darkroom/demosaic/quality=%s",
-      (sufficient) ? "at most RCD (reasonable)" : "always bilinear (fast)");
+      (sufficient) ? "default" : "always bilinear (fast)");
   }
   else if(old == 2)
   {
     const gchar *demosaic_quality = dt_conf_get_string_const("plugins/darkroom/demosaic/quality");
     if(!strcmp(demosaic_quality, "always bilinear (fast)"))
     {
-      dt_conf_set_string("plugins/darkroom/demosaic/quality", "at most RCD (reasonable)");
-      dt_print(DT_DEBUG_DEV, "[dt_configure_performance] override: plugins/darkroom/demosaic/quality=at most RCD (reasonable)\n");
+      dt_conf_set_string("plugins/darkroom/demosaic/quality", "default");
+      dt_print(DT_DEBUG_DEV, "[dt_configure_runtime_performance] override: plugins/darkroom/demosaic/quality=default\n");
+    }
+  }
+  else if(old < 12)
+  {
+    const gchar *demosaic_quality = dt_conf_get_string_const("plugins/darkroom/demosaic/quality");
+    if(!strcmp(demosaic_quality, "at most RCD (reasonable)"))
+    {
+      dt_conf_set_string("plugins/darkroom/demosaic/quality", "default");
+      dt_print(DT_DEBUG_DEV, "[dt_configure_runtime_performance] override: plugins/darkroom/demosaic/quality=default\n");
     }
   }
 

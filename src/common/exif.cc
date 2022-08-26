@@ -1116,10 +1116,14 @@ static bool _exif_decode_exif_data(dt_image_t *img, Exiv2::ExifData &exifData)
       dt_strlcpy_to_utf8(img->exif_lens, sizeof(img->exif_lens), pos, exifData);
     }
 
-    /* Use pretty name for Canon RF lenses (as exiftool/exiv2/lensfun) */
+    /* Use pretty name for Canon RF & RF-S lenses (as exiftool/exiv2/lensfun) */
     if(g_str_has_prefix(img->exif_lens, "RF"))
     {
-      char *pretty = g_strconcat("Canon RF ", &img->exif_lens[2], (char *)NULL);
+      char *pretty;
+      if(img->exif_lens[2] == '-')
+        pretty = g_strconcat("Canon RF-S ", &img->exif_lens[4], (char *)NULL);
+      else
+        pretty = g_strconcat("Canon RF ", &img->exif_lens[2], (char *)NULL);
       g_strlcpy(img->exif_lens, pretty, sizeof(img->exif_lens));
       g_free(pretty);
     }
@@ -2882,8 +2886,6 @@ static gboolean _image_altered_deprecated(const uint32_t imgid)
   const gboolean basecurve_auto_apply =
     dt_conf_is_equal("plugins/darkroom/workflow", "display-referred");
 
-  const gboolean sharpen_auto_apply = dt_conf_get_bool("plugins/darkroom/sharpen/auto_apply");
-
   char query[1024] = { 0 };
 
   // clang-format off
@@ -2892,9 +2894,8 @@ static gboolean _image_altered_deprecated(const uint32_t imgid)
            " FROM main.history, main.images"
            " WHERE id=?1 AND imgid=id AND num<history_end AND enabled=1"
            "       AND operation NOT IN ('flip', 'dither', 'highlights', 'rawprepare',"
-           "                             'colorin', 'colorout', 'gamma', 'demosaic', 'temperature'%s%s)",
-           basecurve_auto_apply ? ", 'basecurve'" : "",
-           sharpen_auto_apply ? ", 'sharpen'" : "");
+           "                             'colorin', 'colorout', 'gamma', 'demosaic', 'temperature'%s)",
+           basecurve_auto_apply ? ", 'basecurve'" : "");
   // clang-format on
 
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), query, -1, &stmt, NULL);

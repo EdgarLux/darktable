@@ -156,7 +156,7 @@ typedef unsigned int u_int;
 // version of current performance configuration version
 // if you want to run an updated version of the performance configuration later
 // bump this number and make sure you have an updated logic in dt_configure_performance()
-#define DT_CURRENT_PERFORMANCE_CONFIGURE_VERSION 11
+#define DT_CURRENT_PERFORMANCE_CONFIGURE_VERSION 12
 #define DT_PERF_INFOSIZE 4096
 
 // every module has to define this:
@@ -369,6 +369,7 @@ void dt_vprint(dt_debug_thread_t thread, const char *msg, ...) __attribute__((fo
 int dt_worker_threads();
 size_t dt_get_available_mem();
 size_t dt_get_singlebuffer_mem();
+size_t dt_get_iopcache_mem();
 
 void *dt_alloc_align(size_t alignment, size_t size);
 static inline void* dt_calloc_align(size_t alignment, size_t size)

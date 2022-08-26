@@ -686,6 +686,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG")
 #
 # Generate config.h
 #
+list(REMOVE_DUPLICATES DT_SUPPORTED_EXTENSIONS)
 string(REPLACE ";" "\", \"" DT_SUPPORTED_EXTENSIONS_STRING "${DT_SUPPORTED_EXTENSIONS}")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.h" "${DARKTABLE_BINDIR}/config.h" @ONLY)
 
@@ -1033,7 +1034,7 @@ if (WIN32)
 else()
     set_target_properties(darktable
                           PROPERTIES
-                          INSTALL_RPATH ${CMAKE_INSTALL_LIBDIR_RPATH})
+                          INSTALL_RPATH ${RPATH_ORIGIN}/${REL_BIN_TO_LIBDIR})
 endif(WIN32)
 
 install(TARGETS darktable DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT DTApplication)
