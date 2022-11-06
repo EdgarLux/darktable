@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2009-2021 darktable developers.
+    Copyright (C) 2009-2022 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,20 +23,13 @@
 #include "libs/colorpicker.h"
 #include <stdlib.h>
 
-
+#define VERY_OLD_CACHE_WEIGHT 1000
 // TODO: make cache global (needs to be thread safe then)
-// plan:
-// - look at mipmap_cache.c, for the full buffer allocs
-// - do that, but for `large' and `regular' buffers (full + export/dr mode), so 2 caches
-//   (in fact, maybe 3, one for preview pipes?)
-// - have at most 3 read locks all the time per pipe, get them at create time
-//   ping, pong, and priority buffer (focused plugin)
-// - drop read by the time another is requested (with priority, drop that, or alternating ping and pong?)
 
 gboolean dt_dev_pixelpipe_cache_init(dt_dev_pixelpipe_cache_t *cache, int entries, size_t size, size_t limit)
 {
   cache->entries = entries;
-  cache->allmem = 0;
+  cache->allmem = cache->queries = cache->misses = 0;
   cache->memlimit = limit;
   cache->data = (void **)calloc(entries, sizeof(void *));
   cache->size = (size_t *)calloc(entries, sizeof(size_t));
@@ -48,26 +41,29 @@ gboolean dt_dev_pixelpipe_cache_init(dt_dev_pixelpipe_cache_t *cache, int entrie
   cache->hash = (uint64_t *)calloc(entries, sizeof(uint64_t));
   cache->used = (int32_t *)calloc(entries, sizeof(int32_t));
   cache->modname = (char **)calloc(entries, sizeof(char *));
+
+  for(int k = 0; k < entries; k++)
+  {
+    cache->size[k] = 0;
+    cache->data[k] = NULL;
+    cache->basichash[k] = -1;
+    cache->hash[k] = -1;
+    cache->used[k] = 1;
+    cache->modname[k] = NULL;
+  }
+  if(!size) return TRUE;
+
   for(int k = 0; k < entries; k++)
   {
     cache->size[k] = size;
-    if(size)
-    { // allow 0 initial buffer size (yet unknown dimensions)
-      cache->data[k] = (void *)dt_alloc_align(64, size);
-      if(!cache->data[k]) goto alloc_memory_fail;
+    cache->data[k] = (void *)dt_alloc_align(64, size);
+    if(!cache->data[k]) goto alloc_memory_fail;
 #ifdef _DEBUG
-      memset(cache->data[k], 0x5d, size);
+    memset(cache->data[k], 0x5d, size);
 #endif
-      ASAN_POISON_MEMORY_REGION(cache->data[k], cache->size[k]);
-    }
-    else cache->data[k] = NULL;
+    ASAN_POISON_MEMORY_REGION(cache->data[k], cache->size[k]);
     cache->allmem += size;
-    cache->basichash[k] = -1;
-    cache->hash[k] = -1;
-    cache->used[k] = 0;
-    cache->modname[k] = NULL;
   }
-  cache->queries = cache->misses = 0;
   return TRUE;
 
 alloc_memory_fail:
@@ -135,7 +131,6 @@ uint64_t dt_dev_pixelpipe_cache_basichash(int imgid, struct dt_dev_pixelpipe_t *
 uint64_t dt_dev_pixelpipe_cache_basichash_prior(int imgid, struct dt_dev_pixelpipe_t *pipe,
                                                 const dt_iop_module_t *const module)
 {
-  ;
   // find the last enabled module prior to the specified one, then get its hash
   GList *pieces = pipe->nodes;
   GList *modules = pipe->iop;
@@ -143,7 +138,7 @@ uint64_t dt_dev_pixelpipe_cache_basichash_prior(int imgid, struct dt_dev_pixelpi
   for(int k = 1; modules && pieces; k++)
   {
     dt_dev_pixelpipe_iop_t *piece = (dt_dev_pixelpipe_iop_t *)pieces->data;
-    if (module == (dt_iop_module_t *)modules->data)
+    if(module == (dt_iop_module_t *)modules->data)
       break;		// we've found the given module, so 'last' now contains the index of the prior active module
     dt_develop_t *dev = piece->module->dev;
     if(piece->enabled
@@ -182,23 +177,11 @@ gboolean dt_dev_pixelpipe_cache_available(dt_dev_pixelpipe_cache_t *cache, const
   return FALSE;
 }
 
-gboolean dt_dev_pixelpipe_cache_get_important(dt_dev_pixelpipe_cache_t *cache, const uint64_t basichash,
-                                         const uint64_t hash, const size_t size,
-                                         void **data, dt_iop_buffer_dsc_t **dsc, char *modname)
-{
-  return dt_dev_pixelpipe_cache_get_weighted(cache, basichash, hash, size, data, dsc, -cache->entries, modname);
-}
-
-gboolean dt_dev_pixelpipe_cache_get(dt_dev_pixelpipe_cache_t *cache, const uint64_t basichash, const uint64_t hash,
-                               const size_t size, void **data, dt_iop_buffer_dsc_t **dsc, char *modname)
-{
-  return dt_dev_pixelpipe_cache_get_weighted(cache, basichash, hash, size, data, dsc, 0, modname);
-}
-
 static int _get_oldest_cacheline(dt_dev_pixelpipe_cache_t *cache)
 {
-  int weight = -1;
-  int id = -1;
+  // we never want the latest used cacheline! It was <= 0 and the weight has increased just now
+  int weight = 1;
+  int id = 0;
   for(int k = 0; k < cache->entries; k++)
   {
     if(cache->used[k] > weight)
@@ -210,87 +193,124 @@ static int _get_oldest_cacheline(dt_dev_pixelpipe_cache_t *cache)
   return id;
 }
 
+static int _get_oldest_used_cacheline(dt_dev_pixelpipe_cache_t *cache, const int age, const size_t minsize)
+{
+  int weight = 0;
+  int id = -1;
+  for(int k = 0; k < cache->entries; k++)
+  {
+    if((cache->used[k] > weight) && (cache->size[k] >= minsize) && (cache->used[k] > age))
+    {
+      weight = cache->used[k];
+      id = k;
+    }
+  }
+  return id;
+}
+
+static int _get_oldest_free_cacheline(dt_dev_pixelpipe_cache_t *cache)
+{
+  // we never want the latest used cacheline! It was <= 0 and the weight has increased just now
+  int weight = 1;
+  int id = -1;
+  for(int k = 0; k < cache->entries; k++)
+  {
+    if((cache->used[k] > weight) && (cache->data[k] == NULL))
+    {
+      weight = cache->used[k];
+      id = k;
+    }
+  }
+  return id;
+}
+
 static int _get_free_cacheline(dt_dev_pixelpipe_cache_t *cache, size_t size)
 {
-  int oldest = _get_oldest_cacheline(cache);
-  if((cache->memlimit == 0) || ((cache->memlimit - cache->allmem) >= size))
-    return oldest;
+  const int oldest   = _get_oldest_cacheline(cache);
+  const int old_free = _get_oldest_free_cacheline(cache);
+  const int old_used = _get_oldest_used_cacheline(cache, 2, size);
 
-  int cnt = 0;
-   while(((cache->memlimit - cache->allmem) < size) && (cnt < cache->entries))
+  // No memory restrictions
+  if((cache->memlimit == 0) || (cache->memlimit > cache->allmem))
   {
-    cnt++;
-    // we have to free & invalidate cachelines until there is enough mem available
-    dt_free_align(cache->data[oldest]);
-    cache->allmem -= cache->size[oldest];
- 
-    cache->size[oldest] = 0;
-    cache->data[oldest] = NULL;
-    cache->hash[oldest] = -1;
-    cache->basichash[oldest] = -1;
-    cache->used[oldest] = 1;
-    oldest = _get_oldest_cacheline(cache);
-  }
+    if(old_free >= 0) return old_free;
+    if(old_used >= 0) return old_used;
+    return oldest;
+   }
 
-  dt_print(DT_DEBUG_DEV, "[get_free_cachelines] removed %i, ->line %i, cachemem=%luMB, limit=%luMB\n",
-    cnt, oldest, cache->allmem / 1024lu / 1024lu, cache->memlimit / 1024lu / 1024lu); 
+  if(old_used >= 0) return old_used;
+  
   return oldest;
 }
 
-gboolean dt_dev_pixelpipe_cache_get_weighted(dt_dev_pixelpipe_cache_t *cache, const uint64_t basichash, const uint64_t hash,
-                                        const size_t size, void **data, dt_iop_buffer_dsc_t **dsc, int weight, char *name)
+gboolean dt_dev_pixelpipe_cache_get(struct dt_dev_pixelpipe_t *pipe, const uint64_t basichash, const uint64_t hash,
+                                        const size_t size, void **data, dt_iop_buffer_dsc_t **dsc, char *name, const gboolean important)
 {
+  dt_dev_pixelpipe_cache_t *cache = &(pipe->cache);
+  const int weight = important ? -cache->entries : 0;
   cache->queries++;
-  *data = NULL;
-  size_t sz = 0;
+  for(int k = 0; k < cache->entries; k++)
+    cache->used[k]++; // age all entries
 
   for(int k = 0; k < cache->entries; k++)
   {
-    // search for hash in cache
-    cache->used[k]++; // age all entries
     if(cache->hash[k] == hash)
     {
       *data = cache->data[k];
       *dsc = &cache->dsc[k];
-      sz = cache->size[k];
-      cache->used[k] = weight; // this is the MRU entry
-
-      ASAN_POISON_MEMORY_REGION(*data, sz);
+      ASAN_POISON_MEMORY_REGION(*data, cache->size[k]);
       ASAN_UNPOISON_MEMORY_REGION(*data, size);
+      dt_vprint(DT_DEBUG_DEV, "[pixelpipe_cache_get] %12s %s HIT %16s, line%3i, age %4i, at %p, hash%22" PRIu64 ", basic%22" PRIu64 "\n",
+        dt_dev_pixelpipe_type_to_str(pipe->type), (cache->used[k] < 0) ? "important" : "         ", name, k, cache->used[k], cache->data[k],
+        cache->hash[k], cache->basichash[k]); 
+      // in case of a hit its always good to keep the cacheline as important
+      cache->used[k] = -cache->entries;
+      return FALSE;
     }
   }
 
-  if(!*data || sz < size)
+  // We need a fresh buffer as there was no hit.
+  // Either we just toggle cachelines 0/1 in case of cache->entries == 2
+  // or we get an old/free cacheline. As that might have no or not enough memory allocated we have to make sure.
+  // A problem? The module having used this cacheline before might still use the data with other dsc?
+  const int cline = (cache->entries == 2) ? cache->queries & 1 : _get_free_cacheline(&(pipe->cache), size);
+
+  const gboolean new_cline = (cache->size[cline] == 0);
+  const gboolean not_enough = (cache->size[cline] < size);
+
+  if(not_enough)
   {
-    // kill LRU entry
-    const int max = _get_free_cacheline(cache, size);
-    if(cache->size[max] < size)
+    if(not_enough && !new_cline)
     {
-      dt_free_align(cache->data[max]);
-      cache->allmem -= cache->size[max];
-      cache->data[max] = (void *)dt_alloc_align(64, size);
-      cache->size[max] = size;
-      cache->allmem += cache->size[max];
+      dt_free_align(cache->data[cline]);
+      cache->allmem -= cache->size[cline];
+      dt_print(DT_DEBUG_DEV, "[pixelpipe_cache_get] %12s %s CHG %16s, line%3i, age %4i, was %s, %lu->%luMB\n",
+        dt_dev_pixelpipe_type_to_str(pipe->type), important ? "important" : "         ", name, cline, cache->used[cline], cache->modname[cline],
+        cache->size[cline] / 1024lu / 1024lu, size / 1024lu / 1024lu); 
     }
-    *data = cache->data[max];
-    sz = cache->size[max];
-
-    ASAN_POISON_MEMORY_REGION(*data, sz);
-    ASAN_UNPOISON_MEMORY_REGION(*data, size);
-
-    // first, update our copy, then update the pointer to point at our copy
-    cache->dsc[max] = **dsc;
-    *dsc = &cache->dsc[max];
-
-    cache->basichash[max] = basichash;
-    cache->hash[max] = hash;
-    cache->used[max] = weight;
-    cache->modname[max] = name;
-    cache->misses++;
-    return TRUE;
+    cache->data[cline] = (void *)dt_alloc_align(64, size);
+    cache->size[cline] = size;
+    cache->allmem += cache->size[cline];
   }
-  else
-    return FALSE;
+
+  *data = cache->data[cline];
+
+//    ASAN_POISON_MEMORY_REGION(*data, sz);
+  ASAN_UNPOISON_MEMORY_REGION(*data, size);
+
+  // first, update our copy, then update the pointer to point at our copy
+  cache->dsc[cline] = **dsc;
+  *dsc = &cache->dsc[cline];
+
+  dt_vprint(DT_DEBUG_DEV, "[pixelpipe_cache_get] %12s %s %s %16s, line%3i, age %4i, at %p, hash%22" PRIu64 ", basic%22" PRIu64 "\n",
+    dt_dev_pixelpipe_type_to_str(pipe->type), important ? "important" : "         ", new_cline ? "NEW" : "   ", name, cline, cache->used[cline], cache->data[cline],
+    cache->hash[cline], cache->basichash[cline]); 
+  cache->basichash[cline] = basichash;
+  cache->hash[cline] = hash;
+  cache->used[cline] = weight;
+  cache->modname[cline] = name;
+  cache->misses++;
+  return TRUE;
 }
 
 void dt_dev_pixelpipe_cache_flush(dt_dev_pixelpipe_cache_t *cache)
@@ -299,7 +319,7 @@ void dt_dev_pixelpipe_cache_flush(dt_dev_pixelpipe_cache_t *cache)
   {
     cache->basichash[k] = -1;
     cache->hash[k] = -1;
-    cache->used[k] = 0;
+    cache->used[k] = VERY_OLD_CACHE_WEIGHT;
     ASAN_POISON_MEMORY_REGION(cache->data[k], cache->size[k]);
   }
 }
@@ -308,28 +328,21 @@ void dt_dev_pixelpipe_cache_flush_all_but(dt_dev_pixelpipe_cache_t *cache, uint6
 {
   for(int k = 0; k < cache->entries; k++)
   {
-    if (cache->basichash[k] == basichash)
+    if(cache->basichash[k] == basichash)
       continue;
     cache->basichash[k] = -1;
     cache->hash[k] = -1;
-    cache->used[k] = 0;
+    cache->used[k] = VERY_OLD_CACHE_WEIGHT;
     ASAN_POISON_MEMORY_REGION(cache->data[k], cache->size[k]);
   }
 }
 
-void dt_dev_pixelpipe_cache_reweight(dt_dev_pixelpipe_cache_t *cache, void *data, char *modname)
+void dt_dev_pixelpipe_cache_reweight(dt_dev_pixelpipe_cache_t *cache, void *data)
 {
   for(int k = 0; k < cache->entries; k++)
   {
     if(cache->data[k] == data)
-    {
-      dt_vprint(DT_DEBUG_DEV, "[dt_dev_pixelpipe_cache_reweight] %i->%i, `%s'->`%s'\n",
-        cache->used[k], -cache->entries,
-        cache->modname[k] ? cache->modname[k] : "??",
-        modname ? modname : "??");
       cache->used[k] = -cache->entries;
-      cache->modname[k] = modname;
-    }
   }
 }
 
@@ -341,26 +354,79 @@ void dt_dev_pixelpipe_cache_invalidate(dt_dev_pixelpipe_cache_t *cache, void *da
     {
       cache->basichash[k] = -1;
       cache->hash[k] = -1;
+      cache->used[k] = VERY_OLD_CACHE_WEIGHT;
       ASAN_POISON_MEMORY_REGION(cache->data[k], cache->size[k]);
     }
   }
 }
 
-void dt_dev_pixelpipe_cache_print(dt_dev_pixelpipe_cache_t *cache, char *pipetype)
+static size_t _free_cacheline(dt_dev_pixelpipe_cache_t *cache, const int k, const int pipetype)
 {
-  if(darktable.unmuted & DT_DEBUG_VERBOSE)
+  const size_t removed = cache->size[k];
+  dt_vprint(DT_DEBUG_DEV, "  [free cacheline] [%s] %16s, line%3i, age %4i, size=%luMB at %p\n",
+    dt_dev_pixelpipe_type_to_str(pipetype), cache->modname[k], k, cache->used[k], removed / 1024lu / 1024lu, cache->data[k]);
+
+  dt_free_align(cache->data[k]);
+  cache->allmem -= removed;
+  cache->size[k] = 0;
+  cache->data[k] = NULL;
+  cache->hash[k] = -1;
+  cache->basichash[k] = -1;
+  cache->used[k] = VERY_OLD_CACHE_WEIGHT;
+  return removed;
+}
+
+void dt_dev_pixelpipe_cache_checkmem(struct dt_dev_pixelpipe_t *pipe)
+{
+  dt_dev_pixelpipe_cache_t *cache = &(pipe->cache);
+  if((cache->memlimit == 0) || !(pipe->type & DT_DEV_PIXELPIPE_FULL))
+  {
+    dt_print(DT_DEBUG_DEV | DT_DEBUG_DEV, "[pixelpipe_process] [%s] using device %d. Cache: used=%luMB\n",
+    dt_dev_pixelpipe_type_to_str(pipe->type), pipe->devid, cache->allmem / 1024lu / 1024lu);
+    return;
+  }
+  size_t freed = 0;
+  int low_grp = 0;
+  int high_grp = 0;
+
+  // release unimportant lines first
+  const int old_limit = MAX(2, cache->entries / 8);
+  int oldest = _get_oldest_used_cacheline(cache, old_limit, 1);
+  while((cache->memlimit < cache->allmem * 2) && (oldest >= 0))
+  {
+    low_grp += 1;
+    freed += _free_cacheline(cache, oldest, pipe->type);
+    oldest = _get_oldest_used_cacheline(cache, old_limit, 1);
+  }
+
+  oldest = -1;
+  while((cache->memlimit < cache->allmem * 2) && (oldest > -(cache->entries / 2)))
   {
     for(int k = 0; k < cache->entries; k++)
     {
-      if(cache->size[k])
-        fprintf(stderr, " [%s]%3d,%4luMB, weight%4d, `%s', hash %" PRIu64 " (%" PRIu64 ")\n",
-          pipetype, k, cache->size[k] / 1024lu / 1024lu, cache->used[k], cache->modname[k] ? cache->modname[k] : "no module name", cache->hash[k], cache->basichash[k]);
+      if((cache->size[k] != 0) && (cache->used[k] == oldest))
+      {
+        high_grp += 1;
+        freed += _free_cacheline(cache, k, pipe->type);   
+      }
     }
+    oldest -= 1;
   }
-  dt_print(DT_DEBUG_DEV, "[dt_dev_pixelpipe_process %s] done, cachemem=%luMB, limit=%luMB, hitrate=%.2f\n",
-    pipetype, cache->allmem / 1024lu / 1024lu, cache->memlimit / 1024lu / 1024lu, 
+  dt_print(DT_DEBUG_DEV | DT_DEBUG_DEV, "[pixelpipe_process] [%s] using device %d. Cache: freed=%luMB (%i/%i), used=%luMB, limit=%luMB\n",
+    dt_dev_pixelpipe_type_to_str(pipe->type), pipe->devid, freed / 1024lu / 1024lu, low_grp, high_grp,
+    cache->allmem / 1024lu / 1024lu, cache->memlimit / 1024lu / 1024lu);
+}
+
+void dt_dev_pixelpipe_cache_report(struct dt_dev_pixelpipe_t *pipe)
+{
+  dt_dev_pixelpipe_cache_t *cache = &(pipe->cache);
+  dt_print(DT_DEBUG_DEV, "[pixelpipe_process] [%s] done. used=%luMB, limit=%luMB, hitrate=%.2f\n",
+    dt_dev_pixelpipe_type_to_str(pipe->type),
+    cache->allmem / 1024lu / 1024lu, cache->memlimit / 1024lu / 1024lu, 
     (cache->queries - cache->misses) / (float)cache->queries);
 }
+
+#undef VERY_OLD_CACHE_WEIGHT
 
 // clang-format off
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py

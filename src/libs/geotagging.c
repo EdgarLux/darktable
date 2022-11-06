@@ -156,7 +156,7 @@ uint32_t container(dt_lib_module_t *self)
   return DT_UI_CONTAINER_PANEL_RIGHT_CENTER;
 }
 
-int position()
+int position(const dt_lib_module_t *self)
 {
   return 450;
 }
@@ -1421,8 +1421,8 @@ static gboolean _datetime_scroll_over(GtkWidget *w, GdkEventScroll *event, dt_li
     int increment = 0;
     if(dt_gui_get_scroll_unit_deltas(event, NULL, &delta_y))
     {
-      if (delta_y < 0) increment = 1;
-      else if (delta_y > 0) increment = -1;
+      if(delta_y < 0) increment = 1;
+      else if(delta_y > 0) increment = -1;
     }
 
     if(dt_modifier_is(event->state, GDK_SHIFT_MASK))
@@ -1986,4 +1986,3 @@ void gui_cleanup(dt_lib_module_t *self)
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
 // clang-format on
-

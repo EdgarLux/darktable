@@ -578,6 +578,7 @@ dialog .sidebar row:selected:hover label,
 /* Set modules name header */
 #module-header
 {
+  border-bottom: 1px solid @plugin_bg_color;
   padding: 0.5em;
 }
 
@@ -852,6 +853,13 @@ tooltip label,
   color: @tooltip_fg_color;
 }
 
+tooltip separator
+{
+  margin: 0.6em 2em;
+  padding-bottom: 0.07em;
+  background-color: @selected_bg_color;
+}
+
 combobox label
 {
   margin: 0 0.35em 0 0;
@@ -919,19 +927,20 @@ notebook tabs,
 /* Set notebook tabs */
 notebook tab label
 {
+  border-bottom: 0.1em solid transparent;
   color: shade(@field_selected_fg, 0.75);
   padding: 0.28em 0.07em;
 }
 
 notebook tab:hover label
 {
-  border-bottom: 0.1em solid shade(@field_selected_fg, 0.7);
+  border-bottom-color: shade(@field_selected_fg, 0.7);
   color: shade(@field_selected_fg, 0.9);
 }
 
 notebook tab:checked label
 {
-  border-bottom: 0.1em solid @field_selected_fg;
+  border-bottom-color: @field_selected_fg;
   color: @field_selected_fg;
 }
 
@@ -2262,4 +2271,9 @@ Details :
 #footer-toolbar scale
 {
   margin: 0.07em 0.28em;
+}
+
+.changed
+{
+  background-color: @field_active_bg;
 }

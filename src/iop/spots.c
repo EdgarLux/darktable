@@ -291,7 +291,6 @@ static gboolean _add_shape(GtkWidget *widget, const int creation_continuous, dt_
 
   dt_masks_form_t *form = dt_masks_create(type | DT_MASKS_CLONE);
   dt_masks_change_form_gui(form);
-  darktable.develop->form_gui->creation = TRUE;
   darktable.develop->form_gui->creation_module = self;
 
   if(creation_continuous)
@@ -738,7 +737,7 @@ void gui_focus(struct dt_iop_module_t *self, gboolean in)
     else
     {
       // lost focus, hide all shapes
-      if (darktable.develop->form_gui->creation && darktable.develop->form_gui->creation_module == self)
+      if(darktable.develop->form_gui->creation && darktable.develop->form_gui->creation_module == self)
         dt_masks_change_form_gui(NULL);
       gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->bt_path), FALSE);
       gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->bt_circle), FALSE);

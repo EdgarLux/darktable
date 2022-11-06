@@ -73,6 +73,7 @@ build/lib/darktable/plugins/introspection_rotatepixels.c
 build/lib/darktable/plugins/introspection_scalepixels.c
 build/lib/darktable/plugins/introspection_shadhi.c
 build/lib/darktable/plugins/introspection_sharpen.c
+build/lib/darktable/plugins/introspection_sigmoid.c
 build/lib/darktable/plugins/introspection_soften.c
 build/lib/darktable/plugins/introspection_splittoning.c
 build/lib/darktable/plugins/introspection_spots.c
@@ -158,7 +159,6 @@ src/dtgtk/resetlabel.c
 src/dtgtk/thumbnail.c
 src/dtgtk/thumbnail_btn.c
 src/dtgtk/thumbtable.c
-src/external/wb_presets.c
 src/generate-cache/main.c
 src/gui/accelerators.c
 src/gui/gtk.c
@@ -237,7 +237,7 @@ src/iop/grain.c
 src/iop/hazeremoval.c
 src/iop/highlights.c
 src/iop/highpass.c
-src/iop/hlrecovery.c
+src/iop/hlrecovery_v2.c
 src/iop/hotpixels.c
 src/iop/invert.c
 src/iop/lens.cc
@@ -265,6 +265,7 @@ src/iop/rotatepixels.c
 src/iop/scalepixels.c
 src/iop/shadhi.c
 src/iop/sharpen.c
+src/iop/sigmoid.c
 src/iop/soften.c
 src/iop/splittoning.c
 src/iop/spots.c

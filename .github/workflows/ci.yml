@@ -396,11 +396,13 @@ jobs:
             git
             intltool
           pacboy: >-
-            toolchain:p
+            cc:p
             cmake:p
             cmocka:p
+            gcc-libs:p
             ninja:p
             nsis:p
+            omp:p
             dbus-glib:p
             drmingw:p
             exiv2:p
@@ -416,6 +418,7 @@ jobs:
             libgphoto2:p
             libheif:p
             libjpeg-turbo:p
+            libjxl:p
             libsecret:p
             libsoup:p
             libwebp:p
@@ -504,11 +507,12 @@ jobs:
           brew update > /dev/null || true
           brew unlink python@3.8
           sudo rm '/usr/local/bin/2to3'
-          brew link --overwrite python@3.9 # workaround introduced 30.12.2020, replace asap.
+          # brew link --overwrite python@3.9 # workaround introduced 30.12.2020, replace asap.
           # brew upgrade --ignore-pinned # workaround introduced 18.07.2021, replace asap
           brew tap Homebrew/bundle
           cd src/.ci
           brew bundle --verbose
+          brew link --force libomp # fix for keg-only libomp
       - name: Build and Install
           # todo: use linker which supports --wrap, ld.bfd and ld.gold support it
         run: |

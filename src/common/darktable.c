@@ -93,7 +93,11 @@
 #ifdef HAVE_GRAPHICSMAGICK
 #include <magick/api.h>
 #elif defined HAVE_IMAGEMAGICK
-#include <MagickWand/MagickWand.h>
+  #ifdef HAVE_IMAGEMAGICK7
+  #include <MagickWand/MagickWand.h>
+  #else
+  #include <wand/MagickWand.h>
+  #endif
 #endif
 
 #include "dbus.h"
@@ -127,7 +131,7 @@ static int usage(const char *argv0)
   printf("  --configdir <user config directory>\n");
   printf("  -d {all,act_on,cache,camctl,camsupport,control,demosaic,dev,imageio,\n");
   printf("      input,ioporder,lighttable,lua,masks,memory,nan,opencl,params,\n");
-  printf("      perf,print,pwstorage,signal,sql,tiling,undo,verbose}\n");
+  printf("      perf,print,pwstorage,signal,sql,tiling,undo,verbose,roi}\n");
   printf("  --d-signal <signal> \n");
   printf("  --d-signal-act <all,raise,connect,disconnect");
   // clang-format on
@@ -567,6 +571,12 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
                "  gPhoto2 support disabled\n"
 #endif
 
+#ifdef HAVE_LENSFUN
+               "  Lensfun support enabled\n"
+#else
+               "  Lensfun support disabled\n"
+#endif
+
 #ifdef HAVE_GRAPHICSMAGICK
                "  GraphicsMagick support enabled\n"
 #else
@@ -579,10 +589,40 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
                "  ImageMagick support disabled\n"
 #endif
 
+#ifdef HAVE_LIBAVIF
+               "  libavif support enabled\n"
+#else
+               "  libavif support disabled\n"
+#endif
+
+#ifdef HAVE_LIBHEIF
+               "  libheif support enabled\n"
+#else
+               "  libheif support disabled\n"
+#endif
+
+#ifdef HAVE_LIBJXL
+               "  libjxl support enabled\n"
+#else
+               "  libjxl support disabled\n"
+#endif
+
+#ifdef HAVE_OPENJPEG
+               "  OpenJPEG support enabled\n"
+#else
+               "  OpenJPEG support disabled\n"
+#endif
+
 #ifdef HAVE_OPENEXR
                "  OpenEXR support enabled\n"
 #else
                "  OpenEXR support disabled\n"
+#endif
+
+#ifdef HAVE_WEBP
+               "  WebP support enabled\n"
+#else
+               "  WebP support disabled\n"
 #endif
                ,
                darktable_package_string,
@@ -691,6 +731,8 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
           darktable.unmuted |= DT_DEBUG_TILING;
         else if(!strcmp(argv[k + 1], "verbose"))
           darktable.unmuted |= DT_DEBUG_VERBOSE;
+        else if(!strcmp(argv[k + 1], "roi"))
+          darktable.unmuted |= DT_DEBUG_ROI;
         else
           return usage(argv[0]);
         k++;
@@ -968,12 +1010,6 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
   // we need this REALLY early so that error messages can be shown, however after gtk_disable_setlocale
   if(init_gui)
   {
-#ifdef GDK_WINDOWING_WAYLAND
-    // There are currently bad interactions with Wayland (drop-downs
-    // are very narrow, scroll events lost). Until this is fixed, give
-    // priority to the XWayland backend for Wayland users.
-    gdk_set_allowed_backends("x11,*");
-#endif
     gtk_init(&argc, &argv);
 
     darktable.themes = NULL;
@@ -1028,12 +1064,6 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
     return 1;
   }
 
-  //db maintenance on startup (if configured to do so)
-  if(dt_database_maybe_maintenance(darktable.db, init_gui, FALSE))
-  {
-    dt_database_perform_maintenance(darktable.db);
-  }
-
   // init darktable tags table
   dt_set_darktable_tags();
 
@@ -1067,7 +1097,6 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
   {
     darktable.gui = (dt_gui_gtk_t *)calloc(1, sizeof(dt_gui_gtk_t));
     darktable.gui->grouping = dt_conf_get_bool("ui_last/grouping");
-    memset(darktable.gui->scroll_to, 0, sizeof(darktable.gui->scroll_to));
     dt_film_set_folder_status();
   }
 
@@ -1152,6 +1181,8 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
 
   darktable.points = (dt_points_t *)calloc(1, sizeof(dt_points_t));
   dt_points_init(darktable.points, dt_get_num_threads());
+
+  dt_wb_presets_init(NULL);
 
   darktable.noiseprofile_parser = dt_noiseprofile_init(noiseprofiles_from_command);
 
@@ -1361,7 +1392,6 @@ void dt_get_sysresource_level()
     fprintf(stderr,"  mipmap cache:    %luMB\n", _get_mipmap_size() / 1024lu / 1024lu);
     fprintf(stderr,"  available mem:   %luMB\n", dt_get_available_mem() / 1024lu / 1024lu);
     fprintf(stderr,"  singlebuff:      %luMB\n", dt_get_singlebuffer_mem() / 1024lu / 1024lu);
-    fprintf(stderr,"  iop cache:       %luMB\n", dt_get_iopcache_mem() / 1024lu / 1024lu);
 #ifdef HAVE_OPENCL
     fprintf(stderr,"  OpenCL tune mem: %s\n", ((tunecl & DT_OPENCL_TUNE_MEMSIZE) && (level >= 0)) ? "WANTED" : "OFF");
     fprintf(stderr,"  OpenCL pinned:   %s\n", ((tunecl & DT_OPENCL_TUNE_PINNED) && (level >= 0)) ? "WANTED" : "OFF");
@@ -1376,7 +1406,7 @@ void dt_cleanup()
 
   // last chance to ask user for any input...
 
-  const gboolean perform_maintenance = dt_database_maybe_maintenance(darktable.db, init_gui, TRUE);
+  const gboolean perform_maintenance = dt_database_maybe_maintenance(darktable.db);
   const gboolean perform_snapshot = dt_database_maybe_snapshot(darktable.db);
   gchar **snaps_to_remove = NULL;
   if(perform_snapshot)
@@ -1666,13 +1696,6 @@ size_t dt_get_singlebuffer_mem()
 
   const int fraction = res->fractions[res->group + 1];
   return MAX(2lu * 1024lu * 1024lu, total_mem / 1024lu * fraction);
-}
-
-size_t dt_get_iopcache_mem()
-{
-  dt_sys_resources_t *res = &darktable.dtresources;
-  const size_t cachemb = res->total_memory / 1024lu / 1024lu / 20lu;
-  return MIN(6000lu, MAX(400lu, cachemb)) * 1024lu * 1024lu;
 }
 
 void dt_configure_runtime_performance(const int old, char *info)

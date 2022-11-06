@@ -221,6 +221,9 @@ static void _focuspeaking_switch_button_callback(GtkWidget *button, gpointer use
 
   gtk_widget_queue_draw(button);
 
+  // make sure the second window if active is updated
+  dt_dev_reprocess_center(darktable.develop);
+
   // we inform that all thumbnails need to be redraw
   DT_DEBUG_CONTROL_SIGNAL_RAISE(darktable.signals, DT_SIGNAL_DEVELOP_MIPMAP_UPDATED, -1);
 }
@@ -314,6 +317,7 @@ static void _panel_toggle(dt_ui_border_t border, dt_ui_t *ui)
         dt_ui_panel_show(ui, DT_UI_PANEL_CENTER_TOP, TRUE, TRUE);
       else
         dt_ui_panel_show(ui, DT_UI_PANEL_TOP, TRUE, TRUE);
+      dt_control_hinter_message(darktable.control, "");
     }
     break;
 
@@ -930,7 +934,7 @@ static gboolean _window_configure(GtkWidget *da, GdkEvent *event, gpointer user_
 
 guint dt_gui_translated_key_state(GdkEventKey *event)
 {
-  if (gdk_keyval_to_lower(event->keyval) == gdk_keyval_to_upper(event->keyval) )
+  if(gdk_keyval_to_lower(event->keyval) == gdk_keyval_to_upper(event->keyval) )
   {
     //not an alphabetic character
     //find any modifiers consumed to produce keyval
@@ -1274,7 +1278,7 @@ void dt_gui_gtk_run(dt_gui_gtk_t *gui)
   /* start the event loop */
   gtk_main();
 
-  if (darktable.gui->surface)
+  if(darktable.gui->surface)
   {
     cairo_surface_destroy(darktable.gui->surface);
     darktable.gui->surface = NULL;
@@ -1594,6 +1598,7 @@ void dt_ui_container_add_widget(dt_ui_t *ui, const dt_ui_container_t c, GtkWidge
 
     /* if box is center we want it to fill as much as it can */
     case DT_UI_CONTAINER_PANEL_TOP_CENTER:
+    case DT_UI_CONTAINER_PANEL_CENTER_TOP_LEFT:
     case DT_UI_CONTAINER_PANEL_CENTER_TOP_CENTER:
     case DT_UI_CONTAINER_PANEL_CENTER_BOTTOM_CENTER:
     case DT_UI_CONTAINER_PANEL_BOTTOM:
@@ -1742,7 +1747,7 @@ void dt_ui_restore_panels(dt_ui_t *ui)
 
 void dt_ui_update_scrollbars(dt_ui_t *ui)
 {
-  if (!darktable.gui->scrollbars.visible) return;
+  if(!darktable.gui->scrollbars.visible) return;
 
   /* update scrollbars for current view */
   const dt_view_t *cv = dt_view_manager_get_current_view(darktable.view_manager);
@@ -1767,7 +1772,7 @@ void dt_ui_scrollbars_show(dt_ui_t *ui, gboolean show)
 {
   darktable.gui->scrollbars.visible = show;
 
-  if (show)
+  if(show)
   {
     dt_ui_update_scrollbars(ui);
   }
@@ -1954,31 +1959,6 @@ static gboolean _ui_init_panel_container_center_scroll_event(GtkWidget *widget, 
   return (((event->state & gtk_accelerator_get_default_mod_mask()) != darktable.gui->sidebar_scroll_mask) != dt_conf_get_bool("darkroom/ui/sidebar_scroll_default"));
 }
 
-// this should work as long as everything happens in the gui thread
-static void _ui_panel_size_changed(GtkAdjustment *adjustment, GParamSpec *pspec, gpointer user_data)
-{
-  GtkAllocation allocation;
-  static float last_height[2] = { 0 };
-
-  const int side = GPOINTER_TO_INT(user_data);
-
-  // don't do anything when the size didn't actually change.
-  const float height = gtk_adjustment_get_upper(adjustment) - gtk_adjustment_get_lower(adjustment);
-
-  if(height == last_height[side]) return;
-  last_height[side] = height;
-
-  if(!darktable.gui->scroll_to[side]) return;
-
-  if(GTK_IS_WIDGET(darktable.gui->scroll_to[side]))
-  {
-    gtk_widget_get_allocation(darktable.gui->scroll_to[side], &allocation);
-    gtk_adjustment_set_value(adjustment, allocation.y);
-  }
-
-  darktable.gui->scroll_to[side] = NULL;
-}
-
 static GtkWidget *_ui_init_panel_container_center(GtkWidget *container, gboolean left)
 {
   GtkWidget *widget;
@@ -1998,8 +1978,6 @@ static GtkWidget *_ui_init_panel_container_center(GtkWidget *container, gboolean
   gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(widget), GTK_POLICY_AUTOMATIC,
                                  dt_conf_get_bool("panel_scrollbars_always_visible")?GTK_POLICY_ALWAYS:GTK_POLICY_AUTOMATIC);
 
-  g_signal_connect(G_OBJECT(gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(widget))), "notify::lower",
-                   G_CALLBACK(_ui_panel_size_changed), GINT_TO_POINTER(left ? 1 : 0));
   // we want the left/right window border to scroll the module lists
   g_signal_connect(G_OBJECT(left ? darktable.gui->widgets.right_border : darktable.gui->widgets.left_border),
                    "scroll-event", G_CALLBACK(_borders_scrolled), widget);
@@ -2274,12 +2252,12 @@ static void _ui_init_panel_center_top(dt_ui_t *ui, GtkWidget *container)
 
   /* add container for center top left */
   ui->containers[DT_UI_CONTAINER_PANEL_CENTER_TOP_LEFT] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-  gtk_box_pack_start(GTK_BOX(widget), ui->containers[DT_UI_CONTAINER_PANEL_CENTER_TOP_LEFT], FALSE, FALSE,
+  gtk_box_pack_start(GTK_BOX(widget), ui->containers[DT_UI_CONTAINER_PANEL_CENTER_TOP_LEFT], TRUE, TRUE,
                      DT_UI_PANEL_MODULE_SPACING);
 
   /* add container for center top center */
   ui->containers[DT_UI_CONTAINER_PANEL_CENTER_TOP_CENTER] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-  gtk_box_pack_start(GTK_BOX(widget), ui->containers[DT_UI_CONTAINER_PANEL_CENTER_TOP_CENTER], TRUE, TRUE,
+  gtk_box_pack_start(GTK_BOX(widget), ui->containers[DT_UI_CONTAINER_PANEL_CENTER_TOP_CENTER], TRUE, FALSE,
                      DT_UI_PANEL_MODULE_SPACING);
 
   /* add container for center top right */
@@ -2749,6 +2727,32 @@ GdkModifierType dt_key_modifier_state()
 */
 }
 
+static void _reset_all_bauhaus(GtkNotebook *notebook, GtkWidget *box)
+{
+  dt_action_t *module = NULL;
+
+  ++darktable.gui->reset;
+
+  for(GList *c = gtk_container_get_children(GTK_CONTAINER(box)); c; c = g_list_delete_link(c, c))
+  {
+    if(DT_IS_BAUHAUS_WIDGET(c->data))
+    {
+      dt_bauhaus_widget_t *b = DT_BAUHAUS_WIDGET(c->data);
+      if(!b->field) continue;
+      module = b->module;
+
+      dt_bauhaus_widget_reset(GTK_WIDGET(b));
+    }
+  }
+
+  --darktable.gui->reset;
+
+  dt_gui_remove_class(gtk_notebook_get_tab_label(GTK_NOTEBOOK(notebook), box), "changed");
+
+  if(module && module->type == DT_ACTION_TYPE_IOP_INSTANCE)
+    dt_dev_add_history_item(darktable.develop, (dt_iop_module_t *)module, TRUE);
+}
+
 static void _notebook_size_callback(GtkNotebook *notebook, GdkRectangle *allocation, gpointer *data)
 {
   const int n = gtk_notebook_get_n_pages(notebook);
@@ -2812,6 +2816,7 @@ static gboolean _notebook_motion_notify_callback(GtkWidget *widget, GdkEventMoti
 static float _action_process_tabs(gpointer target, dt_action_element_t element, dt_action_effect_t effect, float move_size)
 {
   GtkNotebook *notebook = GTK_NOTEBOOK(target);
+  GtkWidget *reset_page = gtk_notebook_get_nth_page(notebook, element);
   if(!isnan(move_size))
   {
     switch(effect)
@@ -2825,11 +2830,19 @@ static float _action_process_tabs(gpointer target, dt_action_element_t element, 
     case DT_ACTION_EFFECT_PREVIOUS:
       gtk_notebook_prev_page(notebook);
       break;
+    case DT_ACTION_EFFECT_RESET:;
+      _reset_all_bauhaus(notebook, reset_page);
+      dt_action_widget_toast(NULL, GTK_WIDGET(notebook), "%s %s",
+                             gtk_notebook_get_tab_label_text(notebook, reset_page), _("reset"));
+      break;
     default:
       fprintf(stderr, "[_action_process_tabs] unknown shortcut effect (%d) for tabs\n", effect);
       break;
     }
   }
+
+  if(effect == DT_ACTION_EFFECT_RESET)
+    return gtk_style_context_has_class(gtk_widget_get_style_context(gtk_notebook_get_tab_label(notebook, reset_page)), "changed");
 
   const int c = gtk_notebook_get_current_page(notebook);
 
@@ -2844,6 +2857,7 @@ const gchar *dt_action_effect_tabs[]
   = { N_("activate"),
       N_("next"),
       N_("previous"),
+      N_("reset"),
       NULL };
 
 static GtkNotebook *_current_notebook = NULL;
@@ -2874,6 +2888,14 @@ static gboolean _notebook_scroll_callback(GtkNotebook *notebook, GdkEventScroll 
   return TRUE;
 }
 
+static gboolean _notebook_button_press_callback(GtkNotebook *notebook, GdkEventButton *event, gpointer user_data)
+{
+  if(event->type == GDK_2BUTTON_PRESS)
+    _reset_all_bauhaus(notebook, gtk_notebook_get_nth_page(notebook, gtk_notebook_get_current_page(notebook)));
+
+  return FALSE;
+}
+
 GtkWidget *dt_ui_notebook_page(GtkNotebook *notebook, const char *text, const char *tooltip)
 {
   if(notebook != _current_notebook)
@@ -2896,6 +2918,7 @@ GtkWidget *dt_ui_notebook_page(GtkNotebook *notebook, const char *text, const ch
     g_signal_connect(G_OBJECT(notebook), "size-allocate", G_CALLBACK(_notebook_size_callback), NULL);
     g_signal_connect(G_OBJECT(notebook), "motion-notify-event", G_CALLBACK(_notebook_motion_notify_callback), NULL);
     g_signal_connect(G_OBJECT(notebook), "scroll-event", G_CALLBACK(_notebook_scroll_callback), NULL);
+    g_signal_connect(G_OBJECT(notebook), "button-press-event", G_CALLBACK(_notebook_button_press_callback), NULL);
     gtk_widget_add_events(GTK_WIDGET(notebook), darktable.gui->scroll_mask);
   }
   if(_current_action_def)
@@ -3037,7 +3060,7 @@ static gboolean _scroll_wrap_scroll(GtkScrolledWindow *sw, GdkEventScroll *event
   {
     const gint new_size = dt_conf_get_int(config_str) + increment*delta_y;
 
-    dt_toast_log("%d", 1 + new_size / increment);
+    dt_toast_log(_("never show more than %d lines"), 1 + new_size / increment);
 
     dt_conf_set_int(config_str, new_size);
 
@@ -3194,7 +3217,7 @@ void dt_gui_search_stop(GtkSearchEntry *entry, GtkWidget *widget)
   }
 }
 
-static void _coeffs_button_changed(GtkDarktableToggleButton *widget, gpointer user_data)
+static void _collapse_button_changed(GtkDarktableToggleButton *widget, gpointer user_data)
 {
   dt_gui_collapsible_section_t *cs = (dt_gui_collapsible_section_t *)user_data;
 
@@ -3205,7 +3228,7 @@ static void _coeffs_button_changed(GtkDarktableToggleButton *widget, gpointer us
   dt_conf_set_bool(cs->confname, active);
 }
 
-static void _coeffs_expander_click(GtkWidget *widget, GdkEventButton *e, gpointer user_data)
+static void _collapse_expander_click(GtkWidget *widget, GdkEventButton *e, gpointer user_data)
 {
   if(e->type == GDK_2BUTTON_PRESS || e->type == GDK_3BUTTON_PRESS) return;
 
@@ -3222,10 +3245,7 @@ void dt_gui_update_collapsible_section(dt_gui_collapsible_section_t *cs)
                                (active ? CPF_DIRECTION_DOWN : CPF_DIRECTION_LEFT), NULL);
   dtgtk_expander_set_expanded(DTGTK_EXPANDER(cs->expander), active);
 
-  if(active)
-    gtk_widget_show(GTK_WIDGET(cs->container));
-  else
-    gtk_widget_hide(GTK_WIDGET(cs->container));
+  gtk_widget_set_visible(GTK_WIDGET(cs->container), active);
 }
 
 void dt_gui_hide_collapsible_section(dt_gui_collapsible_section_t *cs)
@@ -3266,11 +3286,10 @@ void dt_gui_new_collapsible_section(dt_gui_collapsible_section_t *cs,
   gtk_widget_set_name(cs->expander, "collapse-block");
 
   g_signal_connect(G_OBJECT(cs->toggle), "toggled",
-                   G_CALLBACK(_coeffs_button_changed),  (gpointer)cs);
+                   G_CALLBACK(_collapse_button_changed), cs);
 
   g_signal_connect(G_OBJECT(header_evb), "button-release-event",
-                   G_CALLBACK(_coeffs_expander_click),
-                   (gpointer)cs);
+                   G_CALLBACK(_collapse_expander_click), cs);
 }
 
 // clang-format off

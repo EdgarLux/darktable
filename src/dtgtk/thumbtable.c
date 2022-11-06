@@ -659,7 +659,8 @@ static gboolean _move(dt_thumbtable_t *table, const int x, const int y, gboolean
       {
         // we stop when last image is fully shown (that means empty space at the bottom)
         // we just need to then ensure that the top row is fully shown
-        if(last->y + table->thumb_size < table->view_height && posy < 0 && table->thumbs_area.y == 0) return FALSE;
+        if(last->y + table->thumb_size < table->view_height
+           && posy < 0 && table->thumbs_area.y == 0) return FALSE;
       }
     }
     else if(table->mode == DT_THUMBTABLE_MODE_FILMSTRIP)
@@ -1627,7 +1628,7 @@ static void _dt_collection_changed_callback(gpointer instance, dt_collection_cha
       {
         in_list = FALSE;
         gboolean in_list_next = FALSE;
-        for (const GList *l = table->list; l; l = g_list_next(l))
+        for(const GList *l = table->list; l; l = g_list_next(l))
         {
           dt_thumbnail_t *thumb = (dt_thumbnail_t *)l->data;
           if(thumb->imgid == old_hover) in_list = TRUE;
@@ -2478,7 +2479,6 @@ static gboolean _zoomable_check_rowid_visibility(dt_thumbtable_t *table, const i
 
   // is the needed rowid inside the list
   // in this case, is it fully visible ?
-  int i = 0;
   int y_move = 0;
   int x_move = 0;
   for(const GList *l = table->list; l; l = g_list_next(l))
@@ -2500,7 +2500,6 @@ static gboolean _zoomable_check_rowid_visibility(dt_thumbtable_t *table, const i
       if(x_move == 0 && y_move == 0) return TRUE;
       break;
     }
-    i++;
   }
   return FALSE;
 }
