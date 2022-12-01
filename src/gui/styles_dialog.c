@@ -202,21 +202,9 @@ static void _gui_styles_new_style_response(GtkDialog *dialog, gint response_id, 
       /* show prompt dialog when style already exists */
       if(name && (dt_styles_exists(name)) != 0)
       {
-        GtkWidget *window = dt_ui_main_window(darktable.gui->ui);
-        GtkWidget *dlg_overwrite = gtk_message_dialog_new(
-            GTK_WINDOW(window), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_WARNING, GTK_BUTTONS_YES_NO,
-            _("style `%s' already exists.\ndo you want to overwrite?"), name);
-#ifdef GDK_WINDOWING_QUARTZ
-        dt_osx_disallow_fullscreen(dlg_overwrite);
-#endif
-
-        gtk_window_set_title(GTK_WINDOW(dlg_overwrite), _("overwrite style?"));
-
-        const gint dlg_ret = gtk_dialog_run(GTK_DIALOG(dlg_overwrite));
-        gtk_widget_destroy(dlg_overwrite);
-
         /* on button yes delete style name for overwriting */
-        if(dlg_ret == GTK_RESPONSE_YES)
+        if(dt_gui_show_yes_no_dialog(_("overwrite style?"),
+                                     _("style `%s' already exists.\ndo you want to overwrite?"), name))
         {
           dt_styles_delete_by_name(name);
         }
@@ -685,7 +673,7 @@ static void _gui_styles_dialog_run(gboolean edit, const char *name, int imgid)
 typedef struct _preview_data_t
 {
   char style_name[128];
-  uint32_t imgid;
+  int imgid;
 } _preview_data_t;
 
 static gboolean _preview_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data)
@@ -693,7 +681,7 @@ static gboolean _preview_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data
   _preview_data_t *data = (_preview_data_t *)user_data;
   gboolean res = FALSE;
 
-  if(data->imgid != -1)
+  if(data->imgid > 0)
   {
     cairo_surface_t *surface = dt_gui_get_style_preview(data->imgid, data->style_name);
     const int psize = dt_conf_get_int("ui/style/preview_size");
@@ -706,7 +694,6 @@ static gboolean _preview_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data
     res=TRUE;
   }
 
-  g_free(data);
   return res;
 }
 
@@ -765,7 +752,7 @@ GtkWidget *dt_gui_style_content_dialog(char *name, const int imgid)
 
   g_list_free_full(items, dt_style_item_free);
 
-  if(imgid >= 0)
+  if(imgid > 0)
   {
     gtk_box_pack_start(GTK_BOX(ht), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), TRUE, TRUE, 0);
 
@@ -779,7 +766,7 @@ GtkWidget *dt_gui_style_content_dialog(char *name, const int imgid)
     _preview_data_t *data = g_malloc(sizeof(_preview_data_t));
     g_strlcpy(data->style_name, name, sizeof(data->style_name));
     data->imgid = imgid;
-    g_signal_connect(G_OBJECT(da), "draw", G_CALLBACK(_preview_draw), data);
+    g_signal_connect_data(G_OBJECT(da), "draw", G_CALLBACK(_preview_draw), data, (GClosureNotify)g_free, 0);
   }
 
   return ht;

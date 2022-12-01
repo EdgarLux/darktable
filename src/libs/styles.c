@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2010-2021 darktable developers.
+    Copyright (C) 2010-2022 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -311,25 +311,11 @@ static void edit_clicked(GtkWidget *w, gpointer user_data)
 
 gboolean _ask_before_delete_style(const gint style_cnt)
 {
-  gint res = GTK_RESPONSE_YES;
-
-  if(dt_conf_get_bool("plugins/lighttable/style/ask_before_delete_style"))
-  {
-    const GtkWidget *win = dt_ui_main_window(darktable.gui->ui);
-    GtkWidget *dialog = gtk_message_dialog_new
-      (GTK_WINDOW(win), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
-       ngettext("do you really want to remove %d style?", "do you really want to remove %d styles?", style_cnt),
-       style_cnt);
-#ifdef GDK_WINDOWING_QUARTZ
-    dt_osx_disallow_fullscreen(dialog);
-#endif
-
-    gtk_window_set_title(GTK_WINDOW(dialog), ngettext("remove style?", "remove styles?", style_cnt));
-    res = gtk_dialog_run(GTK_DIALOG(dialog));
-    gtk_widget_destroy(dialog);
-  }
-
-  return res == GTK_RESPONSE_YES;
+return !dt_conf_get_bool("plugins/lighttable/style/ask_before_delete_style")
+       || dt_gui_show_yes_no_dialog(
+            ngettext("remove style?", "remove styles?", style_cnt),
+            ngettext("do you really want to remove %d style?", "do you really want to remove %d styles?", style_cnt),
+            style_cnt);
 }
 
 static void delete_clicked(GtkWidget *w, gpointer user_data)
@@ -814,7 +800,7 @@ void gui_init(dt_lib_module_t *self)
   gtk_tree_view_set_model(GTK_TREE_VIEW(d->tree), GTK_TREE_MODEL(treestore));
   g_object_unref(treestore);
 
-  gtk_widget_set_tooltip_text(GTK_WIDGET(d->tree), _("available styles,\ndoubleclick to apply"));
+  gtk_widget_set_tooltip_text(GTK_WIDGET(d->tree), _("available styles,\ndouble-click to apply"));
   g_signal_connect(d->tree, "row-activated", G_CALLBACK(_styles_row_activated_callback), d);
   g_signal_connect(gtk_tree_view_get_selection(GTK_TREE_VIEW(d->tree)), "changed", G_CALLBACK(_tree_selection_changed), self);
 

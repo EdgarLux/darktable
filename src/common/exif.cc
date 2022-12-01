@@ -1,6 +1,6 @@
 /*
    This file is part of darktable,
-   Copyright (C) 2009-2021 darktable developers.
+   Copyright (C) 2009-2022 darktable developers.
 
    darktable is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1012,7 +1012,7 @@ static bool _exif_decode_exif_data(dt_image_t *img, Exiv2::ExifData &exifData)
 
     if(_check_usercrop(exifData, img))
       {
-        img->flags |= DT_IMAGE_HAS_ADDITIONAL_DNG_TAGS;
+        img->flags |= DT_IMAGE_HAS_ADDITIONAL_EXIF_TAGS;
         guint tagid = 0;
         char tagname[64];
         snprintf(tagname, sizeof(tagname), "darktable|mode|exif-crop");
@@ -1022,12 +1022,12 @@ static bool _exif_decode_exif_data(dt_image_t *img, Exiv2::ExifData &exifData)
 
     if(_check_dng_opcodes(exifData, img))
     {
-      img->flags |= DT_IMAGE_HAS_ADDITIONAL_DNG_TAGS;
+      img->flags |= DT_IMAGE_HAS_ADDITIONAL_EXIF_TAGS;
     }
 
     if(_check_lens_correction_data(exifData, img))
     {
-      img->flags |= DT_IMAGE_HAS_ADDITIONAL_DNG_TAGS;
+      img->flags |= DT_IMAGE_HAS_ADDITIONAL_EXIF_TAGS;
     }
 
     /*

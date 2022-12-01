@@ -68,10 +68,17 @@ accompanying blog post.
 
 - JPEG XL (read / write)
 
-- Show modules with transition + keep them fully visible when opening
-  or expanding.
+- Keep modules fully visible when opening or expanding and move with
+  a smooth transition effect. The effect can be sped up or switched
+  off with preferences/miscellaneous/duration of ui transitions.
 
-- Large pixelpipe cache overhaul.
+- Large pixelpipe cache overhaul. Increased number of cachelines with
+  an improved hit-rate while controlling used overall memory leading to
+  a significantly faster user interface.
+
+- Rewrite a good part of the slideshow view for better user's
+  experience. A small preview is first displayed while computing the
+  full image giving feedback that something is happening.
 
 ## Other Changes
 
@@ -112,7 +119,8 @@ accompanying blog post.
   color from the preference as this can be done directly on the module
   itself.
 
-- Improve profile support for AVIF & EXR format.
+- Improve profile support for AVIF & EXR format. Also relax AVIF
+  reader by not requiring full compliance.
 
 - The current collection image count is now shown in the toolbox. This
   makes this information available even if the top hinter area is
@@ -148,7 +156,40 @@ accompanying blog post.
 
 - Add support for scrolling through presets with shortcuts.
 
+- The panel size are now using the natual size making the initial
+  display adjusting to the screen resolution.
+
+- Allow narrow geo-tagging module. If the panel is getting small the
+  widget will properly wrap around instead of ellipse texts.
+
+- Add some more actions in the main help screen (displayed with
+  <kbd>h</kbd> key).
+
+- The lensfun module is now a mandatory dependency. This will ensure
+  that all darktable build will have the lens correction module. Also,
+  an edit with this module won't get lost because a build is missing
+  it. At the same time this simplify the code, which is also good.
+
+- A new virtual module <focused> is introduced. This module can hold
+  key shortcuts that can be applied to the current module in
+  focus. For example a key shortcut in the 1st slider will be usable
+  to change exposure in the exposure module or the rotation in the
+  rotate and perspective module. It can be configured for sliders,
+  comboboxes, buttons, tabs and the focused module itself.
+
+- Right-clicking on a module header in the quick access panel allows
+  quickly adding more widgets from the same module. The tooltip and
+  icon show if those widgets are currently hidden in the full module.
+
 ## Bug Fixes
+
+- Properly use the display color profile in the slideshow. This was
+  missing and so images where just ignoring the color profile and were
+  displayed (very) differently than on the lighttable or darkroom.
+
+- Properly honor the modules' off status of in a style. Using a style
+  in the export module can now be used to disable a module otherwise
+  enabled in the history stack.
 
 - Fix bauhaus popup size and position.
 
@@ -185,7 +226,7 @@ accompanying blog post.
 - Fix undo/redo after a style applied via a shortcut.
 
 - Do not rebuilt the whole tree when deleting or editing a
-  presets. This gives a better stability to the UI.
+  preset in preferences. This gives a better stability to the UI.
 
 - Fix some refresh of the mask manager when changing images.
 
@@ -209,9 +250,41 @@ accompanying blog post.
 - Widgets in collapsed section are not disabled anymore making them
   actionable via shortcut.
 
+- Fix typo preventing proper expansion of variable $(FOLDER.PICTURES).
+
+- Fix PNM loader (could display broken images and always wrong colors).
+
+- Fix drawing color picker area when in image edges. When mouse is
+  going outside the edges we don't loose anymore the editing action.
+
+- An old bug in the cache handling has been fixed. This could have
+  different effects like missing a recompute of the display after some
+  change in parameters or a simple crash when in darkroom.
+
+- Fix some toggle buttons UI state not properly updated.
+
+- Fix check of temperature coefficients for displaying the selected
+  presets. This avoid some missed hits.
+
+- Fix fast pixelpipe support in some modules for the second window.
+
+- In the quick access panel, widgets are hidden if they are also hidden
+  in the full module (due some combination of selected options). This
+  even works if those options are changed from another widget in the qap.
+
 ## Lua
 
-N/A
+- API version changed to 9.0.0
+
+- darktable.gui.libs.filter.sort|sort order|rating|rating comparator
+  functions removed
+
+- filename removed from dt_lua_snapshot_t data type
+
+- darktable.gui.libs.snapshot now updates the screen after changing
+  direction or rotation
+
+- lua snapshot datatype correctly retrieves snapshot name
 
 ## Notes
 
@@ -235,6 +308,12 @@ N/A
 
 
 ### Custom Color Matrices
+
+### Missing Compression Mode Support
+
+- Fujifilm "non-lossless"/lossy
+- Nikon HE
+- Sony lossless
 
 ### Suspended Support
 

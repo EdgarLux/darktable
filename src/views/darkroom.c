@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2009-2021 darktable developers.
+    Copyright (C) 2009-2022 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -460,7 +460,9 @@ void expose(
   static cairo_surface_t *image_surface = NULL;
   static int image_surface_width = 0, image_surface_height = 0, image_surface_imgid = -1;
 
-  if(image_surface_width != width || image_surface_height != height || image_surface == NULL)
+  if(image_surface_width != width
+     || image_surface_height != height
+     || image_surface == NULL)
   {
     // create double-buffered image to draw on, to make modules draw more fluently.
     image_surface_width = width;
@@ -750,7 +752,7 @@ int try_enter(dt_view_t *self)
   if(imgid < 0)
   {
     // fail :(
-    dt_control_log(_("no image to open !"));
+    dt_control_log(_("no image to open!"));
     return 1;
   }
 
@@ -1294,12 +1296,7 @@ static void _darkroom_ui_favorite_presets_popupmenu(GtkWidget *w, gpointer user_
 
 static void _darkroom_ui_apply_style_activate_callback(const gchar *name)
 {
-  dt_control_log(_("applied style `%s' on current image"), name);
-
   dt_styles_apply_to_dev(name, darktable.develop->image_storage.id);
-
-  // rebuild the accelerators (style might have changed order)
-  dt_iop_connect_accels_all();
 }
 
 gboolean _styles_tooltip_callback(GtkWidget* self, gint x, gint y, gboolean keyboard_mode,
@@ -2576,8 +2573,8 @@ void gui_init(dt_view_t *self)
   ac = dt_action_define(sa, NULL, N_("full preview"), NULL, &dt_action_def_preview);
   dt_shortcut_register(ac, 0, DT_ACTION_EFFECT_HOLD, GDK_KEY_w, 0);
 
-  // add an option to allow skip mouse events while editing masks
-  ac = dt_action_define(sa, NULL, N_("allow to pan & zoom while editing masks"), NULL, &dt_action_def_skip_mouse);
+  // add an option to allow skip mouse events while other overlays are consuming mouse actions
+  ac = dt_action_define(sa, NULL, N_("force pan & zoom with mouse"), NULL, &dt_action_def_skip_mouse);
   dt_shortcut_register(ac, 0, DT_ACTION_EFFECT_HOLD, GDK_KEY_a, 0);
 
   // move left/right/up/down
@@ -3285,7 +3282,7 @@ void mouse_leave(dt_view_t *self)
 /* This helper function tests for a position to be within the displayed area
    of an image. To avoid "border cases" we accept values to be slightly out of area too.
 */
-static int mouse_in_imagearea(dt_view_t *self, double x, double y)
+static int mouse_in_imagearea(dt_view_t *self, double *x, double *y)
 {
   dt_develop_t *dev = (dt_develop_t *)self->data;
 
@@ -3293,10 +3290,8 @@ static int mouse_in_imagearea(dt_view_t *self, double x, double y)
   const int pwidth = (dev->pipe->output_backbuf_width<<closeup) / darktable.gui->ppd;
   const int pheight = (dev->pipe->output_backbuf_height<<closeup) / darktable.gui->ppd;
 
-  x -= (self->width - pwidth) / 2;
-  y -= (self->height - pheight) / 2;
-
-  if((x < -3) || (x > (pwidth + 6)) || (y < -3) || (y > (pheight + 6))) return FALSE;
+  *x = CLAMP(*x, (self->width - pwidth) / 2, (self->width + pwidth) / 2);
+  *y = CLAMP(*y, (self->height - pheight) / 2, (self->height + pheight) / 2);
   return TRUE;
 }
 
@@ -3334,7 +3329,7 @@ void mouse_moved(dt_view_t *self, double x, double y, double pressure, int which
   if(dt_iop_color_picker_is_visible(dev) && ctl->button_down && ctl->button_down_which == 1)
   {
     // module requested a color box
-    if(mouse_in_imagearea(self, x, y))
+    if(mouse_in_imagearea(self, &x, &y))
     {
       dt_colorpicker_sample_t *const sample = darktable.lib->proxy.colorpicker.primary_sample;
       // Make sure a minimal width/height
@@ -3464,7 +3459,7 @@ int button_pressed(dt_view_t *self, double x, double y, double pressure, int whi
 
     if(which == 1)
     {
-      if(mouse_in_imagearea(self, x, y))
+      if(mouse_in_imagearea(self, &x, &y))
       {
         // The default box will be a square with 1% of the image width
         const float delta_x = 0.01f;
@@ -3527,7 +3522,7 @@ int button_pressed(dt_view_t *self, double x, double y, double pressure, int whi
       // apply a live sample's area to the active picker?
       // FIXME: this is a naive implementation, nicer would be to cycle through overlapping samples then reset
       dt_iop_color_picker_t *picker = darktable.lib->proxy.colorpicker.picker_proxy;
-      if(darktable.lib->proxy.colorpicker.display_samples && mouse_in_imagearea(self, x, y))
+      if(darktable.lib->proxy.colorpicker.display_samples && mouse_in_imagearea(self, &x, &y))
         for(GSList *samples = darktable.lib->proxy.colorpicker.live_samples; samples; samples = g_slist_next(samples))
         {
           dt_colorpicker_sample_t *live_sample = samples->data;
@@ -3831,8 +3826,12 @@ GSList *mouse_actions(const dt_view_t *self)
   lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_SCROLL, 0, _("zoom in the image"));
   lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_SCROLL, GDK_CONTROL_MASK, _("unbounded zoom in the image"));
   lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_MIDDLE, 0, _("zoom to 100% 200% and back"));
-  lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_SCROLL, GDK_SHIFT_MASK,
-                                     _("[modules] expand module without closing others"));
+  lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_LEFT_DRAG, 0, _("pan a zoomed image"));
+  lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_LEFT, GDK_SHIFT_MASK, dt_conf_get_bool("darkroom/ui/single_module")
+                                     ? _("[modules] expand module without closing others")
+                                     : _("[modules] expand module and close others"));
+  lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_LEFT, GDK_CONTROL_MASK,
+                                     _("[modules] rename module"));
   lm = dt_mouse_action_create_simple(lm, DT_MOUSE_ACTION_DRAG_DROP, GDK_SHIFT_MASK | GDK_CONTROL_MASK,
                                      _("[modules] change module position in pipe"));
 
@@ -3907,7 +3906,9 @@ static void second_window_expose(GtkWidget *widget, dt_develop_t *dev, cairo_t *
   static cairo_surface_t *image_surface = NULL;
   static int image_surface_width = 0, image_surface_height = 0, image_surface_imgid = -1;
 
-  if(image_surface_width != width || image_surface_height != height || image_surface == NULL)
+  if(image_surface_width != width
+     || image_surface_height != height
+     || image_surface == NULL)
   {
     // create double-buffered image to draw on, to make modules draw more fluently.
     image_surface_width = width;

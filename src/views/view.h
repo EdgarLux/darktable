@@ -282,6 +282,7 @@ typedef struct dt_view_manager_t
       void (*update)(struct dt_lib_module_t *);
       void (*set_sort)(struct dt_lib_module_t *, int sort, gboolean asc);
       void (*reset_filter)(struct dt_lib_module_t *, gboolean smart_filter);
+      void (*show_pref_menu)(struct dt_lib_module_t *, GtkWidget *bt);
     } module_filtering;
 
     /* filmstrip proxy object */
@@ -424,6 +425,7 @@ void dt_view_collection_update_history_state(const dt_view_manager_t *vm);
  * Filter dropdown proxy
  */
 void dt_view_filtering_reset(const dt_view_manager_t *vm, gboolean smart_filter);
+void dt_view_filtering_show_pref_menu(const dt_view_manager_t *vm, GtkWidget *bt);
 GtkWidget *dt_view_filter_get_filters_box(const dt_view_manager_t *vm);
 GtkWidget *dt_view_filter_get_sort_box(const dt_view_manager_t *vm);
 GtkWidget *dt_view_filter_get_count(const dt_view_manager_t *vm);
@@ -493,10 +495,20 @@ void dt_view_print_settings(const dt_view_manager_t *vm, dt_print_info_t *pinfo,
 typedef enum _window_t
 {
   DT_WINDOW_MAIN,
-  DT_WINDOW_SECOND
+  DT_WINDOW_SECOND,
+  DT_WINDOW_SLIDESHOW
 } dt_window_t;
 
 void dt_view_paint_buffer(
+  cairo_t *cr,
+  const size_t width,
+  const size_t height,
+  uint8_t *buffer,
+  const size_t processed_width,
+  const size_t processed_height,
+  const dt_window_t window);
+
+void dt_view_paint_pixbuf(
   cairo_t *cr,
   const size_t width,
   const size_t height,
