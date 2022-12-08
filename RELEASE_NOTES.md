@@ -80,6 +80,13 @@ accompanying blog post.
   experience. A small preview is first displayed while computing the
   full image giving feedback that something is happening.
 
+- A menu with a new icon had been added to add/remove filters
+  directly on topbar. Some range widgets have been removed from the
+  list as they are not readable on the topbar.
+
+- Rework the range rating widget UI for better readability. This
+  new widget should be easier to use and more efficient.
+
 ## Other Changes
 
 - Add support for manipulating masks without scrolling (for tablet
@@ -271,6 +278,12 @@ accompanying blog post.
 - In the quick access panel, widgets are hidden if they are also hidden
   in the full module (due some combination of selected options). This
   even works if those options are changed from another widget in the qap.
+
+- Slightly improve the blue color label for better visibility in the
+  dark theme.
+
+- Fix navigation window zoom indicator label display. It was sometime
+  cut on the right or bottom as misplaced on the window.
 
 ## Lua
 

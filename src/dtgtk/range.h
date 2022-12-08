@@ -71,6 +71,7 @@ struct _GtkDarktableRangeSelect
   dt_range_type_t type;
 
   gboolean show_entries; // do we show the line with the entry boxes ?
+  gboolean allow_resize; // do we allow to resize the selection once it is set ?
   double min_r;          // minimal value shown
   double max_r;          // maximal value shown
   double step_bd;        // minimal step value in band reference
@@ -89,6 +90,11 @@ struct _GtkDarktableRangeSelect
   GtkWidget *entry_min;
   GtkWidget *entry_max;
   GtkWidget *band;
+  // next widgets are always hidden and used only to define the color with css
+  GtkWidget *band_graph;
+  GtkWidget *band_selection;
+  GtkWidget *band_icons;
+  GtkWidget *band_cursor;
 
   // function used to translate "real" value into band positions
   // this allow to have special value repartitions on the band
