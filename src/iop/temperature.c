@@ -1392,8 +1392,7 @@ void reload_defaults(dt_iop_module_t *module)
 
   const gboolean is_raw = dt_image_is_matrix_correction_supported(&module->dev->image_storage);
   const gboolean true_monochrome = dt_image_monochrome_flags(&module->dev->image_storage) & DT_IMAGE_MONOCHROME;
-  const gboolean is_modern =
-    dt_conf_is_equal("plugins/darkroom/chromatic-adaptation", "modern");
+  const gboolean is_modern = dt_is_scene_referred();
 
   module->default_enabled = 0;
   module->hide_enable_button = true_monochrome;
@@ -1920,7 +1919,7 @@ void gui_init(struct dt_iop_module_t *self)
   }
 
   GtkWidget *temp_label_box = gtk_event_box_new();
-  g->temp_label = dt_ui_section_label_new(_("scene illuminant temp"));
+  g->temp_label = dt_ui_section_label_new(C_("section", "scene illuminant temp"));
   gtk_widget_set_tooltip_text(g->temp_label, _("click to cycle color mode on sliders"));
   gtk_container_add(GTK_CONTAINER(temp_label_box), g->temp_label);
 

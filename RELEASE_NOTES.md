@@ -24,9 +24,9 @@ You are strongly advised to take a backup first.
 
 Since darktable 4.0:
 
-- Almost ???? commits to darktable+rawspeed
-- ??? pull requests handled
-- ??? issues closed
+- Almost 1411 commits to darktable+rawspeed
+- 409 pull requests handled
+- 60 issues closed
 
 ## The Big Ones
 
@@ -67,9 +67,9 @@ The following is a summary of the main features added to darktable
   new tooltip will appear, showing the image with the style applied along
   with details of the modules that are included.
 
-- Some cameras record lens correction information within the image EXIF metadata.
-  The lens correction module has been enhanced so that it can extract this data
-  and use it to correct lens distortions.
+- Some cameras record lens correction information within the image
+  EXIF metadata.  The lens correction module has been enhanced so that
+  it can extract this data and use it to correct lens distortions.
 
 - darktable is now able to read and write JPEG XL images
 
@@ -170,10 +170,11 @@ The following is a summary of the main features added to darktable
   the use of the OpenCL code path slower (or much slower) than
   handling the image without tiling on the CPU.
 
-- In preview mode (when pressing <kbd>Ctrl+w</kbd>) the image information overlay
-  display block is no longer shown by default. Moving the cursor within the top
-  half of the preview image will cause the overlay to appear, and it will then
-  disappear again after a brief period.
+- In preview mode (when pressing <kbd>Ctrl+w</kbd>) the image
+  information overlay display block is no longer shown by
+  default. Moving the cursor within the top half of the preview image
+  will cause the overlay to appear, and it will then disappear again
+  after a brief period.
 
 - Light patterns are set for Behringer b-control midi rotors
   (BCR2000/BCF2000)
@@ -198,14 +199,15 @@ The following is a summary of the main features added to darktable
   This also means that an edit made using this module won't be inadvertently
   lost due to missing build dependencies.
 
-- It is now possible to assign shortcuts to the "currently focused" processing module.
-  This allows a common set of shortcuts to be created and reused in multiple
-  modules simply by focusing that module. For example a single key shortcut
-  applied to the "first slider" will affect the "exposure" slider when the
-  exposure module is focused, and the "rotation" slider when the "rotate and
-  perspective" module is focused. Similar functionality can be used to affect
-  the "nth" slider, combobox, button or tab as well as the focused module
-  itself.
+- It is now possible to assign shortcuts to the "currently focused"
+  processing module.  This allows a common set of shortcuts to be
+  created and reused in multiple modules simply by focusing that
+  module. For example a single key shortcut applied to the "first
+  slider" will affect the "exposure" slider when the exposure module
+  is focused, and the "rotation" slider when the "rotate and
+  perspective" module is focused. Similar functionality can be used to
+  affect the "nth" slider, combobox, button or tab as well as the
+  focused module itself.
 
 - Right-clicking on a module header in the quick access panel now allows
   more widgets from the same module to be quickly added. The tooltip and
@@ -333,9 +335,27 @@ The following is a summary of the main features added to darktable
   fields unless the user selects all of the checkboxes in the export
   preference options.
 
+- In order to support the correct display of numbers in darktable, the
+  minimum supported Gtk version has had to be increased to
+  3.24.15. For people who need to build darktable with an older
+  version, this can be supported by reverting the following change:
+  remove line 241 of darktable.css file on your system. See:
+  https://github.com/darktable-org/darktable/issues/13166
+
 ## Changed Dependencies
 
-N/A
+### Mandatory
+
+- Bump Gtk minimum required version from 3.22 to 3.24.15.
+
+- lensfun is now a mandatory dependency, not optional.
+  Supported versions are stable releases (e.g. 0.3.3),
+  not alpha 0.3.95 pre-release or master branch.
+
+### Optional
+
+- New optional dependency: libjxl, minimum required version 0.7.0.
+
 
 ## RawSpeed changes
 
@@ -344,14 +364,52 @@ N/A
 
 ### Base Support
 
+- Canon EOS M2
+- Fujifilm FinePix HS50EXR
+- Fujifilm FinePix S6000fd
+- Fujifilm X-H2 (compressed)
+- Fujifilm X-H2S (compressed)
+- Fujifilm X-T30 II (compressed)
+- Fujifilm X-T5 (compressed)
+- Leica D-LUX 6 (4:3, 3:2, 16:9, 1:1)
+- Leica M Monochrom (Typ 246) (dng)
+- Nikon 1 J4 (12bit-compressed)
+- Nikon 1 S1 (12bit-compressed)
+- Nikon Coolpix P7700 (12bit-compressed)
+- Nikon D1H (12bit-uncompressed)
+- Nikon D2H (12bit-compressed, 12bit-uncompressed)
+- Nikon D3S (14bit-compressed, 14bit-uncompressed, 12bit-compressed, 12bit-uncompressed)
+- Nikon Z 9 (14bit-compressed)
+- Olympus E-10
+- Olympus E-M10 Mark IIIs
+- Olympus E-P7
+- Olympus SP570UZ
+- Panasonic DMC-G2 (4:3, 3:2, 16:9, 1:1)
+- Pentax K2000
+- Pentax K200D
+- Ricoh GR II
+- Samsung NX mini
+- Samsung NX10
+- Samsung NX11
+- Samsung NX20
+- Samsung NX2000
+- Samsung NX5
+- Sony DSLR-A380
+- Sony DSLR-A560
+- Sony ILCE-7RM5
 
 ### White Balance Presets
 
+   No data for this release.
 
 ### Noise Profiles
 
-
-### Custom Color Matrices
+- Fujifilm X-E4
+- Fujifilm X-T5
+- Leica M (Typ 240)
+- Nikon Z 9
+- Olympus E-500
+- Panasonic DMC-FZ330
 
 ### Missing Compression Mode Support
 
@@ -363,10 +421,7 @@ N/A
 
 No samples on raw.pixls.us
 
-- Canon EOS M2
 - Creo/Leaf Aptus 22(LF3779)/Hasselblad H1
-- Fujifilm FinePix HS50EXR
-- Fujifilm FinePix S6000fd
 - Fujifilm FinePix S9600fd
 - Fujifilm IS-1
 - GoPro FUSION
@@ -374,36 +429,17 @@ No samples on raw.pixls.us
 - Leaf Aptus-II 5(LI300059)/Mamiya 645 AFD
 - Leaf Credo 60
 - Leaf Credo 80
-- Leica D-LUX 6
 - Minolta DiMAGE 5
-- Nikon 1 J4
-- Nikon 1 S1
-- Nikon Coolpix P7700
-- Nikon D1H
-- Nikon D2H
-- Nikon D3S
-- Olympus E-10
 - Olympus SP320
-- Olympus SP570UZ
 - Panasonic DMC-FX150
-- Panasonic DMC-G2
-- Pentax K200D
-- Pentax K2000
 - Pentax Q10
 - Phase One IQ250
 - Samsung GX10
 - Samsung GX20
-- Samsung NX5
-- Samsung NX10
-- Samsung NX11
-- Samsung NX20
-- Samsung NX2000
 - Samsung EK-GN120
 - Samsung SM-G920F
 - Samsung SM-G935F
 - Sinar Hy6/ Sinarback eXact
-- Sony DSLR-A380
-- Sony DSLR-A560
 - ST Micro STV680
 
 ## Translations

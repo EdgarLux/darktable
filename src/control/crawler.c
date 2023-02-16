@@ -58,6 +58,42 @@ typedef struct dt_control_crawler_result_t
   char *image_path, *xmp_path;
 } dt_control_crawler_result_t;
 
+static void _set_modification_time(char *filename, time_t timestamp)
+{
+  GFile *gfile = g_file_new_for_path(filename);
+
+  GFileInfo *info = g_file_query_info(
+    gfile,
+    G_FILE_ATTRIBUTE_TIME_MODIFIED "," G_FILE_ATTRIBUTE_TIME_MODIFIED_USEC,
+    G_FILE_QUERY_INFO_NONE,
+    NULL,
+    NULL);
+
+  // For reference, we could use the following lines but for some
+  // reasons there is a deprecated message raised even though this
+  // routine is not marked as deprecated in the documentation.
+  //
+  // GDateTime *datetime = g_date_time_new_from_unix_local(timestamp);
+  // g_file_info_set_modification_date_time(info, datetime);
+
+  if(info)
+  {
+    g_file_info_set_attribute_uint64
+      (info,
+       G_FILE_ATTRIBUTE_TIME_MODIFIED,
+       timestamp);
+
+    g_file_set_attributes_from_info(
+      gfile,
+      info,
+      G_FILE_QUERY_INFO_NONE,
+      NULL,
+      NULL);
+  }
+
+  g_object_unref(gfile);
+  if(info) g_clear_object(&info);
+}
 
 GList *dt_control_crawler_run()
 {
@@ -297,8 +333,11 @@ static void _db_update_timestamp(const int id, const time_t timestamp)
 {
   // Update DB writing timestamp with XMP file timestamp
   sqlite3_stmt *stmt;
-  DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
-                              "UPDATE main.images SET write_timestamp = ?2 WHERE id = ?1", -1, &stmt, NULL);
+  DT_DEBUG_SQLITE3_PREPARE_V2
+    (dt_database_get(darktable.db),
+     "UPDATE main.images"
+     " SET write_timestamp = ?2"
+     " WHERE id = ?1", -1, &stmt, NULL);
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, id);
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, timestamp);
   sqlite3_step(stmt);
@@ -309,9 +348,12 @@ static void _db_update_timestamp(const int id, const time_t timestamp)
 static void _get_crawler_entry_from_model(GtkTreeModel *model, GtkTreeIter *iter,
                                           dt_control_crawler_result_t *entry)
 {
-  gtk_tree_model_get(model, iter, DT_CONTROL_CRAWLER_COL_IMAGE_PATH, &entry->image_path, DT_CONTROL_CRAWLER_COL_ID,
-                     &entry->id, DT_CONTROL_CRAWLER_COL_XMP_PATH, &entry->xmp_path,
-                     DT_CONTROL_CRAWLER_COL_TS_DB_INT, &entry->timestamp_db, DT_CONTROL_CRAWLER_COL_TS_XMP_INT,
+  gtk_tree_model_get(model, iter,
+                     DT_CONTROL_CRAWLER_COL_IMAGE_PATH, &entry->image_path,
+                     DT_CONTROL_CRAWLER_COL_ID, &entry->id,
+                     DT_CONTROL_CRAWLER_COL_XMP_PATH, &entry->xmp_path,
+                     DT_CONTROL_CRAWLER_COL_TS_DB_INT, &entry->timestamp_db,
+                     DT_CONTROL_CRAWLER_COL_TS_XMP_INT,
                      &entry->timestamp_xmp, -1);
 }
 
@@ -375,7 +417,10 @@ static void sync_db_to_xmp(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *
   dt_control_crawler_gui_t *gui = (dt_control_crawler_gui_t *)user_data;
   dt_control_crawler_result_t entry = { 0 };
   _get_crawler_entry_from_model(model, iter, &entry);
+
+  // write the XMP and make sure it get the last modified timestamp of the db
   const int error = dt_image_write_sidecar_file(entry.id);  // success = 0, fail = 1
+  _set_modification_time(entry.xmp_path, entry.timestamp_db);
 
   if(error)
   {
@@ -417,8 +462,10 @@ static void sync_newest_to_oldest(GtkTreeModel *model, GtkTreePath *path, GtkTre
   }
   else if(entry.timestamp_xmp < entry.timestamp_db)
   {
-    // WRITE DB in XMP
+    // write the XMP and make sure it get the last modified timestamp of the db
     error = dt_image_write_sidecar_file(entry.id);
+    _set_modification_time(entry.xmp_path, entry.timestamp_db);
+
     fprintf(stdout, "%s synced DB (new) → XMP (old)\n", entry.image_path);
     if(error)
     {
@@ -725,4 +772,3 @@ void dt_control_crawler_show_image_list(GList *images)
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
 // clang-format on
-

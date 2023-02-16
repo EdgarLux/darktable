@@ -49,22 +49,18 @@ jobs:
       fail-fast: true
       matrix:
         os:
-          - { label: ubuntu-20.04, code: focal }
+          - { label: ubuntu-latest, code: latest }
         compiler:
-          #- { compiler: GNU8,   CC: gcc-8,    CXX: g++-8,      packages: gcc-8 g++-8 }
-          - { compiler: GNU9,   CC: gcc-9,    CXX: g++-9,      packages: gcc-9 g++-9 }
-          #- { compiler: GNU10,  CC: gcc-10,   CXX: g++-10,     packages: gcc-10 g++-10 }
-          #- { compiler: LLVM9,  CC: clang-9,  CXX: clang++-9,  packages: clang-9 libomp-9-dev libclang-common-9-dev llvm-9-dev clang++-9 libc++-9-dev lld-9}
-          #- { compiler: LLVM10, CC: clang-10, CXX: clang++-10, packages: clang-10 libomp-10-dev libclang-common-10-dev llvm-10-dev clang++-10 libc++-10-dev lld-10}
-          #- { compiler: LLVM11, CC: clang-11, CXX: clang++-11, packages: clang-11 libomp-11-dev libclang-common-11-dev llvm-11-dev clang++-11 libc++-11-dev lld-11}
-          - { compiler: LLVM12, CC: clang-12, CXX: clang++-12, packages: clang-12 libomp-12-dev libclang-common-12-dev llvm-12-dev clang++-12 libc++-12-dev libc++1-12 libc++abi1-12 lld-12}
+          - { compiler: GNU10,  CC: gcc-10,   CXX: g++-10,     packages: gcc-10 g++-10 }
+          - { compiler: LLVM14, CC: clang-14, CXX: clang++-14, packages: clang-14 libomp-14-dev libclang-common-14-dev llvm-14-dev clang++-14 libc++-14-dev libc++1-14 libc++abi1-14 lld-14}
         btype:
-          - RelWithDebInfo
+          - Debug
+          #- RelWithDebInfo
           #- Release
         target:
-          #- build
-          - nofeatures
-          - nofeatures_nosse
+          - skiptest
+          #- nofeatures
+          #- nofeatures_nosse
         generator:
           #- Unix Makefiles
           - Ninja
@@ -81,6 +77,8 @@ jobs:
     steps:
       - name: Install compiler ${{ matrix.compiler.compiler }}
         run: |
+          # Remove azure mirror because it is unreliable and sometimes unpredictably leads to failed CI
+          sudo sed -i 's/azure\.//' /etc/apt/sources.list
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo add-apt-repository -y universe
           sudo add-apt-repository -y multiverse
@@ -98,6 +96,7 @@ jobs:
             gdb \
             intltool \
             libatk1.0-dev \
+            libavif-dev \
             libcairo2-dev \
             libcolord-dev \
             libcolord-gtk-dev \
@@ -107,6 +106,7 @@ jobs:
             libexiv2-dev \
             libgdk-pixbuf2.0-dev \
             libglib2.0-dev \
+            libgmic-dev \
             libgphoto2-dev \
             libgraphicsmagick1-dev \
             libgtk-3-dev \
@@ -115,15 +115,17 @@ jobs:
             libjson-glib-dev \
             liblcms2-dev \
             liblensfun-dev \
-            liblua5.3-dev \
+            liblua5.4-dev \
             libopenexr-dev \
             libopenjp2-7-dev \
             libosmgpsmap-1.0-dev \
             libpango1.0-dev \
             libpng-dev \
+            libportmidi-dev \
             libpugixml-dev \
             librsvg2-dev \
             libsaxon-java \
+            libsdl2-dev \
             libsecret-1-dev \
             libsoup2.4-dev \
             libsqlite3-dev \
@@ -170,58 +172,19 @@ jobs:
       fail-fast: true
       matrix:
         os:
-          - { label: ubuntu-20.04, code: focal }
+          - { label: ubuntu-latest, code: latest }
         compiler:
-          #- { compiler: GNU8,   CC: gcc-8,    CXX: g++-8,      packages: gcc-8 g++-8 }
-          - { compiler: GNU9,   CC: gcc-9,    CXX: g++-9,      packages: gcc-9 g++-9 }
-          - { compiler: GNU10,  CC: gcc-10,   CXX: g++-10,     packages: gcc-10 g++-10 }
           - { compiler: GNU11,  CC: gcc-11,   CXX: g++-11,     packages: gcc-11 g++-11 }
-          #- { compiler: LLVM9,  CC: clang-9,  CXX: clang++-9,  packages: clang-9 libomp-9-dev libclang-common-9-dev llvm-9-dev clang++-9 libc++-9-dev lld-9}
-          #- { compiler: LLVM10, CC: clang-10, CXX: clang++-10, packages: clang-10 libomp-10-dev libclang-common-10-dev llvm-10-dev clang++-10 libc++-10-dev lld-10}
-          # - { compiler: LLVM11, CC: clang-11, CXX: clang++-11, packages: clang-11 libomp-11-dev libclang-common-11-dev llvm-11-dev clang++-11 libc++-11-dev lld-11}
-          - { compiler: LLVM12, CC: clang-12, CXX: clang++-12, packages: clang-12 libomp-12-dev libclang-common-12-dev llvm-12-dev clang++-12 libc++-12-dev libc++1-12 libc++abi1-12 lld-12}
+          - { compiler: GNU12,  CC: gcc-12,   CXX: g++-12,     packages: gcc-12 g++-12 }
+          - { compiler: LLVM14, CC: clang-14, CXX: clang++-14, packages: clang-14 libomp-14-dev libclang-common-14-dev llvm-14-dev clang++-14 libc++-14-dev libc++1-14 libc++abi1-14 lld-14}
         btype:
-          - RelWithDebInfo
           - Release
         target:
           - build
-          - nofeatures
           - nofeatures_nosse
         generator:
           #- Unix Makefiles
           - Ninja
-        include:
-          - os: { label: ubuntu-latest, code: latest }
-            btype: Debug
-            compiler: { compiler: GNU9,   CC: gcc-9,    CXX: g++-9,      packages: gcc-9 g++-9 }
-            target: skiptest
-            generator: Ninja
-          - os: { label: ubuntu-latest, code: latest }
-            btype: Debug
-            compiler: { compiler: LLVM12, CC: clang-12, CXX: clang++-12, packages: clang-12 libomp-12-dev libclang-common-12-dev llvm-12-dev clang++-12 libc++-12-dev libc++1-12 libc++abi1-12 lld-12}
-            target: skiptest
-            generator: Ninja
-        exclude:
-          - os: { label: ubuntu-20.04, code: focal }
-            btype: RelWithDebInfo
-            compiler: { compiler: GNU9,   CC: gcc-9,    CXX: g++-9,      packages: gcc-9 g++-9 }
-            target: nofeatures
-            generator: Ninja
-          - os: { label: ubuntu-20.04, code: focal }
-            btype: RelWithDebInfo
-            compiler: { compiler: GNU9,   CC: gcc-9,    CXX: g++-9,      packages: gcc-9 g++-9 }
-            target: nofeatures_nosse
-            generator: Ninja
-          - os: { label: ubuntu-20.04, code: focal }
-            btype: RelWithDebInfo
-            compiler: { compiler: LLVM12, CC: clang-12, CXX: clang++-12, packages: clang-12 libomp-12-dev libclang-common-12-dev llvm-12-dev clang++-12 libc++-12-dev libc++1-12 libc++abi1-12 lld-12}
-            target: nofeatures
-            generator: Ninja
-          - os: { label: ubuntu-20.04, code: focal }
-            btype: RelWithDebInfo
-            compiler: { compiler: LLVM12, CC: clang-12, CXX: clang++-12, packages: clang-12 libomp-12-dev libclang-common-12-dev llvm-12-dev clang++-12 libc++-12-dev libc++1-12 libc++abi1-12 lld-12}
-            target: nofeatures_nosse
-            generator: Ninja
     env:
       CC: ${{ matrix.compiler.CC }}
       CXX: ${{ matrix.compiler.CXX }}
@@ -235,6 +198,8 @@ jobs:
     steps:
       - name: Install compiler ${{ matrix.compiler.compiler }}
         run: |
+          # Remove azure mirror because it is unreliable and sometimes unpredictably leads to failed CI
+          sudo sed -i 's/azure\.//' /etc/apt/sources.list
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test
           sudo add-apt-repository -y universe
           sudo add-apt-repository -y multiverse
@@ -252,6 +217,7 @@ jobs:
             gdb \
             intltool \
             libatk1.0-dev \
+            libavif-dev \
             libcairo2-dev \
             libcolord-dev \
             libcolord-gtk-dev \
@@ -261,6 +227,7 @@ jobs:
             libexiv2-dev \
             libgdk-pixbuf2.0-dev \
             libglib2.0-dev \
+            libgmic-dev \
             libgphoto2-dev \
             libgraphicsmagick1-dev \
             libgtk-3-dev \
@@ -269,7 +236,7 @@ jobs:
             libjson-glib-dev \
             liblcms2-dev \
             liblensfun-dev \
-            liblua5.3-dev \
+            liblua5.4-dev \
             libopenexr-dev \
             libopenjp2-7-dev \
             libosmgpsmap-1.0-dev \
@@ -331,25 +298,14 @@ jobs:
       fail-fast: true
       matrix:
         btype:
-          - RelWithDebInfo
+          - Debug
         compiler:
           - { compiler: GNU,  CC: gcc,   CXX: g++ }
-          #- { compiler: LLVM, CC: clang, CXX: clang++ }
         target:
           - skiptest
-          - nofeatures
         generator:
           #- MSYS Makefiles
           - Ninja
-        include:
-          #- btype: Release
-          #  compiler: { compiler: LLVM,  CC: clang,   CXX: clang++ }
-          #  eco: -DBINARY_PACKAGE_BUILD=ON
-          #  target: skiptest
-          - btype: Debug
-            compiler: { compiler: GNU,  CC: gcc,   CXX: g++ }
-            target: skiptest
-            generator: Ninja
     defaults:
       run:
         shell: msys2 {0}
@@ -456,10 +412,9 @@ jobs:
           - { os: macos-12,    xcode: 13.4,   deployment: 12.3 }
         compiler:
           - { compiler: XCode,   CC: cc, CXX: c++ }
-        btype: [ RelWithDebInfo ]
+        btype: [ Debug ]
         target:
           - skiptest
-          - nofeatures
         generator:
           - Ninja
     env:
@@ -481,13 +436,11 @@ jobs:
       - name: Install Base Dependencies
         run: |
           brew update > /dev/null || true
-          brew unlink python@3.8
-          sudo rm '/usr/local/bin/2to3'
-          # brew link --overwrite python@3.9 # workaround introduced 30.12.2020, replace asap.
-          # brew upgrade --ignore-pinned # workaround introduced 18.07.2021, replace asap
+          # brew upgrade || true        # no need for a very time-consuming upgrade of ALL packages
           brew tap Homebrew/bundle
           cd src/.ci
-          brew bundle --verbose
+          export HOMEBREW_NO_INSTALL_UPGRADE=1
+          brew bundle --verbose || true
           brew link --force libomp # fix for keg-only libomp
       - name: Build and Install
           # todo: use linker which supports --wrap, ld.bfd and ld.gold support it

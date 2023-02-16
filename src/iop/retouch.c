@@ -2082,7 +2082,7 @@ void gui_update(dt_iop_module_t *self)
   const dt_masks_form_t *grp = dt_masks_get_from_id(self->dev, self->blend_params->mask_id);
   guint nb = 0;
   if(grp && (grp->type & DT_MASKS_GROUP)) nb = g_list_length(grp->points);
-  gchar *str = g_strdup_printf("%d", nb);
+  gchar *str = g_strdup_printf("%u", nb);
   gtk_label_set_text(g->label_form, str);
   g_free(str);
 
@@ -2325,7 +2325,7 @@ void gui_init(dt_iop_module_t *self)
   // preview single scale
   g->vbox_preview_scale = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 
-  GtkWidget *lbl_psc = dt_ui_section_label_new(_("preview single scale"));
+  GtkWidget *lbl_psc = dt_ui_section_label_new(C_("section", "preview single scale"));
   gtk_box_pack_start(GTK_BOX(g->vbox_preview_scale), lbl_psc, FALSE, TRUE, 0);
 
   GtkWidget *prev_lvl = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
@@ -2388,7 +2388,7 @@ void gui_init(dt_iop_module_t *self)
   g_signal_connect(G_OBJECT(g->colorpick), "color-set", G_CALLBACK(rt_colorpick_color_set_callback), self);
   gtk_box_pack_start(GTK_BOX(g->hbox_color_pick), GTK_WIDGET(g->colorpick), TRUE, TRUE, 0);
 
-  g->colorpicker = dt_color_picker_new(self, DT_COLOR_PICKER_POINT, g->hbox_color_pick);
+  g->colorpicker = dt_color_picker_new(self, DT_COLOR_PICKER_POINT | DT_COLOR_PICKER_IO, g->hbox_color_pick);
   gtk_widget_set_tooltip_text(g->colorpicker, _("pick fill color from image"));
 
   gtk_box_pack_start(GTK_BOX(g->vbox_fill), g->hbox_color_pick, TRUE, TRUE, 0);
@@ -2419,7 +2419,7 @@ void gui_init(dt_iop_module_t *self)
   // start building top level widget
   self->widget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 
-  GtkWidget *lbl_rt_tools = dt_ui_section_label_new(_("retouch tools"));
+  GtkWidget *lbl_rt_tools = dt_ui_section_label_new(C_("section", "retouch tools"));
   gtk_box_pack_start(GTK_BOX(self->widget), lbl_rt_tools, FALSE, TRUE, 0);
 
   // shapes toolbar
@@ -2428,7 +2428,7 @@ void gui_init(dt_iop_module_t *self)
   gtk_box_pack_start(GTK_BOX(self->widget), hbox_algo, TRUE, TRUE, 0);
 
   // wavelet decompose
-  GtkWidget *lbl_wd = dt_ui_section_label_new(_("wavelet decompose"));
+  GtkWidget *lbl_wd = dt_ui_section_label_new(C_("section", "wavelet decompose"));
   gtk_box_pack_start(GTK_BOX(self->widget), lbl_wd, FALSE, TRUE, 0);
 
   // wavelet decompose bar & labels
@@ -2442,7 +2442,7 @@ void gui_init(dt_iop_module_t *self)
   gtk_box_pack_start(GTK_BOX(self->widget), g->vbox_preview_scale, TRUE, TRUE, 0);
 
   // shapes
-  GtkWidget *lbl_shapes = dt_ui_section_label_new(_("shapes"));
+  GtkWidget *lbl_shapes = dt_ui_section_label_new(C_("section", "shapes"));
   gtk_box_pack_start(GTK_BOX(self->widget), lbl_shapes, FALSE, TRUE, 0);
 
   // shape selected
@@ -2480,12 +2480,6 @@ void gui_cleanup(dt_iop_module_t *self)
   DT_DEBUG_CONTROL_SIGNAL_DISCONNECT(darktable.signals, G_CALLBACK(rt_develop_ui_pipe_finished_callback), self);
 
   IOP_GUI_FREE;
-}
-
-void modify_roi_out(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, dt_iop_roi_t *roi_out,
-                    const dt_iop_roi_t *roi_in)
-{
-  *roi_out = *roi_in;
 }
 
 static void rt_compute_roi_in(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece,

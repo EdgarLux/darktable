@@ -143,8 +143,9 @@ static void edit_preset(const char *name_in, dt_lib_module_info_t *minfo)
   if(rowid < 0) return;
 
   GtkWidget *window = dt_ui_main_window(darktable.gui->ui);
-  dt_gui_presets_show_edit_dialog(name, minfo->plugin_name, rowid, NULL, NULL, TRUE, TRUE, FALSE,
-                                  GTK_WINDOW(window));
+  dt_gui_presets_show_edit_dialog
+    (name, minfo->plugin_name, rowid, NULL, NULL, TRUE, TRUE, FALSE,
+     GTK_WINDOW(window));
 }
 
 static void menuitem_update_preset(GtkMenuItem *menuitem, dt_lib_module_info_t *minfo)
@@ -1141,6 +1142,13 @@ void dt_lib_colorpicker_set_point(dt_lib_t *lib, const float pos[2])
   if(!lib->proxy.colorpicker.module || !lib->proxy.colorpicker.set_sample_point) return;
   lib->proxy.colorpicker.set_sample_point(lib->proxy.colorpicker.module, pos);
   gtk_widget_grab_focus(dt_ui_center(darktable.gui->ui));
+}
+
+void dt_lib_colorpicker_setup(dt_lib_t *lib, const gboolean denoise, const gboolean pick_output)
+
+{
+  if(!lib->proxy.colorpicker.module || !lib->proxy.colorpicker.setup_sample) return;
+  lib->proxy.colorpicker.setup_sample(lib->proxy.colorpicker.module, denoise, pick_output);
 }
 
 dt_lib_module_t *dt_lib_get_module(const char *name)

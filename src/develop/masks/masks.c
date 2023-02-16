@@ -555,8 +555,8 @@ static void dt_masks_legacy_params_v2_to_v3_transform(const dt_image_t *img, flo
 
   const float cx = (float)img->crop_x, cy = (float)img->crop_y;
 
-  const float cw = (float)(img->width - img->crop_x - img->crop_width),
-              ch = (float)(img->height - img->crop_y - img->crop_height);
+  const float cw = (float)(img->width - img->crop_x - img->crop_right);
+  const float ch = (float)(img->height - img->crop_y - img->crop_bottom);
 
   /*
    * masks coordinates are normalized, so we need to:
@@ -573,8 +573,8 @@ static void dt_masks_legacy_params_v2_to_v3_transform_only_rescale(const dt_imag
 {
   const float w = (float)img->width, h = (float)img->height;
 
-  const float cw = (float)(img->width - img->crop_x - img->crop_width),
-              ch = (float)(img->height - img->crop_y - img->crop_height);
+  const float cw = (float)(img->width - img->crop_x - img->crop_right);
+  const float ch = (float)(img->height - img->crop_y - img->crop_bottom);
 
   /*
    * masks coordinates are normalized, so we need to:
@@ -595,7 +595,10 @@ static int dt_masks_legacy_params_v2_to_v3(dt_develop_t *dev, void *params)
 
   const dt_image_t *img = &(dev->image_storage);
 
-  if(img->crop_x == 0 && img->crop_y == 0 && img->crop_width == 0 && img->crop_height == 0)
+  if(img->crop_x == 0
+     && img->crop_y == 0
+     && img->crop_right == 0
+     && img->crop_bottom == 0)
   {
     // image has no "raw cropping", we're fine!
     m->version = 3;
@@ -1036,12 +1039,6 @@ int dt_masks_events_mouse_moved(struct dt_iop_module_t *module, double x, double
     gui->posy = pzy * darktable.develop->preview_pipe->backbuf_height;
   }
 
-  // do not process if no forms visible
-  if(!form) return 0;
-
-  // add an option to allow skip mouse events while editing masks
-  if(darktable.develop->darkroom_skip_mouse_events) return 0;
-
   int rep = 0;
   if(form->functions)
     rep = form->functions->mouse_moved(module, pzx, pzy, pressure, which, form, 0, gui, 0);
@@ -1054,9 +1051,6 @@ int dt_masks_events_mouse_moved(struct dt_iop_module_t *module, double x, double
 int dt_masks_events_button_released(struct dt_iop_module_t *module, double x, double y, int which,
                                     uint32_t state)
 {
-  // add an option to allow skip mouse events while editing masks
-  if(darktable.develop->darkroom_skip_mouse_events) return 0;
-
   dt_masks_form_t *form = darktable.develop->form_visible;
   dt_masks_form_gui_t *gui = darktable.develop->form_gui;
   float pzx = 0.0f, pzy = 0.0f;
@@ -1081,9 +1075,6 @@ int dt_masks_events_button_released(struct dt_iop_module_t *module, double x, do
 int dt_masks_events_button_pressed(struct dt_iop_module_t *module, double x, double y, double pressure,
                                    int which, int type, uint32_t state)
 {
-  // add an option to allow skip mouse events while editing masks
-  if(darktable.develop->darkroom_skip_mouse_events) return 0;
-
   dt_masks_form_t *form = darktable.develop->form_visible;
   dt_masks_form_gui_t *gui = darktable.develop->form_gui;
   float pzx = 0.0f, pzy = 0.0f;
@@ -1112,16 +1103,13 @@ int dt_masks_events_button_pressed(struct dt_iop_module_t *module, double x, dou
   }
 
   if(form->functions)
-    return form->functions->button_pressed(module, pzx, pzy, pressure, which, type, state, form, 0, gui, 0);
-
+    return form->functions->button_pressed(module, pzx, pzy, pressure, which, type, state, form, 0, gui, 0)
+        || which == 3; // swallow right-clicks even when not handled so right-drag rotate is disabled when forms visible
   return 0;
 }
 
 int dt_masks_events_mouse_scrolled(struct dt_iop_module_t *module, double x, double y, int up, uint32_t state)
 {
-  // add an option to allow skip mouse events while editing masks
-  if(darktable.develop->darkroom_skip_mouse_events) return 0;
-
   dt_masks_form_t *form = darktable.develop->form_visible;
   dt_masks_form_gui_t *gui = darktable.develop->form_gui;
   float pzx = 0.0f, pzy = 0.0f;

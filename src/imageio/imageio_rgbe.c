@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2009-2020 darktable developers.
+    Copyright (C) 2009-2023 darktable developers.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -18,7 +18,9 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-#include "common/imageio_rgbe.h"
+#include "develop/imageop.h"         // for IOP_CS_RGB
+#include "imageio/imageio_rgbe.h"
+
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -83,11 +85,11 @@ static int rgbe_error(int rgbe_error_code, char *msg)
       perror("RGBE write error");
       break;
     case rgbe_format_error:
-      fprintf(stderr, "RGBE bad file format: %s\n", msg);
+      dt_print(DT_DEBUG_ALWAYS, "RGBE bad file format: %s\n", msg);
       break;
     default:
     case rgbe_memory_error:
-      fprintf(stderr, "RGBE error: %s\n", msg);
+      dt_print(DT_DEBUG_ALWAYS, "RGBE error: %s\n", msg);
   }
   return RGBE_RETURN_FAILURE;
 }
@@ -593,23 +595,33 @@ dt_imageio_retval_t dt_imageio_open_rgbe(dt_image_t *img, const char *filename, 
   const char *ext = filename + strlen(filename);
   while(*ext != '.' && ext > filename) ext--;
   if(strncmp(ext, ".hdr", 4) && strncmp(ext, ".HDR", 4) && strncmp(ext, ".Hdr", 4))
-    return DT_IMAGEIO_FILE_CORRUPTED;
+    return DT_IMAGEIO_LOAD_FAILED;
+
   FILE *f = g_fopen(filename, "rb");
-  if(!f) return DT_IMAGEIO_FILE_CORRUPTED;
+  if(!f) return DT_IMAGEIO_LOAD_FAILED;
 
   rgbe_header_info info;
   if(RGBE_ReadHeader(f, &img->width, &img->height, &info)) goto error_corrupt;
 
+  img->buf_dsc.channels = 4;
+  img->buf_dsc.datatype = TYPE_FLOAT;
   float *buf = (float *)dt_mipmap_cache_alloc(mbuf, img);
   if(!buf) goto error_cache_full;
-  if(RGBE_ReadPixels_RLE(f, buf, img->width, img->height))
-  {
-    goto error_corrupt;
-  }
+
+  if(RGBE_ReadPixels_RLE(f, buf, img->width, img->height)) goto error_corrupt;
   fclose(f);
+
   // repair nan/inf etc
-  for(size_t i = (size_t)img->width * img->height; i > 0; i--)
-    for(int c = 0; c < 3; c++) buf[4 * (i - 1) + c] = fmaxf(0.0f, fminf(10000.0, buf[3 * (i - 1) + c]));
+  const size_t width = img->width;
+  const size_t height = img->height;
+#ifdef _OPENMP
+#pragma omp parallel for default(none) \
+  dt_omp_firstprivate(width, height, buf) \
+  collapse(2)
+#endif
+  for(size_t i = width * height; i > 0; i--)
+    for(int c = 0; c < 3; c++)
+      buf[4 * (i - 1) + c] = fmaxf(0.0f, fminf(10000.0, buf[3 * (i - 1) + c]));
 
   // set the color matrix
   float m[4][4];
@@ -625,12 +637,18 @@ dt_imageio_retval_t dt_imageio_open_rgbe(dt_image_t *img, const char *filename, 
 
   mat3inv((float *)img->d65_color_matrix, (float *)mat);
 
+  img->buf_dsc.cst = IOP_CS_RGB;
+  img->buf_dsc.filters = 0u;
+  img->flags &= ~DT_IMAGE_LDR;
+  img->flags &= ~DT_IMAGE_RAW;
+  img->flags &= ~DT_IMAGE_S_RAW;
+  img->flags |= DT_IMAGE_HDR;
   img->loader = LOADER_RGBE;
   return DT_IMAGEIO_OK;
 
 error_corrupt:
   fclose(f);
-  return DT_IMAGEIO_FILE_CORRUPTED;
+  return DT_IMAGEIO_LOAD_FAILED;
 error_cache_full:
   fclose(f);
   return DT_IMAGEIO_CACHE_FULL;

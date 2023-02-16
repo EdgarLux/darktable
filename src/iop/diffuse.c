@@ -1,6 +1,6 @@
 /*
    This file is part of darktable,
-   Copyright (C) 2021 darktable developers.
+   Copyright (C) 2021-23 darktable developers.
 
    darktable is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,9 +45,6 @@
 #include "gui/gtk.h"
 #include "gui/presets.h"
 #include "iop/iop_api.h"
-
-// Set to one to output intermediate image steps as PFM in /tmp
-#define DEBUG_DUMP_PFM 0
 
 DT_MODULE_INTROSPECTION(2, dt_iop_diffuse_params_t)
 
@@ -864,19 +861,6 @@ static inline float compute_anisotropy_factor(const float user_param)
   return sqf(user_param);
 }
 
-#if DEBUG_DUMP_PFM
-static void dump_PFM(const char *filename, const float* out, const uint32_t w, const uint32_t h)
-{
-  FILE *f = g_fopen(filename, "wb");
-  fprintf(f, "PF\n%d %d\n-1.0\n", w, h);
-  for(int j = h - 1 ; j >= 0 ; j--)
-    for(int i = 0 ; i < w ; i++)
-      for(int c = 0 ; c < 3 ; c++)
-        fwrite(out + (j * w + i) * 4 + c, 1, sizeof(float), f);
-  fclose(f);
-}
-#endif
-
 static inline gint wavelets_process(const float *const restrict in, float *const restrict reconstructed,
                                     const uint8_t *const restrict mask, const size_t width,
                                     const size_t height, const dt_iop_diffuse_data_t *const data,
@@ -938,14 +922,15 @@ static inline gint wavelets_process(const float *const restrict in, float *const
 
     residual = buffer_out;
 
-#if DEBUG_DUMP_PFM
-    char name[64];
-    sprintf(name, "/tmp/scale-input-%i.pfm", s);
-    dump_PFM(name, buffer_in, width, height);
-
-    sprintf(name, "/tmp/scale-blur-%i.pfm", s);
-    dump_PFM(name, buffer_out, width, height);
-#endif
+    if(darktable.dump_pfm_module)
+    {
+      char name[64];
+      sprintf(name, "scale-input-%i", s);
+      dt_dump_pfm(name, buffer_in, width, height, DT_DUMP_PFM_RGB, "diffuse");
+ 
+      sprintf(name, "scale-blur-%i", s);
+      dt_dump_pfm(name, buffer_out, width, height, DT_DUMP_PFM_RGB, "diffuse");
+    }
   }
   dt_free_align(tempbuf);
 
@@ -995,12 +980,12 @@ static inline gint wavelets_process(const float *const restrict in, float *const
                        anisotropy, isotropy_type, regularization,
                        variance_threshold, sqf(current_radius), mult, ABCD, strength);
 
-#if DEBUG_DUMP_PFM
-    char name[64];
-    sprintf(name, "/tmp/scale-up-unblur-%i.pfm", s);
-    dump_PFM(name, buffer_out, width, height);
-#endif
-
+    if(darktable.dump_pfm_module)
+    {
+      char name[64];
+      sprintf(name, "scale-up-unblur-%i", s);
+      dt_dump_pfm(name, buffer_out, width, height, DT_DUMP_PFM_RGB, "diffuse");
+    }
     count++;
   }
 
@@ -1472,7 +1457,7 @@ void gui_init(struct dt_iop_module_t *self)
   dt_iop_diffuse_gui_data_t *g = IOP_GUI_ALLOC(diffuse);
   self->widget = gtk_box_new(GTK_ORIENTATION_VERTICAL, DT_BAUHAUS_SPACE);
 
-  gtk_box_pack_start(GTK_BOX(self->widget), dt_ui_section_label_new(_("properties")), FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(self->widget), dt_ui_section_label_new(C_("section", "properties")), FALSE, FALSE, 0);
 
   g->iterations = dt_bauhaus_slider_from_params(self, "iterations");
   dt_bauhaus_slider_set_soft_range(g->iterations, 1., 128);
@@ -1502,7 +1487,7 @@ void gui_init(struct dt_iop_module_t *self)
                    "if you plan on deblurring, \n"
                    "the radius should be around the width of your lens blur."));
 
-  GtkWidget *label_speed = dt_ui_section_label_new(_("speed (sharpen ↔ diffuse)"));
+  GtkWidget *label_speed = dt_ui_section_label_new(C_("section", "speed (sharpen ↔ diffuse)"));
   gtk_box_pack_start(GTK_BOX(self->widget), label_speed, FALSE, FALSE, 0);
 
   g->first = dt_bauhaus_slider_from_params(self, "first");
@@ -1541,7 +1526,7 @@ void gui_init(struct dt_iop_module_t *self)
                   "positive values diffuse and blur, \n"
                   "zero does nothing."));
 
-  GtkWidget *label_direction = dt_ui_section_label_new(_("direction"));
+  GtkWidget *label_direction = dt_ui_section_label_new(C_("section", "direction"));
   gtk_box_pack_start(GTK_BOX(self->widget), label_direction, FALSE, FALSE, 0);
 
   g->anisotropy_first = dt_bauhaus_slider_from_params(self, "anisotropy_first");
@@ -1576,7 +1561,7 @@ void gui_init(struct dt_iop_module_t *self)
                   "positive values rather avoid edges (isophotes), \n"
                   "zero affects both equally (isotropic)."));
 
-  gtk_box_pack_start(GTK_BOX(self->widget), dt_ui_section_label_new(_("edge management")), FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(self->widget), dt_ui_section_label_new(C_("section", "edge management")), FALSE, FALSE, 0);
 
   g->sharpness = dt_bauhaus_slider_from_params(self, "sharpness");
   dt_bauhaus_slider_set_format(g->sharpness, "%");
@@ -1599,7 +1584,7 @@ void gui_init(struct dt_iop_module_t *self)
                                 "if dark areas seem oversharpened compared to bright areas."));
 
 
-  gtk_box_pack_start(GTK_BOX(self->widget), dt_ui_section_label_new(_("diffusion spatiality")), FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(self->widget), dt_ui_section_label_new(C_("section", "diffusion spatiality")), FALSE, FALSE, 0);
 
   g->threshold = dt_bauhaus_slider_from_params(self, "threshold");
   dt_bauhaus_slider_set_format(g->threshold, "%");

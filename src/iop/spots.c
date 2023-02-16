@@ -398,12 +398,6 @@ static gboolean masks_form_is_in_roi(dt_iop_module_t *self, dt_dev_pixelpipe_iop
   return TRUE;
 }
 
-void modify_roi_out(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, dt_iop_roi_t *roi_out,
-                    const dt_iop_roi_t *roi_in)
-{
-  *roi_out = *roi_in;
-}
-
 // needed if mask dest is in roi and mask src is not
 void modify_roi_in(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece,
                    const dt_iop_roi_t *roi_out, dt_iop_roi_t *roi_in)
@@ -775,7 +769,7 @@ void gui_update(dt_iop_module_t *self)
   dt_masks_form_t *grp = dt_masks_get_from_id(self->dev, self->blend_params->mask_id);
   guint nb = 0;
   if(grp && (grp->type & DT_MASKS_GROUP)) nb = g_list_length(grp->points);
-  gchar *str = g_strdup_printf("%d", nb);
+  gchar *str = g_strdup_printf("%u", nb);
   gtk_label_set_text(g->label, str);
   g_free(str);
 
