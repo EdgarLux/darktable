@@ -38,6 +38,10 @@
 // FIXME: kill this pls.
 #define FILTERS_ARE_4BAYER(filters) (FILTERS_ARE_CYGM(filters) || FILTERS_ARE_RGBE(filters))
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 typedef enum dt_imageio_levels_t
 {
   IMAGEIO_INT8 = 0x0,
@@ -74,13 +78,14 @@ dt_imageio_retval_t dt_imageio_open_ldr(dt_image_t *img,
 dt_imageio_retval_t dt_imageio_open(dt_image_t *img,
                                     const char *filename,
                                     dt_mipmap_buffer_t *buf);
-// tries to open the files not opened by the other routines using GraphicsMagick (if supported)
+// tries to open the files not opened by the other routines using
+// GraphicsMagick (if supported)
 dt_imageio_retval_t dt_imageio_open_exotic(dt_image_t *img, const char *filename,
                                            dt_mipmap_buffer_t *buf);
 
 struct dt_imageio_module_format_t;
 struct dt_imageio_module_data_t;
-int dt_imageio_export(const int32_t imgid,
+int dt_imageio_export(const dt_imgid_t imgid,
                       const char *filename,
                       struct dt_imageio_module_format_t *format,
                       struct dt_imageio_module_data_t *format_params,
@@ -97,7 +102,7 @@ int dt_imageio_export(const int32_t imgid,
                       const int total,
                       dt_export_metadata_t *metadata);
 
-int dt_imageio_export_with_flags(const int32_t imgid, const char *filename,
+int dt_imageio_export_with_flags(const dt_imgid_t imgid, const char *filename,
                                  struct dt_imageio_module_format_t *format,
                                  struct dt_imageio_module_data_t *format_params,
                                  const gboolean ignore_exif,
@@ -170,11 +175,15 @@ gboolean dt_imageio_lookup_makermodel(const char *maker,
 // get the type of image from its extension
 dt_image_flags_t dt_imageio_get_type_from_extension(const char *extension);
 
-cairo_surface_t *dt_imageio_preview(const int32_t imgid,
+cairo_surface_t *dt_imageio_preview(const dt_imgid_t imgid,
                                     const size_t width,
                                     const size_t height,
                                     const int history_end,
                                     const char *style_name);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif /* __cplusplus */
 
 // clang-format off
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py

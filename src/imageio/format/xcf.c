@@ -45,7 +45,7 @@ typedef struct dt_imageio_xcf_t
 
 int write_image(dt_imageio_module_data_t *data, const char *filename, const void *ivoid,
                 dt_colorspaces_color_profile_type_t over_type, const char *over_filename,
-                void *exif, int exif_len, int imgid, int num, int total, struct dt_dev_pixelpipe_t *pipe,
+                void *exif, int exif_len, dt_imgid_t imgid, int num, int total, struct dt_dev_pixelpipe_t *pipe,
                 const gboolean export_masks)
 {
   const dt_imageio_xcf_t *const d = (dt_imageio_xcf_t *)data;
@@ -171,15 +171,11 @@ int write_image(dt_imageio_module_data_t *data, const char *filename, const void
       g_hash_table_iter_init(&rm_iter, piece->raster_masks);
       while(g_hash_table_iter_next(&rm_iter, &key, &value))
       {
-        gboolean free_mask = TRUE;
-        float *raster_mask = dt_dev_get_raster_mask(pipe, piece->module, GPOINTER_TO_INT(key), NULL, &free_mask);
+        gboolean free_mask;
+        float *raster_mask = dt_dev_get_raster_mask(piece, piece->module, GPOINTER_TO_INT(key), NULL, &free_mask);
 
         if(!raster_mask)
-        {
-          // this should never happen
-          dt_print(DT_DEBUG_ALWAYS, "error: can't get raster mask from `%s'\n", piece->module->name());
-          goto exit;
-        }
+           goto exit;
 
         xcf_add_channel(xcf);
         xcf_set(xcf, XCF_PROP, XCF_PROP_VISIBLE, 0);
@@ -196,15 +192,25 @@ int write_image(dt_imageio_module_data_t *data, const char *filename, const void
         {
           channel_data = malloc(sizeof(uint8_t) * d->global.width * d->global.height);
           uint8_t *ch = (uint8_t *)channel_data;
-          for(size_t i = 0; i < (size_t)d->global.width * d->global.height; i++)
-            ch[i] = CLAMP((int)(raster_mask[i] * 255.0), 0, 255);
+#ifdef _OPENMP
+#pragma omp parallel for simd default(none) \
+  dt_omp_firstprivate(ch, d, raster_mask) \
+  schedule(simd:static)
+#endif
+          for(size_t i = 0; i < (size_t)d->global.width * d->global.height; ++i)
+            ch[i] = (uint8_t)roundf(CLIP(raster_mask[i]) * 255.0f);
         }
         else if(d->bpp == 16)
         {
           channel_data = malloc(sizeof(uint16_t) * d->global.width * d->global.height);
           uint16_t *ch = (uint16_t *)channel_data;
-          for(size_t i = 0; i < (size_t)d->global.width * d->global.height; i++)
-            ch[i] = CLAMP((int)(raster_mask[i] * 65535.0), 0, 65535);
+#ifdef _OPENMP
+#pragma omp parallel for simd default(none) \
+  dt_omp_firstprivate(ch, d, raster_mask) \
+  schedule(simd:static)
+#endif
+          for(size_t i = 0; i < (size_t)d->global.width * d->global.height; ++i)
+            ch[i] = (uint16_t)roundf(CLIP(raster_mask[i]) * 65535.0f);
         }
         else if(d->bpp == 32)
         {

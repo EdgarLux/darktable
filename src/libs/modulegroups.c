@@ -192,10 +192,9 @@ const char *name(dt_lib_module_t *self)
   return _("modulegroups");
 }
 
-const char **views(dt_lib_module_t *self)
+dt_view_type_flags_t views(dt_lib_module_t *self)
 {
-  static const char *v[] = {"darkroom", NULL};
-  return v;
+  return DT_VIEW_DARKROOM;
 }
 
 uint32_t container(dt_lib_module_t *self)
@@ -978,9 +977,6 @@ static void _lib_modulegroups_update_iop_visibility(dt_lib_module_t *self)
 
   }
 
-  // now that visibility has been updated set multi-show
-  dt_dev_modules_update_multishow(darktable.develop);
-
   // we show eventual basic panel but only if no text in the search box
   if(d->current == DT_MODULEGROUP_BASICS && !(text_entered && text_entered[0] != '\0')) _basics_show(self);
 }
@@ -1345,7 +1341,7 @@ static void _preset_retrieve_old_presets(dt_lib_module_t *self)
     fav = dt_util_dstrcat(fav, "|");
 
     gchar *tx = _preset_retrieve_old_layout(list, fav);
-    dt_lib_presets_add(pname, self->plugin_name, self->version(), tx, strlen(tx), FALSE);
+    dt_lib_presets_add(pname, self->plugin_name, self->version(), tx, strlen(tx), FALSE, 0);
     g_free(tx);
     g_free(list);
     g_free(fav);
@@ -1532,6 +1528,8 @@ static void _preset_from_string(dt_lib_module_t *self, gchar *txt, gboolean edit
 
 void init_presets(dt_lib_module_t *self)
 {
+  self->pref_based_presets = TRUE;
+
   /*
     For the record, one can create the preset list by using the following code:
 
@@ -1634,7 +1632,7 @@ void init_presets(dt_lib_module_t *self)
   AM("blurs");
   AM("diffuse");
 
-  dt_lib_presets_add(_("modules: all"), self->plugin_name, self->version(), tx, strlen(tx), TRUE);
+  dt_lib_presets_add(_("modules: all"), self->plugin_name, self->version(), tx, strlen(tx), TRUE, 0);
 
   // minimal / 3 tabs
 
@@ -1671,7 +1669,7 @@ void init_presets(dt_lib_module_t *self)
   AM("vignette");
   AM("watermark");
 
-  dt_lib_presets_add(_("workflow: beginner"), self->plugin_name, self->version(), tx, strlen(tx), TRUE);
+  dt_lib_presets_add(_("workflow: beginner"), self->plugin_name, self->version(), tx, strlen(tx), TRUE, 0);
 
   // display referred
   SQA(FALSE);
@@ -1720,7 +1718,7 @@ void init_presets(dt_lib_module_t *self)
   AM("watermark");
   AM("censorize");
 
-  dt_lib_presets_add(_("workflow: display-referred"), self->plugin_name, self->version(), tx, strlen(tx), TRUE);
+  dt_lib_presets_add(_("workflow: display-referred"), self->plugin_name, self->version(), tx, strlen(tx), TRUE, 0);
 
   // scene referred
 
@@ -1738,6 +1736,7 @@ void init_presets(dt_lib_module_t *self)
   AM("exposure");
   AM("temperature");
   AM("bilat");
+  AM("highlights");
 
   SMG(C_("modulegroup", "color"), "color");
   AM("channelmixerrgb");
@@ -1767,11 +1766,11 @@ void init_presets(dt_lib_module_t *self)
   AM("blurs");
   AM("diffuse");
 
-  dt_lib_presets_add(_("workflow: scene-referred"), self->plugin_name, self->version(), tx, strlen(tx), TRUE);
+  dt_lib_presets_add(_("workflow: scene-referred"), self->plugin_name, self->version(), tx, strlen(tx), TRUE, 0);
 
   // search only (only active modules visible)
   SNQA();
-  dt_lib_presets_add(_("search only"), self->plugin_name, self->version(), tx, strlen(tx), TRUE);
+  dt_lib_presets_add(_("search only"), self->plugin_name, self->version(), tx, strlen(tx), TRUE, 0);
 
   // this is a special preset for all newly deprecated modules
   // so users still have a chance to access them until next release (with warning messages)
@@ -1782,7 +1781,7 @@ void init_presets(dt_lib_module_t *self)
   AM("levels");
   AM("colisa");
 
-  dt_lib_presets_add(_(DEPRECATED_PRESET_NAME), self->plugin_name, self->version(), tx, strlen(tx), TRUE);
+  dt_lib_presets_add(_(DEPRECATED_PRESET_NAME), self->plugin_name, self->version(), tx, strlen(tx), TRUE, 0);
 
   g_free(tx);
 
@@ -1790,13 +1789,13 @@ void init_presets(dt_lib_module_t *self)
   if(!dt_conf_key_exists("plugins/darkroom/modulegroups_preset"))
   {
     tx = _preset_retrieve_old_layout(NULL, NULL);
-    dt_lib_presets_add(_("previous config"), self->plugin_name, self->version(), tx, strlen(tx), FALSE);
+    dt_lib_presets_add(_("previous config"), self->plugin_name, self->version(), tx, strlen(tx), FALSE, 0);
     dt_conf_set_string("plugins/darkroom/modulegroups_preset", _("previous layout"));
     g_free(tx);
 
     tx = _preset_retrieve_old_layout_updated();
     dt_lib_presets_add(_("previous config with new layout"), self->plugin_name, self->version(), tx,
-                       strlen(tx), FALSE);
+                       strlen(tx), FALSE, 0);
     g_free(tx);
   }
   // if they exists, we retrieve old user presets from old modulelist lib
@@ -1806,6 +1805,7 @@ void init_presets(dt_lib_module_t *self)
 static gchar *_presets_get_minimal(dt_lib_module_t *self)
 {
   const gboolean is_scene_referred = dt_is_scene_referred();
+  const gboolean wf_filmic = dt_conf_is_equal("plugins/darkroom/workflow", "scene-referred (filmic)");
 
   // all modules
   gchar *tx = NULL;
@@ -1816,7 +1816,12 @@ static gchar *_presets_get_minimal(dt_lib_module_t *self)
 
   SMG(C_("modulegroup", "base"), "basic");
   if(is_scene_referred)
-    AM("filmicrgb");
+  {
+    if(wf_filmic)
+      AM("filmicrgb");
+    else
+      AM("sigmoid");
+  }
   else
     AM("basecurve");
   AM("exposure");
@@ -2145,7 +2150,7 @@ static void _manage_direct_save(dt_lib_module_t *self)
   // get all the values
   gchar *params = _preset_to_string(self, FALSE);
   // update the preset in the database
-  dt_lib_presets_add(_(CURRENT_PRESET_NAME), self->plugin_name, self->version(), params, strlen(params), FALSE);
+  dt_lib_presets_add(_(CURRENT_PRESET_NAME), self->plugin_name, self->version(), params, strlen(params), FALSE, 0);
   g_free(params);
 
   // update the preset name
@@ -2220,7 +2225,7 @@ static int _lib_modulegroups_basics_module_toggle(dt_lib_module_t *self, GtkWidg
 {
   if(GTK_IS_BUTTON(widget)) return 0;
 
-  dt_action_t *action = g_hash_table_lookup(darktable.control->widgets, widget);
+  dt_action_t *action = dt_action_widget(widget);
 
   dt_action_t *owner = action;
   while(owner && owner->type >= DT_ACTION_TYPE_SECTION) owner = owner->owner;
@@ -3510,7 +3515,7 @@ static void _manage_editor_preset_action(GtkWidget *btn, dt_lib_module_t *self)
       // create a new minimal preset
       char *tx = _presets_get_minimal(self);
       dt_lib_presets_add(gtk_entry_get_text(GTK_ENTRY(tb)), self->plugin_name, self->version(), tx, strlen(tx),
-                         FALSE);
+                         FALSE, 0);
       g_free(tx);
       // update the presets list
       d->editor_reset = TRUE;
@@ -3523,7 +3528,7 @@ static void _manage_editor_preset_action(GtkWidget *btn, dt_lib_module_t *self)
     {
       char *tx = _preset_to_string(self, TRUE);
       dt_lib_presets_add(gtk_entry_get_text(GTK_ENTRY(tb)), self->plugin_name, self->version(), tx, strlen(tx),
-                         FALSE);
+                         FALSE, 0);
       g_free(tx);
       // update the presets list
       d->editor_reset = TRUE;
@@ -3873,9 +3878,16 @@ static void _manage_show_window(dt_lib_module_t *self)
 
   // reset button
   hb2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+
   d->preset_reset_btn = gtk_button_new_with_label(_("reset"));
   g_signal_connect(G_OBJECT(d->preset_reset_btn), "button-press-event", G_CALLBACK(_manage_editor_reset), self);
   gtk_box_pack_end(GTK_BOX(hb2), d->preset_reset_btn, FALSE, TRUE, 0);
+
+  GtkWidget *help = gtk_button_new_with_label(_("?"));
+  dt_gui_add_help_link(help, "modulegroups");
+  g_signal_connect(help, "clicked", G_CALLBACK(dt_gui_show_help), NULL);
+  gtk_box_pack_end(GTK_BOX(hb2), help, FALSE, FALSE, 0);
+
   gtk_box_pack_start(GTK_BOX(vb_main), hb2, FALSE, TRUE, 0);
 
   // we load the presets list

@@ -271,8 +271,10 @@ static void _color_picker_work_1ch(const float *const pixel,
     pick[DT_PICK_MEAN][c] = weights[c] ? (acc[c] / (float)weights[c]) : 0.0f;
 }
 
-void dt_color_picker_helper(const dt_iop_buffer_dsc_t *dsc, const float *const pixel,
-                            const dt_iop_roi_t *roi, const int *const box,
+void dt_color_picker_helper(const dt_iop_buffer_dsc_t *dsc,
+                            const float *const pixel,
+                            const dt_iop_roi_t *roi,
+                            const int *const box,
                             const gboolean denoise,
                             lib_colorpicker_stats pick,
                             const dt_iop_colorspace_type_t image_cst,
@@ -280,7 +282,7 @@ void dt_color_picker_helper(const dt_iop_buffer_dsc_t *dsc, const float *const p
                             const dt_iop_order_iccprofile_info_t *const profile)
 {
   dt_times_t start_time = { 0 }, end_time = { 0 };
-  if(darktable.unmuted & DT_DEBUG_PERF) dt_get_times(&start_time);
+  dt_get_perf_times(&start_time);
 
   if(dsc->channels == 4u)
   {
@@ -291,13 +293,20 @@ void dt_color_picker_helper(const dt_iop_buffer_dsc_t *dsc, const float *const p
       // Denoise the image
       size_t padded_size;
       denoised = dt_alloc_align_float(4 * roi->width * roi->height);
-      float *const DT_ALIGNED_ARRAY tempbuf = dt_alloc_perthread_float(4 * roi->width, &padded_size); //TODO: alloc in caller
+      if(denoised)
+      {
+        float *const tempbuf = dt_alloc_perthread_float(4 * roi->width, &padded_size); //TODO: alloc in caller
 
-      // blur without clipping negatives because Lab a and b channels can be legitimately negative
-      // FIXME: this blurs whole image even when just a bit is sampled in the case of CPU path
-      blur_2D_Bspline(pixel, denoised, tempbuf, roi->width, roi->height, 1, FALSE);
-      dt_free_align(tempbuf);
-      source = denoised;
+        // blur without clipping negatives because Lab a and b channels can be
+        // legitimately negative
+        // FIXME: this blurs whole image even when just a bit is sampled in the
+        // case of CPU path
+        blur_2D_Bspline(pixel, denoised, tempbuf, roi->width, roi->height, 1, FALSE);
+        dt_free_align(tempbuf);
+        source = denoised;
+      }
+      else
+        dt_print(DT_DEBUG_ALWAYS,"[color picker] unable to alloc working memory, denoising skipped\n");
     }
 
     // 4-channel raw images are monochrome, can be read as RGB
@@ -332,7 +341,9 @@ void dt_color_picker_helper(const dt_iop_buffer_dsc_t *dsc, const float *const p
     else
     {
       // fallback, but this shouldn't happen
-      fprintf(stderr, "[colorpicker] unknown colorspace conversion from %d to %d\n", image_cst, picker_cst);
+      dt_print(DT_DEBUG_ALWAYS,
+               "[colorpicker] unknown colorspace conversion from %d to %d\n",
+               image_cst, picker_cst);
       _color_picker_work_4ch(source, roi, box, pick, NULL, _color_picker_rgb_or_lab, 100);
     }
 
@@ -354,9 +365,11 @@ void dt_color_picker_helper(const dt_iop_buffer_dsc_t *dsc, const float *const p
   if(darktable.unmuted & DT_DEBUG_PERF)
   {
     dt_get_times(&end_time);
-    fprintf(stderr, "colorpicker stats reading %u channels (filters %u) cst %d -> %d size %zu denoised %d took %.3f secs (%.3f CPU)\n",
-            dsc->channels, dsc->filters, image_cst, picker_cst, _box_size(box), denoise,
-            end_time.clock - start_time.clock, end_time.user - start_time.user);
+    dt_print(DT_DEBUG_ALWAYS,
+             "colorpicker stats reading %u channels (filters %u) cst %d -> %d "
+             "size %zu denoised %d took %.3f secs (%.3f CPU)\n",
+             dsc->channels, dsc->filters, image_cst, picker_cst, _box_size(box), denoise,
+             end_time.clock - start_time.clock, end_time.user - start_time.user);
   }
 }
 

@@ -3,14 +3,10 @@ cmake_minimum_required(VERSION 3.18)
 cmake_policy(SET CMP0011 NEW)
 cmake_policy(SET CMP0025 NEW)
 cmake_policy(SET CMP0048 NEW)
+cmake_policy(SET CMP0067 NEW)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules/")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
-
-find_program(CCACHE_FOUND ccache)
-if(CCACHE_FOUND)
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
-endif(CCACHE_FOUND)
 
 ### Add defaults for cmake
 # These defaults need to be included before the project() call.
@@ -139,10 +135,9 @@ if(APPLE)
     string(STRIP "${HOMEBREW_PREFIX}" HOMEBREW_PREFIX)
     message("-- Homebrew detected, setting CMAKE_PREFIX_PATH to ${HOMEBREW_PREFIX}")
     LIST(APPEND CMAKE_PREFIX_PATH ${HOMEBREW_PREFIX})
-    # Explicitly add llvm, icu4c and libsoup@2 to prefix path
+    # Explicitly add llvm and icu4c to prefix path
     LIST(APPEND CMAKE_PREFIX_PATH ${HOMEBREW_PREFIX}/opt/llvm)
     LIST(APPEND CMAKE_PREFIX_PATH ${HOMEBREW_PREFIX}/opt/icu4c)
-    LIST(APPEND CMAKE_PREFIX_PATH ${HOMEBREW_PREFIX}/opt/libsoup@2)
   else()
     message("-- Setting CMAKE_PREFIX_PATH to prefer MacPorts and/or user-installed libraries over system ones")
     LIST(APPEND CMAKE_PREFIX_PATH /opt/local /usr/local)

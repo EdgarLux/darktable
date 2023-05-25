@@ -26,13 +26,17 @@
 #include "common/cups_print.h"
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 void dt_control_gpx_apply(const gchar *filename, int32_t filmid, const gchar *tz, GList *imgs);
 
 void dt_control_datetime(const GTimeSpan offset, const char *datetime, GList *imgs);
 
 void dt_control_write_sidecar_files();
 void dt_control_delete_images();
-void dt_control_delete_image(int imgid);
+void dt_control_delete_image(dt_imgid_t imgid);
 void dt_control_duplicate_images(gboolean virgin);
 void dt_control_flip_images(const int32_t cw);
 void dt_control_monochrome_images(const int32_t mode);
@@ -51,6 +55,10 @@ void dt_control_import(GList *imgs, const char *datetime_override, const gboolea
 void dt_control_seed_denoise();
 void dt_control_denoise();
 void dt_control_refresh_exif();
+
+#ifdef __cplusplus
+} // extern "C"
+#endif /* __cplusplus */
 
 // clang-format off
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.py

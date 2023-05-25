@@ -28,7 +28,8 @@
 
 typedef void((*_histogram_worker)(const dt_dev_histogram_collection_params_t *const params,
                                   const void *const restrict pixel,
-                                  uint32_t *const restrict histogram, const int j,
+                                  uint32_t *const restrict histogram,
+                                  const int j,
                                   const dt_iop_order_iccprofile_info_t *const profile));
 
 static inline void _clamp_bin(const dt_aligned_pixel_t vals,
@@ -50,7 +51,9 @@ static inline void _clamp_bin(const dt_aligned_pixel_t vals,
 //------------------------------------------------------------------------------
 
 static inline void _bin_raw(const dt_dev_histogram_collection_params_t *const params,
-                            const void *pixel, uint32_t *histogram, int j,
+                            const void *pixel,
+                            uint32_t *histogram,
+                            const int j,
                             const dt_iop_order_iccprofile_info_t *const profile)
 {
   const dt_histogram_roi_t *roi = params->roi;
@@ -69,7 +72,8 @@ static inline void _bin_raw(const dt_dev_histogram_collection_params_t *const pa
 
 static inline void _bin_rgb(const dt_dev_histogram_collection_params_t *const params,
                             const void *const restrict pixel,
-                            uint32_t *const restrict histogram, const int j,
+                            uint32_t *const restrict histogram,
+                            const int j,
                             const dt_iop_order_iccprofile_info_t *const profile)
 {
   const dt_histogram_roi_t *roi = params->roi;
@@ -85,10 +89,12 @@ static inline void _bin_rgb(const dt_dev_histogram_collection_params_t *const pa
   }
 }
 
-static inline void _bin_rgb_compensated(const dt_dev_histogram_collection_params_t *const params,
-                                        const void *const pixel,
-                                        uint32_t *const restrict histogram, const int j,
-                                        const dt_iop_order_iccprofile_info_t *const profile)
+static inline void _bin_rgb_compensated
+  (const dt_dev_histogram_collection_params_t *const params,
+   const void *const pixel,
+   uint32_t *const restrict histogram,
+   const int j,
+   const dt_iop_order_iccprofile_info_t *const profile)
 {
   const dt_histogram_roi_t *roi = params->roi;
   float *in = (float *)pixel + 4 * (roi->width * j + roi->crop_x);
@@ -107,7 +113,8 @@ static inline void _bin_rgb_compensated(const dt_dev_histogram_collection_params
 
 static inline void _bin_Lab(const dt_dev_histogram_collection_params_t *const params,
                             const void *const restrict pixel,
-                            uint32_t *const restrict histogram, const int j,
+                            uint32_t *const restrict histogram,
+                            const int j,
                             const dt_iop_order_iccprofile_info_t *const profile)
 {
   const dt_histogram_roi_t *roi = params->roi;
@@ -129,7 +136,8 @@ static inline void _bin_Lab(const dt_dev_histogram_collection_params_t *const pa
 
 static inline void _bin_Lab_LCh(const dt_dev_histogram_collection_params_t *const params,
                                 const void *const restrict pixel,
-                                uint32_t *const restrict histogram, const int j,
+                                uint32_t *const restrict histogram,
+                                const int j,
                                 const dt_iop_order_iccprofile_info_t *const profile)
 {
   const dt_histogram_roi_t *roi = params->roi;
@@ -141,7 +149,8 @@ static inline void _bin_Lab_LCh(const dt_dev_histogram_collection_params_t *cons
 
   for(int i = 0; i < roi->width - roi->crop_right - roi->crop_x; i++)
   {
-    dt_aligned_pixel_t LCh, b;
+    dt_aligned_pixel_t LCh = { 0.0f, 0.0f, 0.0f };
+    dt_aligned_pixel_t b;
     dt_Lab_2_LCH(in + i*4, LCh);
     for_each_channel(k,aligned(LCh,b,scale:16))
       b[k] = scale[k] * LCh[k];
@@ -152,8 +161,10 @@ static inline void _bin_Lab_LCh(const dt_dev_histogram_collection_params_t *cons
 //==============================================================================
 
 void _hist_worker(dt_dev_histogram_collection_params_t *const histogram_params,
-                  dt_dev_histogram_stats_t *histogram_stats, const void *const pixel,
-                  uint32_t **histogram, const _histogram_worker Worker,
+                  dt_dev_histogram_stats_t *histogram_stats,
+                  const void *const pixel,
+                  uint32_t **histogram,
+                  const _histogram_worker Worker,
                   const dt_iop_order_iccprofile_info_t *const profile_info)
 {
   const size_t bins_total = (size_t)(histogram_stats->ch == 1 ? 1 : 4)
@@ -199,12 +210,13 @@ void dt_histogram_helper(dt_dev_histogram_collection_params_t *histogram_params,
                          const dt_iop_colorspace_type_t cst,
                          const dt_iop_colorspace_type_t cst_to,
                          const void *pixel,
-                         uint32_t **histogram, uint32_t *histogram_max,
+                         uint32_t **histogram,
+                         uint32_t *histogram_max,
                          const gboolean compensate_middle_grey,
                          const dt_iop_order_iccprofile_info_t *const profile_info)
 {
   dt_times_t start_time = { 0 }, end_time = { 0 };
-  if(darktable.unmuted & DT_DEBUG_PERF) dt_get_times(&start_time);
+  dt_get_perf_times(&start_time);
 
   // all use 256 bins excepting:
   // levels in automatic mode which uses 16384
@@ -282,9 +294,13 @@ void dt_histogram_helper(dt_dev_histogram_collection_params_t *histogram_params,
   if(darktable.unmuted & DT_DEBUG_PERF)
   {
     dt_get_times(&end_time);
-    fprintf(stderr, "histogram calculation %u bins %d -> %d compensate %d %u channels %u pixels took %.3f secs (%.3f CPU)\n",
-            histogram_params->bins_count, cst, cst_to, compensate_middle_grey && profile_info, histogram_stats->ch, histogram_stats->pixels,
-            end_time.clock - start_time.clock, end_time.user - start_time.user);
+    dt_print(DT_DEBUG_ALWAYS,
+             "histogram calculation %u bins %d -> %d"
+             " compensate %d %u channels %u pixels took %.3f secs (%.3f CPU)\n",
+             histogram_params->bins_count, cst, cst_to,
+             compensate_middle_grey && profile_info, histogram_stats->ch,
+             histogram_stats->pixels,
+             end_time.clock - start_time.clock, end_time.user - start_time.user);
   }
 }
 

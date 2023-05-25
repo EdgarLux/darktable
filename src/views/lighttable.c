@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    Copyright (C) 2009-2021 darktable developers.
+    Copyright (C) 2009-2023 darktable developers.
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -250,7 +250,7 @@ static void _lighttable_check_layout(dt_view_t *self)
   }
 }
 
-static void _lighttable_change_offset(dt_view_t *self, gboolean reset, gint imgid)
+static void _lighttable_change_offset(dt_view_t *self, gboolean reset, dt_imgid_t imgid)
 {
   dt_library_t *lib = (dt_library_t *)self->data;
 
@@ -322,7 +322,7 @@ static gboolean _preview_get_state(dt_view_t *self)
 
 static int set_image_visible_cb(lua_State *L)
 {
-  dt_lua_image_t imgid = -1;
+  dt_lua_image_t imgid = NO_IMGID;
   dt_view_t *self = lua_touserdata(L, lua_upvalueindex(1));  //check were in lighttable view
   if(view(self) == DT_VIEW_LIGHTTABLE)
   {
@@ -349,7 +349,7 @@ static int set_image_visible_cb(lua_State *L)
 
 static gboolean is_image_visible_cb(lua_State *L)
 {
-  dt_lua_image_t imgid = -1;
+  dt_lua_image_t imgid = NO_IMGID;
   dt_view_t *self = lua_touserdata(L, lua_upvalueindex(1));  //check were in lighttable view
   //check we are in file manager or zoomable
   if(view(self) == DT_VIEW_LIGHTTABLE)
@@ -395,7 +395,7 @@ void expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t height, int32_t
   // Let's show full preview if in that state...
   _lighttable_check_layout(self);
 
-  if(!darktable.collection || darktable.collection->count <= 0)
+  if(!darktable.collection || dt_collection_get_count_no_group(darktable.collection) <= 0)
   {
     // thumbtable displays an help message
   }
@@ -524,10 +524,10 @@ static void _preview_enter(dt_view_t *self, gboolean sticky, gboolean focus)
   dt_ui_scrollbars_show(darktable.gui->ui, FALSE);
 }
 
-static void _preview_set_state(dt_view_t *self, gboolean state, gboolean focus)
+static void _preview_set_state(dt_view_t *self, gboolean state, gboolean sticky, gboolean focus)
 {
   if(state)
-    _preview_enter(self, TRUE, focus);
+    _preview_enter(self, sticky, focus);
   else
     _preview_quit(self);
 }
@@ -595,7 +595,7 @@ void leave(dt_view_t *self)
 
 void reset(dt_view_t *self)
 {
-  dt_control_set_mouse_over_id(-1);
+  dt_control_set_mouse_over_id(NO_IMGID);
 }
 
 
@@ -629,59 +629,13 @@ static void _overlays_force(dt_view_t *self, const gboolean show)
   }
 }
 
-
-enum
-{
-  DT_ACTION_ELEMENT_FOCUS_DETECT = 1,
-};
-
-static float _action_process_preview(gpointer target, dt_action_element_t element, dt_action_effect_t effect, float move_size)
-{
-  dt_view_t *self = darktable.view_manager->proxy.lighttable.view;
-  dt_library_t *lib = (dt_library_t *)self->data;
-
-  if(!isnan(move_size))
-  {
-    if(lib->preview_state)
-    {
-      if(effect != DT_ACTION_EFFECT_ON)
-        _preview_quit(self);
-    }
-    else
-    {
-      if(effect != DT_ACTION_EFFECT_OFF)
-      {
-        if(dt_control_get_mouse_over_id() != -1)
-        {
-          gboolean focus = element == DT_ACTION_ELEMENT_FOCUS_DETECT;
-
-          _preview_enter(self, FALSE, focus);
-        }
-      }
-    }
-  }
-
-  return lib->preview_state;
-}
-
-const dt_action_element_def_t _action_elements_preview[]
-  = { { N_("normal"), dt_action_effect_hold },
-      { N_("focus detection"), dt_action_effect_hold },
-      { NULL } };
-
-const dt_action_def_t dt_action_def_preview
-  = { N_("preview"),
-      _action_process_preview,
-      _action_elements_preview,
-      NULL, TRUE };
-
 static float _action_process_infos(gpointer target, const dt_action_element_t element,
                                    const dt_action_effect_t effect, const float move_size)
 {
   dt_view_t *self = darktable.view_manager->proxy.lighttable.view;
   dt_library_t *lib = (dt_library_t *)self->data;
 
-  if(!isnan(move_size))
+  if(DT_PERFORM_ACTION(move_size))
   {
     if(effect != DT_ACTION_EFFECT_ON)
     {
@@ -719,7 +673,7 @@ enum
 
 static float _action_process_move(gpointer target, dt_action_element_t element, dt_action_effect_t effect, float move_size)
 {
-  if(isnan(move_size)) return 0; // FIXME return should be relative position
+  if(!DT_PERFORM_ACTION(move_size)) return 0; // FIXME return should be relative position
 
   int action = GPOINTER_TO_INT(target);
 
@@ -905,13 +859,13 @@ static void _accel_culling_zoom_fit(dt_action_t *action)
 
 static void _accel_select_toggle(dt_action_t *action)
 {
-  const int32_t id = dt_control_get_mouse_over_id();
+  const dt_imgid_t id = dt_control_get_mouse_over_id();
   dt_selection_toggle(darktable.selection, id);
 }
 
 static void _accel_select_single(dt_action_t *action)
 {
-  const int32_t id = dt_control_get_mouse_over_id();
+  const dt_imgid_t id = dt_control_get_mouse_over_id();
   dt_selection_select_single(darktable.selection, id);
 }
 
@@ -1065,7 +1019,9 @@ static void _profile_display_profile_callback(GtkWidget *combo, gpointer user_da
   }
 
   // profile not found, fall back to system display profile. shouldn't happen
-  fprintf(stderr, "can't find display profile `%s', using system display profile instead\n", dt_bauhaus_combobox_get_text(combo));
+  dt_print(DT_DEBUG_ALWAYS,
+           "can't find display profile `%s', using system display profile instead\n",
+           dt_bauhaus_combobox_get_text(combo));
   profile_changed = darktable.color_profiles->display_type != DT_COLORSPACE_DISPLAY;
   darktable.color_profiles->display_type = DT_COLORSPACE_DISPLAY;
   darktable.color_profiles->display_filename[0] = '\0';
@@ -1105,8 +1061,9 @@ static void _profile_display2_profile_callback(GtkWidget *combo, gpointer user_d
   }
 
   // profile not found, fall back to system display2 profile. shouldn't happen
-  fprintf(stderr, "can't find preview display profile `%s', using system display profile instead\n",
-          dt_bauhaus_combobox_get_text(combo));
+  dt_print(DT_DEBUG_ALWAYS,
+           "can't find preview display profile `%s', using system display profile instead\n",
+           dt_bauhaus_combobox_get_text(combo));
   profile_changed = darktable.color_profiles->display2_type != DT_COLORSPACE_DISPLAY2;
   darktable.color_profiles->display2_type = DT_COLORSPACE_DISPLAY2;
   darktable.color_profiles->display2_filename[0] = '\0';
@@ -1214,10 +1171,6 @@ void gui_init(dt_view_t *self)
   gtk_container_add(GTK_CONTAINER(lib->profile_floating_window), vbox);
 
   /** let's fill the encapsulating widgets */
-  char datadir[PATH_MAX] = { 0 };
-  char confdir[PATH_MAX] = { 0 };
-  dt_loc_get_user_config_dir(confdir, sizeof(confdir));
-  dt_loc_get_datadir(datadir, sizeof(datadir));
 
   static const gchar *intents_list[]
     = { N_("perceptual"),
@@ -1269,16 +1222,13 @@ void gui_init(dt_view_t *self)
     }
   }
 
-  char *system_profile_dir = g_build_filename(datadir, "color", "out", NULL);
-  char *user_profile_dir = g_build_filename(confdir, "color", "out", NULL);
-  char *tooltip = g_strdup_printf(_("display ICC profiles in %s or %s"), user_profile_dir, system_profile_dir);
-  gtk_widget_set_tooltip_text(display_profile, tooltip);
+  char *tooltip = dt_ioppr_get_location_tooltip("out", _("display ICC profiles"));
+  gtk_widget_set_tooltip_markup(display_profile, tooltip);
   g_free(tooltip);
-  tooltip = g_strdup_printf(_("preview display ICC profiles in %s or %s"), user_profile_dir, system_profile_dir);
-  gtk_widget_set_tooltip_text(display2_profile, tooltip);
+
+  tooltip = dt_ioppr_get_location_tooltip("out", _("preview display ICC profiles"));
+  gtk_widget_set_tooltip_markup(display2_profile, tooltip);
   g_free(tooltip);
-  g_free(system_profile_dir);
-  g_free(user_profile_dir);
 
   g_signal_connect(G_OBJECT(display_profile), "value-changed", G_CALLBACK(_profile_display_profile_callback), NULL);
 
@@ -1311,11 +1261,6 @@ void gui_init(dt_view_t *self)
 
   ac = dt_action_define(sa, N_("move"), N_("leave"), GINT_TO_POINTER(_ACTION_TABLE_MOVE_LEAVE), &_action_def_move);
   dt_shortcut_register(ac, DT_ACTION_ELEMENT_MOVE, DT_ACTION_EFFECT_NEXT    , GDK_KEY_Escape, GDK_MOD1_MASK);
-
-  // Preview key
-  ac = dt_action_define(sa, NULL, N_("preview"), NULL, &dt_action_def_preview);
-  dt_shortcut_register(ac, DT_ACTION_ELEMENT_DEFAULT, DT_ACTION_EFFECT_HOLD, GDK_KEY_w, 0);
-  dt_shortcut_register(ac, DT_ACTION_ELEMENT_FOCUS_DETECT, DT_ACTION_EFFECT_HOLD, GDK_KEY_w, GDK_CONTROL_MASK);
 
   // Show infos key
   ac = dt_action_define(sa, NULL, N_("show infos"), NULL, &dt_action_def_infos);

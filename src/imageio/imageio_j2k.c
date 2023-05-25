@@ -15,6 +15,7 @@
     You should have received a copy of the GNU General Public License
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -42,30 +43,11 @@ static char J2K_HEAD[] = { 0xFF, 0x4F, 0xFF, 0x51, 0x00 };
 
 static void color_sycc_to_rgb(opj_image_t *img);
 
-/**
-sample error callback expecting a FILE* client object
-*/
 static void error_callback(const char *msg, void *client_data)
 {
   FILE *stream = (FILE *)client_data;
   fprintf(stream, "[j2k_open] Error: %s", msg);
 }
-/**
-sample warning callback expecting a FILE* client object
-*/
-// static void warning_callback(const char *msg, void *client_data)
-// {
-//   FILE *stream = (FILE*)client_data;
-//   fprintf(stream, "[j2k_open] Warning: %s", msg);
-// }
-/**
-sample debug callback expecting no client object
-*/
-// static void info_callback(const char *msg, void *client_data)
-// {
-//   (void)client_data;
-//   fprintf(stdout, "[j2k_open] Info: %s", msg);
-// }
 
 static int get_file_format(const char *filename)
 {
@@ -164,7 +146,7 @@ dt_imageio_retval_t dt_imageio_open_j2k(dt_image_t *img, const char *filename, d
   // opj_set_info_handler(d_codec, error_callback, stderr);
 
   /* Decode JPEG-2000 with using multiple threads */
-  if(!opj_codec_set_threads(d_codec, darktable.num_openmp_threads))
+  if(!opj_codec_set_threads(d_codec, dt_get_num_threads()))
   {
     /* This may not seem like a critical error but failure to initialise the treads
      is a symptom of major resource exhaustion, bail out as quickly as possible */
@@ -293,17 +275,33 @@ dt_imageio_retval_t dt_imageio_open_j2k(dt_image_t *img, const char *filename, d
   // numcomps == 4 : rgb, alpha -> rgb. put alpha into the mix?
 
   // first try: ignore alpha.
+
+  const size_t npixels = (size_t)img->width * img->height;
+
   if(image->numcomps < 3) // 1, 2 => grayscale
   {
-    for(size_t i = 0; i < (size_t)img->width * img->height; i++)
-      buf[i * 4 + 0] = buf[i * 4 + 1] = buf[i * 4 + 2] = (float)(image->comps[0].data[i] + signed_offsets[0])
-                                                         / float_divs[0];
+#ifdef _OPENMP
+#pragma omp parallel for default(none) \
+  dt_omp_firstprivate(npixels, float_divs, signed_offsets, image) \
+  shared(buf)
+#endif
+    for(size_t index = 0; index < npixels; index++)
+      buf[index * 4] = buf[index * 4 + 1] = buf[index * 4 + 2] =
+      (float)(image->comps[0].data[index] + signed_offsets[0]) / float_divs[0];
   }
   else // 3, 4 => rgb
   {
-    for(size_t i = 0; i < (size_t)img->width * img->height; i++)
-      for(int k = 0; k < 3; k++)
-        buf[i * 4 + k] = (float)(image->comps[k].data[i] + signed_offsets[k]) / float_divs[k];
+#ifdef _OPENMP
+#pragma omp parallel for default(none) \
+  dt_omp_firstprivate(npixels, float_divs, signed_offsets, image) \
+  shared(buf)
+#endif
+    for(size_t index = 0; index < npixels; index++)
+    {
+      buf[index * 4]     = (float)(image->comps[0].data[index] + signed_offsets[0]) / float_divs[0];
+      buf[index * 4 + 1] = (float)(image->comps[1].data[index] + signed_offsets[1]) / float_divs[1];
+      buf[index * 4 + 2] = (float)(image->comps[2].data[index] + signed_offsets[2]) / float_divs[2];
+    }
   }
 
   img->buf_dsc.cst = IOP_CS_RGB; // j2k is always RGB
@@ -711,4 +709,3 @@ static void color_sycc_to_rgb(opj_image_t *img)
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
 // clang-format on
-

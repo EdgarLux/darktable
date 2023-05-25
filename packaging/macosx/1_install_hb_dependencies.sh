@@ -22,6 +22,7 @@ brew upgrade
 # Define homebrew dependencies
 hbDependencies="adwaita-icon-theme \
     cmake \
+    pkg-config \
     cmocka \
     curl \
     desktop-file-utils \
@@ -40,13 +41,13 @@ hbDependencies="adwaita-icon-theme \
     jpeg \
     jpeg-xl \
     json-glib \
+    jsonschema \
     lensfun \
     libavif \
     libheif \
     libomp \
     librsvg \
     libsecret \
-    libsoup@2 \
     little-cms2 \
     llvm \
     lua \
@@ -62,7 +63,7 @@ hbDependencies="adwaita-icon-theme \
     webp"
 
 # Dependencies that must be linked
-hbMustLink="libomp"
+hbMustLink="libomp libsoup@2"
 
 # Categorize dependency list
 standalone=
