@@ -1587,7 +1587,23 @@ static void _iop_preferences_changed(gpointer instance, gpointer self)
     dt_iop_module_so_t *mod = (dt_iop_module_so_t *)iop->data;
 
     if(mod->pref_based_presets)
+    {
+      sqlite3_stmt *stmt;
+      // first delete auto built-in presets for this module
+      DT_DEBUG_SQLITE3_PREPARE_V2
+        (dt_database_get(darktable.db),
+         "DELETE FROM data.presets"
+         " WHERE writeprotect = 1"
+         "   AND operation = ?1",
+         -1, &stmt, NULL);
+      DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 1, mod->op, -1, SQLITE_TRANSIENT);
+
+      sqlite3_step(stmt);
+      sqlite3_finalize(stmt);
+
+      // and reload whatever new presets are needed for the new workflow
       _init_presets(mod);
+    }
 
     iop = g_list_next(iop);
   }
@@ -1823,15 +1839,17 @@ dt_iop_module_t *dt_iop_commit_blend_params(dt_iop_module_t *module,
     {
       if(candidate->multi_priority == blendop_params->raster_mask_instance)
       {
-        g_hash_table_insert(candidate->raster_mask.source.users,
+        const gboolean new = g_hash_table_insert(candidate->raster_mask.source.users,
                             module,
                             GINT_TO_POINTER(blendop_params->raster_mask_id));
         module->raster_mask.sink.source = candidate;
         module->raster_mask.sink.id = blendop_params->raster_mask_id;
-        dt_print_pipe(DT_DEBUG_PIPE | DT_DEBUG_VERBOSE,
+        dt_print_pipe(DT_DEBUG_PIPE,
                       "commit_blend_params",
-                      NULL, module, NULL, NULL, "raster mask from '%s%s', %s\n",
-                      candidate->op, dt_iop_get_instance_id(candidate));
+                      NULL, module, NULL, NULL, "raster mask from '%s%s' %s\n",
+                      candidate->op, dt_iop_get_instance_id(candidate),
+                      new ? "new" : "existing");
+
         return candidate;
       }
     }
@@ -1844,7 +1862,7 @@ dt_iop_module_t *dt_iop_commit_blend_params(dt_iop_module_t *module,
   dt_iop_module_t *sink_source = module->raster_mask.sink.source;
   if(sink_source)
   {
-    dt_print_pipe(DT_DEBUG_PIPE | DT_DEBUG_VERBOSE,
+    dt_print_pipe(DT_DEBUG_PIPE,
                   "commit_blend_params",
                   NULL, module, NULL, NULL, "clear raster mask source '%s%s'\n",
                   sink_source->op, dt_iop_get_instance_id(sink_source));

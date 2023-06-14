@@ -27,7 +27,7 @@
 #include "gui/color_picker_proxy.h"
 #include "common/imagebuf.h"
 
-#define DEVELOP_BLEND_VERSION (12)
+#define DEVELOP_BLEND_VERSION (13)
 
 #ifdef __cplusplus
 extern "C" {
@@ -180,8 +180,8 @@ typedef enum dt_develop_blendif_channels_t
 /** blend parameters current version */
 typedef struct dt_develop_blend_params_t
 {
-  /** what kind of masking to use: off, non-mask (uniformly), hand-drawn mask and/or conditional mask
-   *  or raster mask */
+  /** what kind of masking to use: off, non-mask (uniformly),
+   *  hand-drawn mask and/or conditional mask or raster mask */
   uint32_t mask_mode;
   /** blending color space type */
   int32_t blend_cst;
@@ -523,10 +523,11 @@ gboolean blend_color_picker_apply(dt_iop_module_t *module,
 #ifdef HAVE_OPENCL
 /** apply blend for opencl modules*/
 gboolean dt_develop_blend_process_cl(struct dt_iop_module_t *self,
-                                struct dt_dev_pixelpipe_iop_t *piece,
-                                cl_mem dev_in, cl_mem dev_out,
-                                const struct dt_iop_roi_t *roi_in,
-                                const struct dt_iop_roi_t *roi_out);
+                                     struct dt_dev_pixelpipe_iop_t *piece,
+                                     cl_mem dev_in,
+                                     cl_mem dev_out,
+                                     const struct dt_iop_roi_t *roi_in,
+                                     const struct dt_iop_roi_t *roi_out);
 #endif
 
 #ifdef __cplusplus

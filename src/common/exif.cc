@@ -772,12 +772,17 @@ static bool _exif_read_exif_tag(Exiv2::ExifData &exifData,
 #define FIND_EXIF_TAG(key) _exif_read_exif_tag(exifData, &pos, key)
 
 // Support DefaultUserCrop, what is the safe exif tag?
+// DefaultUserCrop is known by name only from 0.27.4
 // Magic-nr taken from dng specs, the specs also say it has 4 floats (top,left,bottom,right
 // We only take them if a) we find a value != the default *and* b) data are plausible
 static bool _check_usercrop(Exiv2::ExifData &exifData, dt_image_t *img)
 {
   Exiv2::ExifData::const_iterator pos =
     exifData.findKey(Exiv2::ExifKey("Exif.SubImage1.0xc7b5"));
+  // DNGs without an embedded preview have the raw image tags under
+  // Exif.Image instead of Exif.SubImage1
+  if(pos == exifData.end())
+    pos = exifData.findKey(Exiv2::ExifKey("Exif.Image.0xc7b5"));
   if(pos != exifData.end() && pos->count() == 4 && pos->size())
   {
     dt_boundingbox_t crop;
@@ -1098,9 +1103,7 @@ static bool _exif_decode_exif_data(dt_image_t *img, Exiv2::ExifData &exifData)
       img->exif_aperture = pos->toFloat();
     }
     else if(FIND_EXIF_TAG("Exif.Photo.ApertureValue")
-            || FIND_EXIF_TAG("Exif.Image.ApertureValue")
-            || FIND_EXIF_TAG("Exif.Photo.MaxApertureValue")
-            || FIND_EXIF_TAG("Exif.Image.MaxApertureValue"))
+            || FIND_EXIF_TAG("Exif.Image.ApertureValue"))
     {
       img->exif_aperture = exp2f(pos->toFloat() / 2.0f); // convert from APEX value
     }
@@ -1680,24 +1683,22 @@ static bool _exif_decode_exif_data(dt_image_t *img, Exiv2::ExifData &exifData)
 
       if(FIND_EXIF_TAG("Exif.SubImage1.BitsPerSample"))
         bps = pos->toLong();
+      else if(FIND_EXIF_TAG("Exif.Image.BitsPerSample"))
+        bps = pos->toLong();
 
       if(FIND_EXIF_TAG("Exif.SubImage1.SamplesPerPixel"))
+        spp = pos->toLong();
+      else if(FIND_EXIF_TAG("Exif.Image.SamplesPerPixel"))
         spp = pos->toLong();
 
       if(FIND_EXIF_TAG("Exif.SubImage1.PhotometricInterpretation"))
         phi = pos->toLong();
+      else if(FIND_EXIF_TAG("Exif.Image.PhotometricInterpretation"))
+        phi = pos->toLong();
 
-      if((format == 3)
-         && (bps >= 16)
-         && (((spp == 1) && (phi == 32803))
-             || ((spp == 3) && (phi == 34892))))
-        is_hdr = TRUE;
+      if((format == 3) && (bps >= 16) && ((phi == 32803) || (phi == 34892))) is_hdr = TRUE;
 
-      if((format == 1)
-         && (bps == 16)
-         && (spp == 1)
-         && (phi == 34892))
-        is_monochrome = TRUE;
+      if((spp == 1) && (phi == 34892)) is_monochrome = TRUE;
     }
 
     if(is_hdr)
@@ -4868,31 +4869,17 @@ void dt_transform_face_tags(Exiv2::XmpData &xmp,
     std::string regionKey =
       "Xmp.mwg-rs.Regions/mwg-rs:RegionList[" + std::to_string(i + 1) + "]";
     /* for x and y, we have to retranslate them to be the center of the region. */
-#if EXIV2_TEST_VERSION(0,28,0)
-    // workaround for setValue() bug in 0.28.0
-    xmp[regionKey + "/mwg-rs:Area/stArea:x"] = std::to_string(x + w/2);
-    xmp[regionKey + "/mwg-rs:Area/stArea:y"] = std::to_string(y + h/2);
-    xmp[regionKey + "/mwg-rs:Area/stArea:h"] = std::to_string(h);
-    xmp[regionKey + "/mwg-rs:Area/stArea:w"] = std::to_string(w);
-#else
     xmp[regionKey + "/mwg-rs:Area/stArea:x"] = XmpTextValue(std::to_string(x + w/2));
     xmp[regionKey + "/mwg-rs:Area/stArea:y"] = XmpTextValue(std::to_string(y + h/2));
     xmp[regionKey + "/mwg-rs:Area/stArea:h"] = XmpTextValue(std::to_string(h));
     xmp[regionKey + "/mwg-rs:Area/stArea:w"] = XmpTextValue(std::to_string(w));
-#endif
   }
 
   /* Finally, overwrite the dimensions with the image dimensions */
-#if EXIV2_TEST_VERSION(0,28,0)
-  // workaround for setValue() bug in 0.28.0
-  xmp["Xmp.mwg-rs.Regions/mwg-rs:AppliedToDimensions/stDim:h"] = std::to_string(finalHeight);
-  xmp["Xmp.mwg-rs.Regions/mwg-rs:AppliedToDimensions/stDim:w"] = std::to_string(finalWidth);
-#else
   xmp["Xmp.mwg-rs.Regions/mwg-rs:AppliedToDimensions/stDim:h"] =
     XmpTextValue(std::to_string(finalHeight));
   xmp["Xmp.mwg-rs.Regions/mwg-rs:AppliedToDimensions/stDim:w"] =
     XmpTextValue(std::to_string(finalWidth));
-#endif
 }
 
 

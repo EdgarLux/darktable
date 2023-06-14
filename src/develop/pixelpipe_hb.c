@@ -514,13 +514,13 @@ void dt_dev_pixelpipe_synch(dt_dev_pixelpipe_t *pipe,
         dt_print_pipe(DT_DEBUG_PIPE, "pixelpipe synch problem",
           pipe, piece->module, NULL, NULL,
           "piece enabling mismatch for image %i, piece hash%22" PRIu64 ", \n",
-          imgid, piece->hash); 
+          imgid, piece->hash);
       }
       dt_iop_commit_params(hist->module, hist->params, hist->blend_params, pipe, piece);
 
       dt_print_pipe(DT_DEBUG_PARAMS, "committed params",
           pipe, piece->module, NULL, NULL,
-          "piece hash%22" PRIu64 ", \n", piece->hash); 
+          "piece hash%22" PRIu64 ", \n", piece->hash);
 
       if(piece->blendop_data)
       {
@@ -2141,7 +2141,8 @@ static gboolean _dev_pixelpipe_process_rec(
         */
         important_cl =
            (pipe->mask_display == DT_DEV_PIXELPIPE_DISPLAY_NONE)
-           && (pipe->type == DT_DEV_PIXELPIPE_FULL) // ignored in fast mode
+           && ((pipe->type == DT_DEV_PIXELPIPE_FULL) // ignored in fast mode
+              || (pipe->type == DT_DEV_PIXELPIPE_PREVIEW))
            && darktable.develop->gui_attached
            && ((module == darktable.develop->gui_module)
                 || module->iopcache_hint
@@ -2287,7 +2288,7 @@ static gboolean _dev_pixelpipe_process_rec(
 
     /* input is still only on GPU? Let's invalidate CPU input buffer then */
     if(valid_input_on_gpu_only)
-      dt_dev_pixelpipe_invalidate_cacheline(pipe, input, TRUE);
+      dt_dev_pixelpipe_invalidate_cacheline(pipe, input);
   }
   else
   {
@@ -2307,7 +2308,7 @@ static gboolean _dev_pixelpipe_process_rec(
 #endif // HAVE_OPENCL
 
   if(pipe->mask_display != DT_DEV_PIXELPIPE_DISPLAY_NONE)
-    dt_dev_pixelpipe_invalidate_cacheline(pipe, *output, FALSE);
+    dt_dev_pixelpipe_invalidate_cacheline(pipe, *output);
 
   char histogram_log[32] = "";
   if(!(pixelpipe_flow & PIXELPIPE_FLOW_HISTOGRAM_NONE))
@@ -2344,9 +2345,9 @@ static gboolean _dev_pixelpipe_process_rec(
   {
     // Possibly give the input buffer of the current module more weight
     // as the user is likely to change that one soon (again), so keep it in cache.
-    // Also do this if the clbuffer has been actively written 
+    // Also do this if the clbuffer has been actively written
     const gboolean has_focus = (module == darktable.develop->gui_module);
-    if((pipe->type & DT_DEV_PIXELPIPE_FULL)
+    if((pipe->type & (DT_DEV_PIXELPIPE_FULL | DT_DEV_PIXELPIPE_PREVIEW))
         && (pipe->mask_display == DT_DEV_PIXELPIPE_DISPLAY_NONE)
         && (has_focus || module->iopcache_hint || important_cl))
     {
@@ -2365,7 +2366,7 @@ static gboolean _dev_pixelpipe_process_rec(
     {
       dt_print_pipe(DT_DEBUG_PIPE, "internal histogram", pipe, module, &roi_in, roi_out, "\n");
       pipe->nocache = TRUE;
-      dt_dev_pixelpipe_invalidate_cacheline(pipe, *output, FALSE);
+      dt_dev_pixelpipe_invalidate_cacheline(pipe, *output);
     }
   }
 
@@ -2838,12 +2839,15 @@ float *dt_dev_get_raster_mask(const struct dt_dev_pixelpipe_iop_t *piece,
   float *raster_mask = NULL;
 
   GList *source_iter;
-  for(source_iter = piece->pipe->nodes; source_iter; source_iter = g_list_next(source_iter))
+  for(source_iter = piece->pipe->nodes;
+      source_iter;
+      source_iter = g_list_next(source_iter))
   {
     const dt_dev_pixelpipe_iop_t *candidate = (dt_dev_pixelpipe_iop_t *)source_iter->data;
 
-    if((candidate->module == target_module)
-       || (candidate->module->iop_order >= target_module->iop_order))
+    if(target_module
+       && ((candidate->module == target_module)
+           || (candidate->module->iop_order >= target_module->iop_order)))
     {
       dt_control_log
         (_("module '%s' can't get raster mask from module\n"
@@ -2871,9 +2875,9 @@ float *dt_dev_get_raster_mask(const struct dt_dev_pixelpipe_iop_t *piece,
       (dt_dev_pixelpipe_iop_t *)source_iter->data;
 
     const gboolean source_enabled = source_piece && source_piece->enabled;
-/* there might be stale masks from disabled modules left over.
-   don't use those!
-*/
+    /* there might be stale masks from disabled modules left over.
+       don't use those!
+    */
     if(!source_enabled)
     {
       dt_print_pipe(DT_DEBUG_PIPE,
@@ -2957,7 +2961,8 @@ float *dt_dev_get_raster_mask(const struct dt_dev_pixelpipe_iop_t *piece,
             }
           }
 
-          if(module->module == target_module)
+          if(target_module
+             && module->module == target_module)
             break;
         }
       }
@@ -2965,10 +2970,10 @@ float *dt_dev_get_raster_mask(const struct dt_dev_pixelpipe_iop_t *piece,
   }
 
   dt_print_pipe(DT_DEBUG_PIPE,
-      "got raster mask", piece->pipe, target_module, NULL, NULL,
-      "from module `%s%s' %s\n",
-      raster_mask_source->op, dt_iop_get_instance_id(raster_mask_source),
-      *free_mask ? "distorted" : "");
+                "got raster mask", piece->pipe, target_module, NULL, NULL,
+                "from module `%s%s' %s\n",
+                raster_mask_source->op, dt_iop_get_instance_id(raster_mask_source),
+                *free_mask ? "distorted" : "");
 
   return raster_mask;
 }
