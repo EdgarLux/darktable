@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: darktable 4.4\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2023-05-31 13:24+0200\n"
-"PO-Revision-Date: 2023-06-14 00:50-0600\n"
+"PO-Revision-Date: 2023-06-14 01:54-0600\n"
 "Last-Translator: Edgar Lux <edgarlux@disroot.org>\n"
 "Language-Team: Edgar Lux\n"
 "Language: es_ES\n"
@@ -1563,15 +1563,6 @@ msgid "enable disk backend for thumbnail cache"
 msgstr "Almacenar en disco una 2ª caché de miniaturas"
 
 #: ../build/bin/preferences_gen.h:5858
-#, fuzzy
-#| msgid ""
-#| "if enabled, write thumbnails to disk (.cache/darktable/) when evicted "
-#| "from the memory cache. note that this can take a lot of memory (several "
-#| "gigabytes for 20k images) and will never delete cached thumbnails again. "
-#| "it's safe though to delete these manually, if you want. light table "
-#| "performance will be increased greatly when browsing a lot. to generate "
-#| "all thumbnails of your entire collection offline, run 'darktable-generate-"
-#| "cache'."
 msgid ""
 "if enabled, write thumbnails to disk (.cache/darktable/) when evicted from "
 "the memory cache.\n"
@@ -1583,26 +1574,20 @@ msgid ""
 "generate-cache'."
 msgstr ""
 "Si se activa, guarda las miniaturas en disco (.cache/darktable/) cuando se "
-"eliminan de la memoria en caché. Tome en cuenta que esto puede consumir "
-"mucha memoria (varios gigabytes por imágenes de 20k) y nunca volverá a "
-"eliminar las miniaturas almacenadas en caché. Sin embargo, es seguro "
-"eliminarlas manualmente si lo desea. El desempeño de la mesa de luz mejorará "
-"en gran medida cuando se navega mucho. Para generar todas las miniaturas de "
-"su colección fuera de línea, ejecute \"darktable-generate-cache\"."
+"eliminan de la memoria en caché.\n"
+"Tome en cuenta que esto puede consumir mucha memoria (varios gigabytes por "
+"imágenes de 20k), pero no tendrá que eliminar las miniaturas almacenadas en "
+"caché.\n"
+"Sin embargo, es seguro eliminarlas manualmente si lo desea. El desempeño de "
+"la mesa de luz mejorará en gran medida cuando se navega mucho.\n"
+"Para generar todas las miniaturas de su colección fuera de línea, ejecute "
+"\"darktable-generate-cache\"."
 
 #: ../build/bin/preferences_gen.h:5880
 msgid "enable disk backend for full preview cache"
 msgstr "Almacenar en disco una caché de las vistas previas completas"
 
 #: ../build/bin/preferences_gen.h:5894
-#, fuzzy
-#| msgid ""
-#| "if enabled, write full preview to disk (.cache/darktable/) when evicted "
-#| "from the memory cache. note that this can take a lot of memory (several "
-#| "gigabytes for 20k images) and will never delete cached thumbnails again. "
-#| "it's safe though to delete these manually, if you want. light table "
-#| "performance will be increased greatly when zooming image in full preview "
-#| "mode."
 msgid ""
 "if enabled, write full preview to disk (.cache/darktable/) when evicted from "
 "the memory cache.\n"
@@ -1613,27 +1598,26 @@ msgid ""
 "preview mode."
 msgstr ""
 "Si se habilita, guarda las miniaturas en el disco (.cache/darktable/) cuando "
-"se eliminan de la memoria en caché. Tome en cuenta que esto puede consumir "
-"mucha memoria (varios gigabytes por imágenes de 20k) y no volverá a eliminar "
-"las miniaturas almacenadas en caché. Sin embargo, es seguro eliminarlas "
-"manualmente. El rendimiento de la mesa de luz aumentará en gran medida al "
-"hacer zoom en la imagen en modo de vista previa completa."
+"se eliminan de la memoria en caché.\n"
+"Tome en cuenta que esto puede consumir mucha memoria (varios gigabytes por "
+"imágenes de 20k), pero no tendrá que eliminar las miniaturas almacenadas en "
+"caché.\n"
+"Sin embargo, es seguro eliminarlas manualmente. El rendimiento de la mesa de "
+"luz aumentará en gran medida al hacer zoom en la imagen en modo de vista "
+"previa completa."
 
 #: ../build/bin/preferences_gen.h:5916
 msgid "activate OpenCL support"
 msgstr "Activar el soporte de OpenCL"
 
 #: ../build/bin/preferences_gen.h:5930
-#, fuzzy
-#| msgid ""
-#| "if found, use OpenCL runtime on your system for improved processing "
-#| "speed. can be switched on and off at any time."
 msgid ""
 "if found, use OpenCL runtime on your system to speed up processing.\n"
 "can be switched on and off at any time."
 msgstr ""
 "Use OpenCL en su sistema para mejorar la velocidad de procesado, si está "
-"disponible. Puede apagarlo en cualquier momento."
+"disponible.\n"
+"Puede apagarlo en cualquier momento."
 
 #: ../build/bin/preferences_gen.h:5931 ../build/bin/preferences_gen.h:6002
 #: ../build/bin/preferences_gen.h:6078 ../build/bin/preferences_gen.h:7397
@@ -4949,40 +4933,28 @@ msgid "advanced options"
 msgstr "Opciones básicas"
 
 #: ../build/lib/darktable/plugins/introspection_watermark.c:331
-#, fuzzy
-#| msgid "image id"
 msgid "image width"
-msgstr "imagen"
+msgstr "ancho de imagen"
 
 #: ../build/lib/darktable/plugins/introspection_watermark.c:332
-#, fuzzy
-#| msgid "image hint"
 msgid "image height"
-msgstr "indicio de imagen"
+msgstr "altura de imagen"
 
 #: ../build/lib/darktable/plugins/introspection_watermark.c:333
-#, fuzzy
-#| msgid "larger border"
 msgid "larger image border"
 msgstr "borde largo"
 
 #: ../build/lib/darktable/plugins/introspection_watermark.c:334
-#, fuzzy
-#| msgid "smaller border"
 msgid "smaller image border"
 msgstr "borde corto"
 
 #: ../build/lib/darktable/plugins/introspection_watermark.c:338
-#, fuzzy
-#| msgid "marker"
 msgid "marker width"
-msgstr "marca"
+msgstr "ancho de la marca"
 
 #: ../build/lib/darktable/plugins/introspection_watermark.c:339
-#, fuzzy
-#| msgid "export height"
 msgid "marker height"
-msgstr "alto (exportado)"
+msgstr "alto de la marca"
 
 #: ../build/lib/darktable/plugins/lighttable/tools/darktable_authors.h:6
 msgid "developers"
@@ -10077,10 +10049,8 @@ msgid "remove the selected shortcut?"
 msgstr "¿Confirma la eliminación del atajo?"
 
 #: ../src/gui/accelerators.c:1938
-#, fuzzy
-#| msgid "commit"
 msgid "command"
-msgstr "aceptar"
+msgstr "comando"
 
 #: ../src/gui/accelerators.c:1939
 msgid "preset"
@@ -10254,10 +10224,8 @@ msgstr ""
 "cuando se utiliza en combinación con un comando básico"
 
 #: ../src/gui/accelerators.c:2725
-#, fuzzy
-#| msgid "export shortcuts"
 msgid "open help page for shortcuts"
-msgstr "Exportar atajos de teclado"
+msgstr "Abrir la página de ayuda para atajos de teclado"
 
 #: ../src/gui/accelerators.c:2730
 msgid "restore..."
@@ -13171,10 +13139,8 @@ msgid "linear, RGB"
 msgstr "Lineal, RGB"
 
 #: ../src/iop/bilateral.cc:136
-#, fuzzy
-#| msgid "image forward"
 msgid "image too large"
-msgstr "imagen siguiente"
+msgstr "Imagen demasiado grande"
 
 #: ../src/iop/bilateral.cc:137
 #, fuzzy
@@ -14008,11 +13974,7 @@ msgstr ""
 
 #. Write report in GUI
 #: ../src/iop/channelmixerrgb.c:4126
-#, fuzzy, c-format
-#| msgid ""
-#| "L: \t%.1f %%\n"
-#| "h: \t%.1f °\n"
-#| "c: \t%.1f"
+#, c-format
 msgid ""
 "L: \t%.1f %%\n"
 "h: \t%.1f °\n"
@@ -14171,8 +14133,6 @@ msgstr ""
 "c: \tno corresponde"
 
 #: ../src/iop/channelmixerrgb.c:4535 ../src/iop/exposure.c:1218
-#, fuzzy
-#| msgid "these LCh coordinates are computed from CIE Lab 1976 coordinates"
 msgid "these LCh coordinates are computed from CIE Lab 1976 coordinates"
 msgstr ""
 "Estas coordenadas LCh se calculan a partir de las coordenadas CIE Lab 1976"
@@ -14593,24 +14553,15 @@ msgid "<b>move control point</b>: drag"
 msgstr "<b>Mover el punto de control</b>: Arrastre"
 
 #: ../src/iop/clipping.c:3071
-#, fuzzy
-#| msgid "<b>move line</b>: drag, <b>toggle symmetry</b>: click <tt>ꝏ</tt>"
 msgid "<b>move line</b>: drag, <b>toggle symmetry</b>: click ꝏ"
-msgstr ""
-"<b>Mover línea</b>: Arrastre, <b>Alternar simetría</b>: Pulsar <tt>ꝏ</tt>"
+msgstr "<b>Mover línea</b>: Arrastre, <b>Alternar simetría</b>: Pulsar ꝏ"
 
 #: ../src/iop/clipping.c:3076
-#, fuzzy
-#| msgid ""
-#| "<b>apply</b>: click <tt>ok</tt>, <b>toggle symmetry</b>: click <tt>ꝏ</"
-#| "tt>\n"
-#| "<b>move line/control point</b>: drag"
 msgid ""
 "<b>apply</b>: click <tt>ok</tt>, <b>toggle symmetry</b>: click ꝏ\n"
 "<b>move line/control point</b>: drag"
 msgstr ""
-"<b>Aplicar</b>: Pulsar <tt>OK</tt>, <b>Alternar simetría</b>: Pulsar <tt>ꝏ</"
-"tt>\n"
+"<b>Aplicar</b>: Pulsar <tt>OK</tt>, <b>Alternar simetría</b>: Pulsar ꝏ\n"
 "<b>Mover línea / punto de control</b>: Arrastre"
 
 #: ../src/iop/clipping.c:3083
@@ -14634,14 +14585,10 @@ msgid "[%s on borders] crop keeping ratio"
 msgstr "[%s en los bordes] recortar manteniendo la proporción"
 
 #: ../src/iop/colisa.c:79
-#, fuzzy
-#| msgid ""
-#| "this module is deprecated. please use the color calibration module "
-#| "instead."
 msgid "this module is deprecated. please use colorbalance RGB module instead."
 msgstr ""
 "Este módulo ha quedado sin soporte. Se recomienda sustituirlo por el módulo "
-"calibración de color."
+"balance de color RGB."
 
 #: ../src/iop/colisa.c:84
 msgid "contrast brightness saturation"
@@ -15192,8 +15139,6 @@ msgid "it8 skin tones"
 msgstr "it8 tonos de piel"
 
 #: ../src/iop/colorchecker.c:310
-#, fuzzy
-#| msgid "helmholtz/kohlrausch monochrome"
 msgid "Helmholtz/Kohlrausch monochrome"
 msgstr "Monocromático Helmholtz-Kohlrausch"
 
@@ -15425,10 +15370,8 @@ msgstr ""
 "Rec. 709"
 
 #: ../src/iop/colorin.c:1844
-#, fuzzy
-#| msgid "embedded ICC profile"
 msgid "external ICC profiles"
-msgstr "perfil ICC incrustado"
+msgstr "Perfiles ICC externos"
 
 #: ../src/iop/colorin.c:1889
 #, c-format
@@ -15601,10 +15544,8 @@ msgid "absolute colorimetric"
 msgstr "colorimétrico absoluto"
 
 #: ../src/iop/colorout.c:893
-#, fuzzy
-#| msgid "export profile"
 msgid "export ICC profiles"
-msgstr "perfil de exportación"
+msgstr "Exportar perfiles ICC"
 
 #: ../src/iop/colorreconstruction.c:129
 msgid "color reconstruction"
@@ -15694,12 +15635,9 @@ msgid "color zones"
 msgstr "zonas de color"
 
 #: ../src/iop/colorzones.c:144
-#, fuzzy
-#| msgid "selectively shift hues, saturation and brightness of pixels"
 msgid "selectively shift hues, chroma and lightness of pixels"
 msgstr ""
-"Cambia selectivamente las tonalidades, la saturación y el brillo de los "
-"pixeles"
+"Cambia selectivamente las tonalidades, el croma y el brillo de los pixeles"
 
 #: ../src/iop/colorzones.c:606
 msgid "B&W: with red"
@@ -16257,16 +16195,12 @@ msgid "denoise: coarse"
 msgstr "reducción de ruido: intenso"
 
 #: ../src/iop/diffuse.c:446
-#, fuzzy
-#| msgid "sharpen demosaicing (no AA filter)"
 msgid "sharpen demosaicing: no AA filter"
-msgstr "nitidez con interpolación cromática (sin filtro de suavizado)"
+msgstr "nitidez con interpolación cromática: sin filtro antiplegamiento"
 
 #: ../src/iop/diffuse.c:472
-#, fuzzy
-#| msgid "sharpen demosaicing (AA filter)"
 msgid "sharpen demosaicing: AA filter"
-msgstr "nitidez con interpolación cromática (filtro de suavizado)"
+msgstr "nitidez con interpolación cromática: con filtro antiplegamiento"
 
 #: ../src/iop/diffuse.c:499
 msgid "simulate watercolor"
@@ -16282,22 +16216,16 @@ msgstr "reconstrucción de luces"
 
 #. fast presets for slow hardware
 #: ../src/iop/diffuse.c:603
-#, fuzzy
-#| msgid "sharpness"
 msgid "sharpness: fast"
-msgstr "enfoque"
+msgstr "enfoque: acelerado"
 
 #: ../src/iop/diffuse.c:655
-#, fuzzy
-#| msgid "sharpen (strong)"
 msgid "sharpness: strong"
-msgstr "enfoque (marcado)"
+msgstr "enfoque: marcado"
 
 #: ../src/iop/diffuse.c:680
-#, fuzzy
-#| msgid "local contrast mask"
 msgid "local contrast: fast"
-msgstr "máscara de contraste local"
+msgstr "contraste local: acelerado"
 
 #: ../src/iop/diffuse.c:1391 ../src/iop/diffuse.c:1666
 msgid "diffuse/sharpen failed to allocate memory, check your RAM settings"
@@ -16572,8 +16500,6 @@ msgstr ""
 "posterización indeseados al exportar en formato JPEG"
 
 #: ../src/iop/dither.c:119
-#, fuzzy
-#| msgid "corrective and creative"
 msgid "corrective, artistic"
 msgstr "Correctivo y creativo"
 
@@ -17426,9 +17352,8 @@ msgstr ""
 "Aumentar si a los tonos medios les falta saturación."
 
 #: ../src/iop/filmicrgb.c:4743
-#, fuzzy
 msgid "highlights saturation mix"
-msgstr "saturación en las luces"
+msgstr "combinación de saturación en las luces"
 
 #: ../src/iop/filmicrgb.c:4744
 msgid ""
